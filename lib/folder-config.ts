@@ -34,7 +34,7 @@ import type { AudioDirectory } from "./google-drive"
 // Test directories (current active configuration)
 export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
   {
-    name: "IDs",
+    name: "IDs-",
     driveId: "1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_",
     localPath: "T:\\REGFM RadioBOSS\\IDs\\{audio_filename}",
   },
