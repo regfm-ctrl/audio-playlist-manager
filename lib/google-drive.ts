@@ -16,55 +16,8 @@ export interface AudioDirectory {
   localPath: string
 }
 
-// // Production directories
-// export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
-//   {
-//     name: "CSAs - Audio",
-//     driveId: "1CrQC5MBpF_ryPAvz8EaPmBTnp1mctW_B", // Will be configured by user
-//     localPath: "T:\\REGFM RadioBOSS\\CSAs Audio\\{audio_filename}",
-//   },
-//   {
-//     name: "Promos - Audio",
-//     driveId: "1mbx5urrrdPcRF27rDNm88yqZaPtQ9v9d", // Will be configured by user
-//     localPath: "T:\\REGFM RadioBOSS\\Promos\\{audio_filename}",
-//   },
-//   {
-//     name: "Sponsors - Audio",
-//     driveId: "1hidm0iLokkG92VN_PMxcm56FikqJOahl", // Will be configured by user
-//     localPath: "T:\\REGFM RadioBOSS\\Sponsors\\{audio_filename}",
-//   },
-// ]
-
-// // Production playlist folder
-// export const PLAYLIST_FOLDER_ID = "1M4LWyru1Npx-hxdssgPZsQl8gCLNScBx"
-
-
-// Test directories
-export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
-  {
-    name: "IDs",
-    driveId: "1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_", // Will be configured by user
-    localPath: "T:\\REGFM RadioBOSS\\IDs\\{audio_filename}",
-  },
-  {
-    name: "CSAs - Audio",
-    driveId: "14Oy00clKujI6ldWv7NW35DybZVBN_MPm", // Will be configured by user
-    localPath: "T:\\REGFM RadioBOSS\\CSAs Audio\\{audio_filename}",
-  },
-  {
-    name: "Promos - Audio",
-    driveId: "1PzkL-eDZVPU-g3D7c5IUY93g14-SV3l6", // Will be configured by user
-    localPath: "T:\\REGFM RadioBOSS\\Promos\\{audio_filename}",
-  },
-  {
-    name: "Sponsors - Audio",
-    driveId: "1B_LOIo2jl_-P-1UrWoRZ4W688_lk0NQC", // Will be configured by user
-    localPath: "T:\\REGFM RadioBOSS\\Sponsors\\{audio_filename}",
-  },
-]
-
-// Test playlist folder
-export const PLAYLIST_FOLDER_ID = "1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b"
+// Import folder configurations from separate config file
+export { DEFAULT_AUDIO_DIRECTORIES, PLAYLIST_FOLDER_ID } from "./folder-config"
 
 
 // Debug helper for Google OAuth issues
