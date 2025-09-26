@@ -628,6 +628,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 {playlistItems.length > 0 && (
                   <Badge variant="secondary" className="ml-1">{playlistItems.length} audio added</Badge>
                 )}
+                {selectedPlaylist && (
+                  <span className="text-sm text-foreground ml-2">
+                    <span className="font-bold">Playlist:</span> <span className="font-normal">{removeFileExtension(selectedPlaylist.name)}</span>
+                  </span>
+                )}
               </CardTitle>
             </div>
             </CardHeader>
@@ -649,11 +654,6 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                           <AlertDescription>{saveError}</AlertDescription>
                         </Alert>
                       )}
-                      <div className="mb-3">
-                        <span className="text-sm text-foreground">
-                          <span className="font-bold">Playlist:</span> {removeFileExtension(selectedPlaylist.name)}
-                        </span>
-                      </div>
                       
                       {/* Show only audio file list without raw text */}
                       {playlistItems.length === 0 ? (
