@@ -109,6 +109,70 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   // Schedule dialog state
   const [scheduleFile, setScheduleFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
   const [expiryFile, setExpiryFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
+  const [removeAllFile, setRemoveAllFile] = useState<{ id: string; name: string; localPath: string } | null>(null)
+  const [removeAllLoading, setRemoveAllLoading] = useState(false)
+  const [removeAllMsg, setRemoveAllMsg] = useState('')
+
+  async function removeFromAllPlaylists() {
+    if (!removeAllFile) return
+    setRemoveAllLoading(true)
+    setRemoveAllMsg('')
+    try {
+      // Get the Google token
+      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
+      const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
+      if (!token) { setRemoveAllMsg('❌ Google Drive not connected'); return }
+
+      // List all playlists
+      const listRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (!listRes.ok) { setRemoveAllMsg('❌ Failed to list playlists'); return }
+      const { files } = await listRes.json()
+
+      let removedFrom = 0
+      for (const playlist of files) {
+        try {
+          const fileRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${playlist.id}?alt=media`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          if (!fileRes.ok) continue
+          const text = await fileRes.text()
+          const lines = text.split('\n').filter((l: string) => l.trim())
+          let containerName = ''
+          let paths: string[] = []
+          for (const line of lines) {
+            if (line.startsWith('Container=')) {
+              const match = line.match(/Container=<([^>]+)>(.+)/)
+              if (match) {
+                containerName = decodeURIComponent(match[1].replace(/\+/g, ' '))
+                paths = match[2].split('|').filter((p: string) => p.trim())
+              }
+            }
+          }
+          if (!paths.includes(removeAllFile.localPath)) continue
+          const updated = paths.filter((p: string) => p !== removeAllFile.localPath)
+          const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+')
+          const newContent = updated.length > 0
+            ? `#EXTM3U\nContainer=<${encodedName}>${updated.join('|')}\n`
+            : `#EXTM3U\n`
+          const saveRes = await fetch(
+            `https://www.googleapis.com/upload/drive/v3/files/${playlist.id}?uploadType=media&supportsAllDrives=true`,
+            { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: newContent }
+          )
+          if (saveRes.ok) removedFrom++
+        } catch {}
+      }
+      setRemoveAllMsg(`✅ Removed from ${removedFrom} playlist${removedFrom !== 1 ? 's' : ''}`)
+      setTimeout(() => { setRemoveAllFile(null); setRemoveAllMsg('') }, 2000)
+    } catch (err) {
+      setRemoveAllMsg('❌ Failed to remove from playlists')
+    } finally {
+      setRemoveAllLoading(false)
+    }
+  }
   const [expiryForm, setExpiryForm] = useState({ expires_at: '', expires_time: '23:59' })
   const [expirySaving, setExpirySaving] = useState(false)
   const [expiryMsg, setExpiryMsg] = useState('')
@@ -1015,6 +1079,17 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                         >
                           <AlarmClock className="h-3.5 w-3.5 text-gray-400 hover:text-gray-700" />
                         </button>
+                        {/* Remove from all playlists button */}
+                        <button
+                          onClick={() => setRemoveAllFile({
+                            id: file.id, name: file.name,
+                            localPath: buildPathForFile(file, selectedDirectory),
+                          })}
+                          className="p-1 rounded hover:bg-red-100 transition-colors flex-shrink-0"
+                          title="Remove from all playlists"
+                        >
+                          <X className="h-3.5 w-3.5 text-red-400 hover:text-red-600" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1157,7 +1232,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       {/* Schedule Dialog */}
       {scheduleFile && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-semibold text-lg">Schedule: {scheduleFile.name.replace(/\.[^/.]+$/, '')}</h2>
               <button onClick={() => setScheduleFile(null)} className="text-gray-400 hover:text-gray-600">
@@ -1195,7 +1270,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   onChange={e => setPlaylistSearchSchedule(e.target.value)}
                 />
                 {/* Checkbox list */}
-                <div className="border border-gray-200 rounded-lg overflow-y-auto" style={{ maxHeight: '180px' }}>
+                <div className="border border-gray-200 rounded-lg overflow-y-auto" style={{ maxHeight: '320px' }}>
                   {playlists
                     .filter(p => p.name.toLowerCase().includes(playlistSearchSchedule.toLowerCase()))
                     .map(p => {
@@ -1318,38 +1393,6 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 />
               </div>
 
-              {/* Expiry date/time */}
-              <div className="border-t border-gray-100 pt-4">
-                <label className="text-sm font-medium text-gray-700 block mb-1">
-                  Expiry date <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <p className="text-xs text-gray-400 mb-2">After this date the schedule will be automatically disabled.</p>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                    value={scheduleForm.expires_at}
-                    onChange={e => setScheduleForm(f => ({ ...f, expires_at: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                  <input
-                    type="time"
-                    className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                    value={scheduleForm.expires_time}
-                    onChange={e => setScheduleForm(f => ({ ...f, expires_time: e.target.value }))}
-                    disabled={!scheduleForm.expires_at}
-                  />
-                </div>
-                {scheduleForm.expires_at && (
-                  <button
-                    onClick={() => setScheduleForm(f => ({ ...f, expires_at: '', expires_time: '23:59' }))}
-                    className="text-xs text-red-400 hover:underline mt-1"
-                  >
-                    Clear expiry
-                  </button>
-                )}
-              </div>
-
               {scheduleMsg && (
                 <p className="text-sm text-center">{scheduleMsg}</p>
               )}
@@ -1414,6 +1457,39 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 className="w-full bg-orange-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
               >
                 {expirySaving ? 'Saving...' : 'Set Expiry'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Remove from all playlists confirm dialog */}
+      {removeAllFile && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-semibold text-lg text-red-600">Remove from All Playlists</h2>
+              <button onClick={() => setRemoveAllFile(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              Are you sure you want to remove <span className="font-semibold">{removeAllFile.name.replace(/\.[^/.]+$/, '')}</span> from <span className="font-semibold">all playlists</span>?
+            </p>
+            <p className="text-xs text-gray-400 mb-5">This will scan every playlist and remove this file wherever it appears. This cannot be undone.</p>
+            {removeAllMsg && <p className="text-sm text-center mb-3">{removeAllMsg}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRemoveAllFile(null)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={removeFromAllPlaylists}
+                disabled={removeAllLoading}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {removeAllLoading ? 'Removing...' : 'Yes, Remove'}
               </button>
             </div>
           </div>
