@@ -164,11 +164,13 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
   const [removeAllLoading, setRemoveAllLoading] = useState(false)
   const [removeAllMsg, setRemoveAllMsg] = useState('')
+  const [removeAllProgress, setRemoveAllProgress] = useState({ scanned: 0, total: 0, phase: '' })
 
   async function removeFromAllPlaylists() {
     if (!removeAllFile) return
     setRemoveAllLoading(true)
-    setRemoveAllMsg('Scanning playlists...')
+    setRemoveAllMsg('')
+    setRemoveAllProgress({ scanned: 0, total: 0, phase: 'scanning' })
     try {
       const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
       const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
@@ -186,7 +188,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       const BATCH = 10 // fetch 10 playlists at a time
 
       // Step 1: Fetch all playlist contents in parallel batches
-      setRemoveAllMsg(`Scanning ${files.length} playlists...`)
+      setRemoveAllProgress({ scanned: 0, total: files.length, phase: 'scanning' })
       const toUpdate: { id: string; name: string; containerName: string; updatedPaths: string[] }[] = []
 
       for (let i = 0; i < files.length; i += BATCH) {
@@ -220,7 +222,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             })
           } catch {}
         }))
-        setRemoveAllMsg(`Scanning... ${Math.min(i + BATCH, files.length)} / ${files.length}`)
+        setRemoveAllProgress(prev => ({ ...prev, scanned: Math.min(i + BATCH, files.length) }))
       }
 
       if (toUpdate.length === 0) {
@@ -230,7 +232,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       }
 
       // Step 2: Save only the playlists that contained the file, in parallel batches
-      setRemoveAllMsg(`Removing from ${toUpdate.length} playlist${toUpdate.length !== 1 ? 's' : ''}...`)
+      setRemoveAllProgress({ scanned: 0, total: toUpdate.length, phase: 'removing' })
       let saved = 0
 
       for (let i = 0; i < toUpdate.length; i += BATCH) {
@@ -1630,26 +1632,54 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-2">
-              Are you sure you want to remove <span className="font-semibold">{removeAllFile.name.replace(/\.[^/.]+$/, '')}</span> from <span className="font-semibold">all playlists</span>?
-            </p>
-            <p className="text-xs text-gray-400 mb-5">This will scan every playlist and remove this file wherever it appears. This cannot be undone.</p>
-            {removeAllMsg && <p className="text-sm text-center mb-3">{removeAllMsg}</p>}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setRemoveAllFile(null)}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={removeFromAllPlaylists}
-                disabled={removeAllLoading}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {removeAllLoading ? 'Removing...' : 'Yes, Remove'}
-              </button>
-            </div>
+            {!removeAllLoading && !removeAllMsg ? (
+              <>
+                <p className="text-sm text-gray-600 mb-2">
+                  Are you sure you want to remove <span className="font-semibold">{removeAllFile.name.replace(/\.[^/.]+$/, '')}</span> from <span className="font-semibold">all playlists</span>?
+                </p>
+                <p className="text-xs text-gray-400 mb-5">This will scan every playlist and remove this file wherever it appears. This cannot be undone.</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setRemoveAllFile(null)}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={removeFromAllPlaylists}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700"
+                  >
+                    Yes, Remove
+                  </button>
+                </div>
+              </>
+            ) : removeAllMsg ? (
+              <div className="text-center py-2">
+                <p className="text-sm mb-4">{removeAllMsg}</p>
+                <button
+                  onClick={() => { setRemoveAllFile(null); setRemoveAllMsg('') }}
+                  className="px-6 py-2 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div className="py-2">
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                  <span>{removeAllProgress.phase === 'scanning' ? 'Scanning playlists...' : 'Removing from playlists...'}</span>
+                  <span className="font-medium">{removeAllProgress.scanned} / {removeAllProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className={`h-2.5 rounded-full transition-all duration-300 ${removeAllProgress.phase === 'scanning' ? 'bg-blue-500' : 'bg-red-500'}`}
+                    style={{ width: removeAllProgress.total > 0 ? `${(removeAllProgress.scanned / removeAllProgress.total) * 100}%` : '0%' }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-2 text-center">
+                  {removeAllProgress.phase === 'scanning' ? 'Scanning for matches...' : 'Saving changes...'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
