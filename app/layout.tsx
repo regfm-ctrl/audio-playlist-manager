@@ -21,8 +21,8 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: "Audio Playlist Manager",
-  description: "Manage your Google Drive audio playlists with ease",
+  title: "REGFM - RadioBOSS Sponsorship Scheduler",
+  description: "REGFM RadioBOSS Sponsorship Scheduler",
   generator: "v0.app",
   icons: {
     icon: "/favicon.png",

@@ -868,7 +868,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Headphones className="h-8 w-8 text-primary" />
-                <h1 className="font-serif text-2xl font-bold text-foreground">Audio Playlist Manager</h1>
+                <h1 className="font-serif text-2xl font-bold text-foreground">REGFM - RadioBOSS Sponsorship Scheduler</h1>
               </div>
               <div className="flex items-center gap-3">
                 <a
@@ -1136,7 +1136,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="font-serif flex items-center gap-2">
-                Playlist File Content
+                Sponsorship Break Content
                 {playlistItems.length > 0 && (
                   <Badge variant="secondary" className="ml-1">{playlistItems.length} audio added</Badge>
                 )}
