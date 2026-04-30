@@ -195,9 +195,9 @@ export default function SchedulesPage() {
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        s.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        s.is_active ? 'bg-green-100 text-green-700' : s.expires_at && new Date(s.expires_at) < new Date() ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
                       }`}>
-                        {s.is_active ? 'Active' : 'Paused'}
+                        {s.is_active ? 'Active' : s.expires_at && new Date(s.expires_at) < new Date() ? 'Expired' : 'Paused'}
                       </span>
                     </td>
                     <td className="px-5 py-3">

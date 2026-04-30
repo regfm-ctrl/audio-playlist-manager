@@ -41,7 +41,82 @@ Use the Gmail send tool to send this email now.`
 async function processSchedules(accessToken: string) {
   const now = new Date();
 
-  // First deactivate any expired schedules
+  // Find expired schedules before deactivating them
+  const expired = await sql`
+    SELECT * FROM schedules
+    WHERE is_active = true
+    AND expires_at IS NOT NULL
+    AND expires_at <= ${now.toISOString()}
+  `;
+
+  // For each expired schedule, remove the file from its playlist
+  for (const schedule of expired) {
+    try {
+      // Fetch current playlist content
+      const fileRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${schedule.playlist_id}?alt=media`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!fileRes.ok) throw new Error(`Failed to fetch playlist: ${fileRes.status}`);
+
+      const content = await fileRes.text();
+      const lines = content.split('\n').filter((l: string) => l.trim());
+      let containerName = '';
+      let existingPaths: string[] = [];
+
+      for (const line of lines) {
+        if (line.startsWith('#EXTM3U')) continue;
+        if (line.startsWith('Container=')) {
+          const match = line.match(/Container=<([^>]+)>(.+)/);
+          if (match) {
+            containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+            existingPaths = match[2].split('|').filter((p: string) => p.trim());
+          }
+        }
+      }
+
+      // Remove the file from the playlist
+      const pathToRemove = schedule.audio_local_path;
+      const updatedPaths = existingPaths.filter((p: string) => p !== pathToRemove);
+
+      if (updatedPaths.length !== existingPaths.length) {
+        // File was found and removed — save the playlist back
+        const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
+        const newContent = updatedPaths.length > 0
+          ? `#EXTM3U\nContainer=<${encodedName}>${updatedPaths.join('|')}\n`
+          : `#EXTM3U\n`;
+
+        const saveRes = await fetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${schedule.playlist_id}?uploadType=media&supportsAllDrives=true`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'text/plain',
+            },
+            body: newContent,
+          }
+        );
+
+        if (saveRes.ok) {
+          await sql`
+            INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', 'File removed from playlist on expiry')
+          `;
+          await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${schedule.playlist_name}`, '/api/schedules/run');
+          console.log(`[scheduler] Removed expired file ${schedule.audio_file_name} from ${schedule.playlist_name}`);
+        }
+      }
+    } catch (err: any) {
+      console.error('[scheduler] Error removing expired file:', schedule.id, err);
+      await sql`
+        INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+        VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expire_error', ${err.message})
+      `;
+    }
+  }
+
+  // Now deactivate all expired schedules
   await sql`
     UPDATE schedules
     SET is_active = false
@@ -157,17 +232,21 @@ async function processSchedules(accessToken: string) {
   }
 
   // Send email notification
-  if (results.length > 0) {
+  const expiredNames = expired.map((s: any) => `${s.audio_file_name} from ${s.playlist_name}`);
+  if (results.length > 0 || expired.length > 0) {
     const successful = results.filter(r => r.status === 'success');
     const failed = results.filter(r => r.status === 'error');
     const skipped = results.filter(r => r.status === 'skipped');
 
-    const subject = `Audio Playlist Scheduler — ${successful.length} added, ${failed.length} failed`;
+    const subject = `Audio Playlist Scheduler — ${successful.length} added, ${expired.length} expired, ${failed.length} failed`;
     const body = [
-      `Scheduled playlist updates ran at ${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}`,
+      `Scheduled playlist updates ran at ${now.toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}`,
       '',
       successful.length > 0 ? `✅ Successfully added (${successful.length}):` : '',
       ...successful.map(r => `  • ${r.schedule} → ${r.playlist}`),
+      '',
+      expired.length > 0 ? `🗑 Expired & removed from playlist (${expired.length}):` : '',
+      ...expiredNames.map((n: string) => `  • ${n}`),
       '',
       skipped.length > 0 ? `⏭ Skipped (${skipped.length}):` : '',
       ...skipped.map(r => `  • ${r.schedule} (${r.reason})`),
