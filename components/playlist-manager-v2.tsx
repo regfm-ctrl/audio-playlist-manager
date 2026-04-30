@@ -484,7 +484,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       <div style={{ minHeight: '100vh', background: '#1d1d1f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <Loader2 style={{ width: 32, height: 32, animation: 'spin 1s linear infinite', color: '#0071e3', margin: '0 auto 12px' }} />
-          <p style={{ color: '#888', fontSize: 13 }}>Loading your playlists...</p>
+          <p style={{ color: '#888', fontSize: 16 }}>Loading your playlists...</p>
         </div>
       </div>
     )
@@ -495,8 +495,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       <div style={{ minHeight: '100vh', background: '#1d1d1f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
         <div style={{ background: '#2a2a2c', borderRadius: 12, padding: 24, maxWidth: 400, width: '100%' }}>
           <AlertCircle style={{ width: 32, height: 32, color: '#ff453a', margin: '0 auto 12px', display: 'block' }} />
-          <p style={{ color: '#e0e0e0', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>{error}</p>
-          <button onClick={() => loadInitialData()} style={{ width: '100%', padding: '8px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
+          <p style={{ color: '#e0e0e0', fontSize: 17, textAlign: 'center', marginBottom: 16 }}>{error}</p>
+          <button onClick={() => loadInitialData()} style={{ width: '100%', padding: '8px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>
             Try Again
           </button>
         </div>
@@ -507,31 +507,31 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const S: Record<string, React.CSSProperties> = {
     // Layout
     app: { display: 'flex', height: '100vh', background: '#1d1d1f', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
-    sidebar: { width: 220, background: '#1d1d1f', borderRight: '0.5px solid #333', display: 'flex', flexDirection: 'column', flexShrink: 0 },
+    sidebar: { width: 260, background: '#1d1d1f', borderRight: '0.5px solid #333', display: 'flex', flexDirection: 'column', flexShrink: 0 },
     main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
     // Sidebar elements
-    sidebarHeader: { padding: '14px 14px 10px', borderBottom: '0.5px solid #333' },
-    sidebarLogo: { width: 32, height: 32, borderRadius: 8, background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    sidebarSection: { padding: '10px 8px 4px' },
-    sidebarLabel: { fontSize: 10, color: '#555', padding: '0 8px', marginBottom: 4, letterSpacing: '0.05em', display: 'block' },
-    navItemActive: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', cursor: 'pointer', fontSize: 12 },
-    navItem: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 12, textDecoration: 'none' },
+    sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #333' },
+    sidebarLogo: { width: 40, height: 40, borderRadius: 10, background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    sidebarSection: { padding: '12px 10px 6px' },
+    sidebarLabel: { fontSize: 15, color: '#555', padding: '0 8px', marginBottom: 4, letterSpacing: '0.05em', display: 'block' },
+    navItemActive: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', cursor: 'pointer', fontSize: 15 },
+    navItem: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 15, textDecoration: 'none' },
     // Main toolbar
-    toolbar: { padding: '10px 16px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 },
-    searchBox: { flex: 1, background: 'white', borderRadius: 7, border: '0.5px solid #ccc', padding: '5px 10px', fontSize: 12, color: '#333', display: 'flex', alignItems: 'center', gap: 6 },
-    dirBtn: { padding: '5px 12px', borderRadius: 7, fontSize: 12, cursor: 'pointer', border: 'none', whiteSpace: 'nowrap' as const },
+    toolbar: { padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 },
+    searchBox: { flex: 1, background: 'white', borderRadius: 7, border: '0.5px solid #ccc', padding: '5px 10px', fontSize: 15, color: '#333', display: 'flex', alignItems: 'center', gap: 6 },
+    dirBtn: { padding: '6px 14px', borderRadius: 7, fontSize: 15, cursor: 'pointer', border: 'none', whiteSpace: 'nowrap' as const },
     // Column header
-    colHeader: { padding: '4px 16px', background: '#e8e8ed', borderBottom: '0.5px solid #ddd', display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, color: '#888', letterSpacing: '0.04em' },
+    colHeader: { padding: '6px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ddd', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, color: '#888', letterSpacing: '0.04em' },
     // File rows
-    fileRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s' },
-    fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb' },
-    playBtn: { width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
-    iconBtn: { width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: '0.5px solid #e8e8e8', background: 'white' },
-    addBtn: { padding: '3px 10px', background: '#0071e3', borderRadius: 5, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer' },
-    removeBtn: { padding: '3px 10px', background: '#e8e8ed', borderRadius: 5, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
+    fileRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s' },
+    fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb' },
+    playBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
+    iconBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: '0.5px solid #e8e8e8', background: 'white' },
+    addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
+    removeBtn: { padding: '6px 14px', background: '#e8e8ed', borderRadius: 5, fontSize: 17, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #ccc', background: 'white', padding: '8px 16px', flexShrink: 0 },
-    breakChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
+    breakPanel: { borderTop: '0.5px solid #ccc', background: 'white', padding: '10px 20px', flexShrink: 0 },
+    breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
     dialog: { background: 'white', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', width: '100%' },
@@ -552,7 +552,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 </svg>
               </div>
               <div>
-                <div style={{ color: 'white', fontSize: 12, fontWeight: 500 }}>REGFM</div>
+                <div style={{ color: 'white', fontSize: 15, fontWeight: 500 }}>REGFM</div>
                 <div style={{ color: '#666', fontSize: 10 }}>Sponsorship Scheduler</div>
               </div>
             </div>
@@ -563,21 +563,21 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             <span style={S.sidebarLabel}>LIBRARY</span>
             <div style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</div>
           </div>
-          <div style={{ padding: '4px 8px' }}>
+          <div style={{ padding: '6px 10px' }}>
             <a href="/schedules" style={{ ...S.navItem, textDecoration: 'none' }}><IconSchedule /> Schedules</a>
             <a href="/admin" style={{ ...S.navItem, textDecoration: 'none' }}><IconAdmin /> Admin</a>
           </div>
 
           {/* Breaks list */}
-          <div style={{ padding: '10px 8px 4px', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+          <div style={{ padding: '12px 10px 6px', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginTop: 4 }}>
             <span style={S.sidebarLabel}>BREAKS <span style={{ color: '#444' }}>({filteredPlaylists.length})</span></span>
-            <div style={{ background: '#2a2a2c', borderRadius: 6, padding: '5px 8px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ background: '#2a2a2c', borderRadius: 6, padding: '7px 10px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: '#555' }}><IconSearch /></span>
               <input
                 value={playlistSearch}
                 onChange={e => setPlaylistSearch(e.target.value)}
                 placeholder="Search..."
-                style={{ background: 'none', border: 'none', outline: 'none', color: '#aaa', fontSize: 11, width: '100%' }}
+                style={{ background: 'none', border: 'none', outline: 'none', color: '#aaa', fontSize: 17, width: '100%' }}
               />
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -586,7 +586,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   key={pl.id}
                   onClick={() => setSelectedPlaylist(pl)}
                   style={{
-                    padding: '6px 10px',
+                    padding: '8px 12px',
                     marginBottom: 1,
                     borderRadius: 5,
                     cursor: 'pointer',
@@ -594,10 +594,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     borderLeft: selectedPlaylist?.id === pl.id ? '2px solid #0071e3' : '2px solid transparent',
                   }}
                 >
-                  <div style={{ color: selectedPlaylist?.id === pl.id ? '#e0e0e0' : '#888', fontSize: 11, fontWeight: selectedPlaylist?.id === pl.id ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ color: selectedPlaylist?.id === pl.id ? '#e0e0e0' : '#888', fontSize: 17, fontWeight: selectedPlaylist?.id === pl.id ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {removeFileExtension(pl.name)}
                   </div>
-                  <div style={{ fontSize: 10, color: durationLoading === pl.id ? '#0071e3' : '#555', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <div style={{ fontSize: 15, color: durationLoading === pl.id ? '#0071e3' : '#555', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
                     {durationLoading === pl.id ? (
                       <><Loader2 style={{ width: 8, height: 8, animation: 'spin 1s linear infinite' }} /> Calculating...</>
                     ) : playlistDurations[pl.id] ? formatDuration(playlistDurations[pl.id]) : ''}
@@ -609,8 +609,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
           {/* User */}
           <div style={{ padding: '10px 14px', borderTop: '0.5px solid #333', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'white', fontWeight: 500 }}>A</div>
-            <span style={{ color: '#666', fontSize: 11 }}>admin</span>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: 'white', fontWeight: 500 }}>A</div>
+            <span style={{ color: '#666', fontSize: 14 }}>admin</span>
           </div>
         </div>
 
@@ -625,7 +625,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search audio files..."
-                style={{ background: 'none', border: 'none', outline: 'none', fontSize: 12, color: '#333', width: '100%' }}
+                style={{ background: 'none', border: 'none', outline: 'none', fontSize: 15, color: '#333', width: '100%' }}
               />
             </div>
             {audioDirectories.map(d => (
@@ -647,14 +647,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* File list */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
             {dirLoading[selectedDirectoryName] ? (
               <div style={{ textAlign: 'center', padding: '32px 0' }}>
                 <Loader2 style={{ width: 24, height: 24, animation: 'spin 1s linear infinite', color: '#0071e3', margin: '0 auto 8px' }} />
-                <p style={{ color: '#888', fontSize: 12 }}>Loading audio files...</p>
+                <p style={{ color: '#888', fontSize: 15 }}>Loading audio files...</p>
               </div>
             ) : filteredFiles.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa', fontSize: 12 }}>No audio files found</div>
+              <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa', fontSize: 15 }}>No audio files found</div>
             ) : filteredFiles.map((file) => {
               const isPlaying = playingFileId === file.id
               const isLoadingThis = isLoadingAudio === file.id
@@ -672,14 +672,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
                   {/* Name + progress bar if playing */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: isPlaying ? '#0071e3' : '#1d1d1f', fontWeight: isPlaying ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: 15, color: isPlaying ? '#0071e3' : '#1d1d1f', fontWeight: isPlaying ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {removeFileExtension(file.name)}
                     </div>
                     {isPlaying && <div style={{ height: 2, background: '#b8d0f0', borderRadius: 1, marginTop: 3 }}><div style={{ width: '38%', height: 2, background: '#0071e3', borderRadius: 1 }}></div></div>}
                   </div>
 
                   {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
                     {/* Schedule */}
                     <button
                       title="Schedule"
@@ -727,21 +727,21 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={S.breakPanel}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#1d1d1f' }}>
+                <span style={{ fontSize: 15, fontWeight: 500, color: '#1d1d1f' }}>
                   {selectedPlaylist ? removeFileExtension(selectedPlaylist.name) : 'Sponsorship Break Content'}
                 </span>
                 {playlistItems.length > 0 && (
-                  <span style={{ fontSize: 11, color: '#0071e3', background: '#e8f0fb', padding: '2px 8px', borderRadius: 10 }}>
+                  <span style={{ fontSize: 17, color: '#0071e3', background: '#e8f0fb', padding: '2px 8px', borderRadius: 10 }}>
                     {playlistItems.length} track{playlistItems.length !== 1 ? 's' : ''}
                     {selectedPlaylist && playlistDurations[selectedPlaylist.id] ? ` · ${formatDuration(playlistDurations[selectedPlaylist.id])}` : ''}
                   </span>
                 )}
-                {saveError && <span style={{ fontSize: 11, color: '#cc0000' }}>{saveError}</span>}
+                {saveError && <span style={{ fontSize: 17, color: '#cc0000' }}>{saveError}</span>}
               </div>
               {selectedPlaylist && (
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={resetPlaylist} style={{ padding: '4px 12px', background: 'white', borderRadius: 6, fontSize: 11, color: '#666', border: '0.5px solid #ccc', cursor: 'pointer' }}>Reset</button>
-                  <button onClick={savePlaylist} disabled={isSaving} style={{ padding: '4px 14px', background: '#0071e3', borderRadius: 6, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', opacity: isSaving ? 0.6 : 1 }}>
+                  <button onClick={resetPlaylist} style={{ padding: '6px 14px', background: 'white', borderRadius: 6, fontSize: 17, color: '#666', border: '0.5px solid #ccc', cursor: 'pointer' }}>Reset</button>
+                  <button onClick={savePlaylist} disabled={isSaving} style={{ padding: '6px 16px', background: '#0071e3', borderRadius: 6, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer', opacity: isSaving ? 0.6 : 1 }}>
                     {isSaving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
@@ -749,15 +749,15 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             </div>
 
             {isPlaylistLoading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', color: '#888', fontSize: 11 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', color: '#888', fontSize: 14 }}>
                 <Loader2 style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} /> Loading break content...
               </div>
             ) : !selectedPlaylist ? (
-              <p style={{ fontSize: 11, color: '#aaa' }}>Select a sponsorship break to view its content</p>
+              <p style={{ fontSize: 17, color: '#aaa' }}>Select a sponsorship break to view its content</p>
             ) : playlistItems.length === 0 ? (
-              <p style={{ fontSize: 11, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
+              <p style={{ fontSize: 17, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+              <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
                 {playlistItems.map((item, index) => (
                   <div key={index}>
                     {/* Drop zone */}
@@ -775,7 +775,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                       style={{ ...S.breakChip, opacity: dragState.draggedIndex === index ? 0.4 : 1, cursor: 'grab' }}
                     >
                       <span style={{ color: '#aaa', cursor: 'grab' }}><IconGrip /></span>
-                      <span style={{ fontSize: 11, color: '#444', whiteSpace: 'nowrap' }}>{item.filename}</span>
+                      <span style={{ fontSize: 17, color: '#444', whiteSpace: 'nowrap' }}>{item.filename}</span>
                       <button
                         onClick={() => setPlaylistItems(prev => prev.filter((_, i) => i !== index))}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ccc', lineHeight: 1 }}
@@ -805,8 +805,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={{ ...S.dialog, maxWidth: 640, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
-                <h2 style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>Schedule: {removeFileExtension(scheduleFile.name)}</h2>
-                <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>Select one or more breaks to add this file on a schedule</p>
+                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Schedule: {removeFileExtension(scheduleFile.name)}</h2>
+                <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Select one or more breaks to add this file on a schedule</p>
               </div>
               <button onClick={() => setScheduleFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
@@ -814,22 +814,22 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               {/* Left: playlist selector */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: '#333' }}>
-                    Sponsorship Breaks {scheduleForm.selected_playlists.length > 0 && <span style={{ background: '#0071e3', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 11, marginLeft: 4 }}>{scheduleForm.selected_playlists.length}</span>}
+                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333' }}>
+                    Sponsorship Breaks {scheduleForm.selected_playlists.length > 0 && <span style={{ background: '#0071e3', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 17, marginLeft: 4 }}>{scheduleForm.selected_playlists.length}</span>}
                   </label>
-                  {scheduleForm.selected_playlists.length > 0 && <button onClick={() => setScheduleForm(f => ({ ...f, selected_playlists: [] }))} style={{ fontSize: 11, color: '#888', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
+                  {scheduleForm.selected_playlists.length > 0 && <button onClick={() => setScheduleForm(f => ({ ...f, selected_playlists: [] }))} style={{ fontSize: 17, color: '#888', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
                 </div>
                 <input
                   value={playlistSearchSchedule}
                   onChange={e => setPlaylistSearchSchedule(e.target.value)}
                   placeholder="Search breaks..."
-                  style={{ width: '100%', padding: '6px 10px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' as const, outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, marginBottom: 6, boxSizing: 'border-box' as const, outline: 'none' }}
                 />
                 <div style={{ border: '0.5px solid #ddd', borderRadius: 8, overflowY: 'auto', maxHeight: 240 }}>
                   {playlists.filter(p => p.name.toLowerCase().includes(playlistSearchSchedule.toLowerCase())).map(p => {
                     const isSelected = scheduleForm.selected_playlists.some(s => s.id === p.id)
                     return (
-                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', cursor: 'pointer', background: isSelected ? '#e8f0fb' : 'white', borderBottom: '0.5px solid #f0f0f0', fontSize: 12 }}>
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', cursor: 'pointer', background: isSelected ? '#e8f0fb' : 'white', borderBottom: '0.5px solid #f0f0f0', fontSize: 15 }}>
                         <input type="checkbox" checked={isSelected} onChange={() => setScheduleForm(f => ({ ...f, selected_playlists: isSelected ? f.selected_playlists.filter(s => s.id !== p.id) : [...f.selected_playlists, { id: p.id, name: p.name }] }))} />
                         <span style={{ color: isSelected ? '#0071e3' : '#333', fontWeight: isSelected ? 500 : 400 }}>{removeFileExtension(p.name)}</span>
                       </label>
@@ -840,18 +840,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               {/* Right: schedule options */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Position</label>
-                  <select value={scheduleForm.position} onChange={e => setScheduleForm(f => ({ ...f, position: e.target.value }))} style={{ width: '100%', padding: '6px 10px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 12, background: 'white' }}>
+                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Position</label>
+                  <select value={scheduleForm.position} onChange={e => setScheduleForm(f => ({ ...f, position: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, background: 'white' }}>
                     <option value="-1">Add to end</option>
                     <option value="0">Add at beginning</option>
                     {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={String(n)}>After position {n}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Schedule type</label>
+                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Schedule type</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {(['recurring', 'once'] as const).map(t => (
-                      <button key={t} onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))} style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontSize: 12, cursor: 'pointer', border: '0.5px solid #ddd', background: scheduleForm.schedule_type === t ? '#1d1d1f' : 'white', color: scheduleForm.schedule_type === t ? 'white' : '#444' }}>
+                      <button key={t} onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))} style={{ flex: 1, padding: '8px 0', borderRadius: 7, fontSize: 15, cursor: 'pointer', border: '0.5px solid #ddd', background: scheduleForm.schedule_type === t ? '#1d1d1f' : 'white', color: scheduleForm.schedule_type === t ? 'white' : '#444' }}>
                         {t === 'recurring' ? '🔁 Recurring' : '1️⃣ One-time'}
                       </button>
                     ))}
@@ -859,10 +859,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 </div>
                 {scheduleForm.schedule_type === 'recurring' && (
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Days</label>
+                    <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Days</label>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {['Su','Mo','Tu','We','Th','Fr','Sa'].map((day, idx) => (
-                        <button key={day} onClick={() => setScheduleForm(f => ({ ...f, days_of_week: f.days_of_week.includes(idx) ? f.days_of_week.filter(d => d !== idx) : [...f.days_of_week, idx] }))} style={{ flex: 1, padding: '5px 0', borderRadius: 5, fontSize: 11, cursor: 'pointer', border: 'none', background: scheduleForm.days_of_week.includes(idx) ? '#1d1d1f' : '#f0f0f0', color: scheduleForm.days_of_week.includes(idx) ? 'white' : '#666' }}>
+                        <button key={day} onClick={() => setScheduleForm(f => ({ ...f, days_of_week: f.days_of_week.includes(idx) ? f.days_of_week.filter(d => d !== idx) : [...f.days_of_week, idx] }))} style={{ flex: 1, padding: '5px 0', borderRadius: 5, fontSize: 17, cursor: 'pointer', border: 'none', background: scheduleForm.days_of_week.includes(idx) ? '#1d1d1f' : '#f0f0f0', color: scheduleForm.days_of_week.includes(idx) ? 'white' : '#666' }}>
                           {day}
                         </button>
                       ))}
@@ -871,18 +871,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 )}
                 {scheduleForm.schedule_type === 'once' && (
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Date</label>
-                    <input type="date" value={scheduleForm.specific_dates} onChange={e => setScheduleForm(f => ({ ...f, specific_dates: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ width: '100%', padding: '6px 10px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 12, boxSizing: 'border-box' as const }} />
+                    <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Date</label>
+                    <input type="date" value={scheduleForm.specific_dates} onChange={e => setScheduleForm(f => ({ ...f, specific_dates: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, boxSizing: 'border-box' as const }} />
                   </div>
                 )}
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Time</label>
-                  <input type="time" value={scheduleForm.time_of_day} onChange={e => setScheduleForm(f => ({ ...f, time_of_day: e.target.value }))} style={{ width: '100%', padding: '6px 10px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 12, boxSizing: 'border-box' as const }} />
+                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Time</label>
+                  <input type="time" value={scheduleForm.time_of_day} onChange={e => setScheduleForm(f => ({ ...f, time_of_day: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, boxSizing: 'border-box' as const }} />
                 </div>
               </div>
             </div>
-            {scheduleMsg && <p style={{ textAlign: 'center', fontSize: 13, margin: '12px 0 0' }}>{scheduleMsg}</p>}
-            <button onClick={saveSchedule} disabled={scheduleSaving} style={{ width: '100%', marginTop: 16, padding: '10px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: scheduleSaving ? 0.6 : 1 }}>
+            {scheduleMsg && <p style={{ textAlign: 'center', fontSize: 18, margin: '12px 0 0' }}>{scheduleMsg}</p>}
+            <button onClick={saveSchedule} disabled={scheduleSaving} style={{ width: '100%', marginTop: 16, padding: '10px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer', opacity: scheduleSaving ? 0.6 : 1 }}>
               {scheduleSaving ? 'Saving...' : 'Save Schedule'}
             </button>
           </div>
@@ -895,20 +895,20 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={{ ...S.dialog, maxWidth: 400, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
-                <h2 style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>Set Expiry</h2>
-                <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>{removeFileExtension(expiryFile.name)}</p>
+                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Set Expiry</h2>
+                <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>{removeFileExtension(expiryFile.name)}</p>
               </div>
               <button onClick={() => setExpiryFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
-            <p style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>This file will be automatically removed from all playlists after this date.</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <input type="date" value={expiryForm.expires_at} onChange={e => setExpiryForm(f => ({ ...f, expires_at: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ flex: 1, padding: '7px 10px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 12, boxSizing: 'border-box' as const }} />
-              <input type="time" value={expiryForm.expires_time} onChange={e => setExpiryForm(f => ({ ...f, expires_time: e.target.value }))} disabled={!expiryForm.expires_at} style={{ width: 110, padding: '7px 10px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 12 }} />
+            <p style={{ fontSize: 15, color: '#888', marginBottom: 14 }}>This file will be automatically removed from all playlists after this date.</p>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <input type="date" value={expiryForm.expires_at} onChange={e => setExpiryForm(f => ({ ...f, expires_at: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, boxSizing: 'border-box' as const }} />
+              <input type="time" value={expiryForm.expires_time} onChange={e => setExpiryForm(f => ({ ...f, expires_time: e.target.value }))} disabled={!expiryForm.expires_at} style={{ width: 110, padding: '9px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15 }} />
             </div>
-            {expiryMsg && <p style={{ textAlign: 'center', fontSize: 13, marginBottom: 10 }}>{expiryMsg}</p>}
+            {expiryMsg && <p style={{ textAlign: 'center', fontSize: 18, marginBottom: 10 }}>{expiryMsg}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setExpiryFile(null)} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={saveExpiryOnly} disabled={expirySaving} style={{ flex: 1, padding: '9px 0', background: '#e55', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: expirySaving ? 0.6 : 1 }}>
+              <button onClick={() => setExpiryFile(null)} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={saveExpiryOnly} disabled={expirySaving} style={{ flex: 1, padding: '9px 0', background: '#e55', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer', opacity: expirySaving ? 0.6 : 1 }}>
                 {expirySaving ? 'Saving...' : 'Set Expiry'}
               </button>
             </div>
@@ -921,26 +921,26 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         <div style={S.overlay}>
           <div style={{ ...S.dialog, maxWidth: 380, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 500, color: '#cc0000', margin: 0 }}>Remove from All Playlists</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 500, color: '#cc0000', margin: 0 }}>Remove from All Playlists</h2>
               <button onClick={() => setRemoveAllFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {!removeAllLoading && !removeAllMsg ? (
               <>
-                <p style={{ fontSize: 13, color: '#444', marginBottom: 6 }}>Remove <strong>{removeFileExtension(removeAllFile.name)}</strong> from all sponsorship breaks?</p>
-                <p style={{ fontSize: 12, color: '#aaa', marginBottom: 20 }}>This will scan every break and remove this file wherever it appears. This cannot be undone.</p>
+                <p style={{ fontSize: 18, color: '#444', marginBottom: 6 }}>Remove <strong>{removeFileExtension(removeAllFile.name)}</strong> from all sponsorship breaks?</p>
+                <p style={{ fontSize: 15, color: '#aaa', marginBottom: 20 }}>This will scan every break and remove this file wherever it appears. This cannot be undone.</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setRemoveAllFile(null)} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={removeFromAllPlaylists} style={{ flex: 1, padding: '9px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Yes, Remove</button>
+                  <button onClick={() => setRemoveAllFile(null)} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={removeFromAllPlaylists} style={{ flex: 1, padding: '9px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Yes, Remove</button>
                 </div>
               </>
             ) : removeAllMsg ? (
               <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <p style={{ fontSize: 14, marginBottom: 16 }}>{removeAllMsg}</p>
-                <button onClick={() => { setRemoveAllFile(null); setRemoveAllMsg('') }} style={{ padding: '8px 24px', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Close</button>
+                <p style={{ fontSize: 17, marginBottom: 16 }}>{removeAllMsg}</p>
+                <button onClick={() => { setRemoveAllFile(null); setRemoveAllMsg('') }} style={{ padding: '8px 24px', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Close</button>
               </div>
             ) : (
               <div style={{ padding: '8px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginBottom: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: '#666', marginBottom: 6 }}>
                   <span>{removeAllProgress.phase === 'scanning' ? 'Scanning breaks...' : 'Removing...'}</span>
                   <span style={{ fontWeight: 500 }}>{removeAllProgress.scanned} / {removeAllProgress.total}</span>
                 </div>
@@ -959,14 +959,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={{ ...S.dialog, maxWidth: 440, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
-                <h2 style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>{removeFileExtension(inPlaylistsFile.name)}</h2>
-                <p style={{ fontSize: 12, color: '#888', margin: '2px 0 0' }}>Sponsorship breaks containing this file</p>
+                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>{removeFileExtension(inPlaylistsFile.name)}</h2>
+                <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Sponsorship breaks containing this file</p>
               </div>
               <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {inPlaylistsLoading ? (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginBottom: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: '#666', marginBottom: 6 }}>
                   <span>Scanning sponsorship breaks...</span>
                   <span style={{ fontWeight: 500 }}>{inPlaylistsProgress.scanned} / {inPlaylistsProgress.total}</span>
                 </div>
@@ -975,25 +975,25 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 </div>
                 {inPlaylistsList.length > 0 && (
                   <div>
-                    <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Found in {inPlaylistsList.length} so far...</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
-                      {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '6px 12px', background: '#e8f0fb', borderRadius: 6, fontSize: 12, color: '#0071e3', fontWeight: 500 }}>{name}</div>)}
+                    <p style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>Found in {inPlaylistsList.length} so far...</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 160, overflowY: 'auto' }}>
+                      {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '6px 12px', background: '#e8f0fb', borderRadius: 6, fontSize: 15, color: '#0071e3', fontWeight: 500 }}>{name}</div>)}
                     </div>
                   </div>
                 )}
               </div>
             ) : inPlaylistsList.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#aaa', fontSize: 13, padding: '20px 0' }}>This file is not in any sponsorship breaks.</p>
+              <p style={{ textAlign: 'center', color: '#aaa', fontSize: 18, padding: '20px 0' }}>This file is not in any sponsorship breaks.</p>
             ) : (
               <div>
-                <p style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Found in <strong>{inPlaylistsList.length}</strong> break{inPlaylistsList.length !== 1 ? 's' : ''}:</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
-                  {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '7px 12px', background: '#e8f0fb', borderRadius: 7, fontSize: 12, color: '#0071e3', fontWeight: 500, border: '0.5px solid #b8d0f0' }}>{name}</div>)}
+                <p style={{ fontSize: 15, color: '#666', marginBottom: 8 }}>Found in <strong>{inPlaylistsList.length}</strong> break{inPlaylistsList.length !== 1 ? 's' : ''}:</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
+                  {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '7px 12px', background: '#e8f0fb', borderRadius: 7, fontSize: 15, color: '#0071e3', fontWeight: 500, border: '0.5px solid #b8d0f0' }}>{name}</div>)}
                 </div>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Close</button>
+            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Close</button>
               {!inPlaylistsLoading && inPlaylistsList.length > 0 && (
                 <button
                   onClick={() => {
@@ -1004,7 +1004,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     const url = URL.createObjectURL(blob)
                     const a = document.createElement('a'); a.href = url; a.download = `${fileName} - playlists - ${date}.csv`; a.click(); URL.revokeObjectURL(url)
                   }}
-                  style={{ flex: 1, padding: '9px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '9px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}
                 >
                   Export CSV
                 </button>
