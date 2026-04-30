@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +16,7 @@ import {
 } from "@/lib/google-drive"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
-import { FileText, Loader2, AlertCircle, RefreshCw, Search, Music, Headphones, GripVertical } from "lucide-react"
+import { FileText, Loader2, AlertCircle, RefreshCw, Search, Music, Headphones, GripVertical, Play, Square, SkipBack, SkipForward } from "lucide-react"
 
 interface PlaylistManagerProps {
   accessToken: string
@@ -46,6 +46,72 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [isPlaylistLoading, setIsPlaylistLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Audio player state
+  const [playingFileId, setPlayingFileId] = useState<string | null>(null)
+  const [isLoadingAudio, setIsLoadingAudio] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioBlobUrl = useRef<string | null>(null)
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ""
+    }
+    if (audioBlobUrl.current) {
+      URL.revokeObjectURL(audioBlobUrl.current)
+      audioBlobUrl.current = null
+    }
+    setPlayingFileId(null)
+  }
+
+  const playFile = async (file: { id: string; name: string }, allFiles: { id: string; name: string }[]) => {
+    // If already playing this file, stop it
+    if (playingFileId === file.id) {
+      stopAudio()
+      return
+    }
+    // Stop any current audio
+    stopAudio()
+    setIsLoadingAudio(file.id)
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+      if (!response.ok) throw new Error("Failed to load audio")
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      audioBlobUrl.current = url
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.onended = () => {
+        // Auto-advance to next file
+        const idx = allFiles.findIndex(f => f.id === file.id)
+        if (idx >= 0 && idx < allFiles.length - 1) {
+          playFile(allFiles[idx + 1], allFiles)
+        } else {
+          setPlayingFileId(null)
+        }
+      }
+      await audio.play()
+      setPlayingFileId(file.id)
+    } catch (err) {
+      console.error("Audio playback error:", err)
+      toast({ title: "Playback failed", description: "Could not load audio file.", variant: "destructive" })
+    } finally {
+      setIsLoadingAudio(null)
+    }
+  }
+
+  const skipTo = (direction: "prev" | "next", allFiles: { id: string; name: string }[]) => {
+    if (!playingFileId) return
+    const idx = allFiles.findIndex(f => f.id === playingFileId)
+    const nextIdx = direction === "next" ? idx + 1 : idx - 1
+    if (nextIdx >= 0 && nextIdx < allFiles.length) {
+      playFile(allFiles[nextIdx], allFiles)
+    }
+  }
+
   const { toast } = useToast()
 
   // Helper function to remove file extensions
@@ -591,17 +657,63 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     <p className="font-medium">No audio files found</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {filteredFiles.map((file) => (
-                      <div key={file.id} className={`flex items-center justify-between p-1 rounded-md transition-colors ${
-                        isInPlaylist(file) 
-                          ? "bg-[#efefef] dark:bg-gray-1000" 
+                  <div className="space-y-1">
+                    {filteredFiles.map((file, idx) => (
+                      <div key={file.id} className={`flex items-center gap-2 p-1 rounded-md transition-colors ${
+                        playingFileId === file.id
+                          ? "bg-blue-50 border border-blue-200"
+                          : isInPlaylist(file)
+                          ? "bg-[#efefef] dark:bg-gray-1000"
                           : "hover:bg-[#efefef] dark:hover:bg-gray-1000"
                       }`}>
+                        {/* Player controls */}
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          <button
+                            onClick={() => skipTo("prev", filteredFiles)}
+                            disabled={!playingFileId || filteredFiles.findIndex(f => f.id === playingFileId) === 0}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                            title="Previous"
+                          >
+                            <SkipBack className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => playFile(file, filteredFiles)}
+                            disabled={isLoadingAudio === file.id}
+                            className={`p-1 rounded transition-colors ${
+                              playingFileId === file.id
+                                ? "bg-blue-500 text-white hover:bg-blue-600"
+                                : "hover:bg-gray-200"
+                            }`}
+                            title={playingFileId === file.id ? "Stop" : "Play"}
+                          >
+                            {isLoadingAudio === file.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : playingFileId === file.id ? (
+                              <Square className="h-3 w-3" />
+                            ) : (
+                              <Play className="h-3 w-3" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => skipTo("next", filteredFiles)}
+                            disabled={!playingFileId || filteredFiles.findIndex(f => f.id === playingFileId) === filteredFiles.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                            title="Next"
+                          >
+                            <SkipForward className="h-3 w-3" />
+                          </button>
+                        </div>
+                        {/* File name */}
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <Music className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="truncate text-sm">{removeFileExtension(file.name)}</div>
+                          <div className={`truncate text-sm ${playingFileId === file.id ? "text-blue-700 font-medium" : ""}`}>
+                            {removeFileExtension(file.name)}
+                          </div>
+                          {playingFileId === file.id && (
+                            <span className="text-xs text-blue-500 flex-shrink-0">▶ Playing</span>
+                          )}
                         </div>
+                        {/* Add/Remove button */}
                         {isInPlaylist(file) ? (
                           <Button variant="secondary" size="sm" onClick={() => removeFileFromPlaylist(file)}>
                             Remove
