@@ -202,6 +202,13 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [playlistDurations, setPlaylistDurations] = useState<Record<string, number>>({}) // playlistId -> total seconds
   const [durationLoading, setDurationLoading] = useState<string | null>(null) // playlistId being calculated
 
+  // Persist durations to sessionStorage so they survive page navigation
+  useEffect(() => {
+    if (Object.keys(playlistDurations).length > 0) {
+      try { sessionStorage.setItem('playlistDurations', JSON.stringify(playlistDurations)) } catch {}
+    }
+  }, [playlistDurations])
+
   const formatDuration = (seconds: number): string => {
     if (!seconds) return ''
     const h = Math.floor(seconds / 3600)
@@ -361,6 +368,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
       console.log(`[v0] Loaded ${m3u8Files.length} playlist files`)
       setPlaylists(m3u8Files)
+
+      // Pre-load any already-cached durations for all playlists
+      try {
+        const allIds = m3u8Files.map((f: any) => f.id).join(',')
+        // We store durations by file_id of audio files, not playlist ids
+        // So just initialise — durations load when playlist is opened
+        // But restore from sessionStorage if available
+        const cached = sessionStorage.getItem('playlistDurations')
+        if (cached) {
+          setPlaylistDurations(JSON.parse(cached))
+        }
+      } catch {}
     } catch (error) {
       console.error("[v0] Failed to load initial data:", error)
       const errorMessage = error instanceof Error ? error.message : "Failed to load playlists"
@@ -805,7 +824,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                             ) : playlistDurations[pl.id] ? (
                               formatDuration(playlistDurations[pl.id])
                             ) : (
-                              pl.modifiedTime && new Date(pl.modifiedTime).toLocaleDateString()
+                              <span className="text-gray-300">—</span>
                             )}
                           </div>
                         </div>
