@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') ?? '200');
   const username = searchParams.get('username');
 
-  const { rows } = username
+  const rows = username
     ? await sql`
         SELECT * FROM activity_logs
         WHERE username = ${username}

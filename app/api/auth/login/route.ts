@@ -6,7 +6,7 @@ import { logActivity } from '@/lib/activity';
 export async function POST(req: NextRequest) {
   const { username, password } = await req.json();
 
-  const { rows } = await sql`SELECT * FROM users WHERE username = ${username}`;
+  const rows = await sql`SELECT * FROM users WHERE username = ${username}`;
   const user = rows[0];
 
   if (!user || !(await verifyPassword(password, user.password_hash))) {

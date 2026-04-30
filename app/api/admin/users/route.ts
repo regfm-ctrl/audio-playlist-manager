@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   if (!(await getAdmin(req)))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { rows } = await sql`
+  const rows = await sql`
     SELECT id, username, role, created_at FROM users ORDER BY created_at DESC
   `;
   return NextResponse.json(rows);
