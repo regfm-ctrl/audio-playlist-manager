@@ -116,58 +116,91 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   async function removeFromAllPlaylists() {
     if (!removeAllFile) return
     setRemoveAllLoading(true)
-    setRemoveAllMsg('')
+    setRemoveAllMsg('Scanning playlists...')
     try {
-      // Get the Google token
       const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
       const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
       if (!token) { setRemoveAllMsg('❌ Google Drive not connected'); return }
 
       // List all playlists
       const listRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!listRes.ok) { setRemoveAllMsg('❌ Failed to list playlists'); return }
       const { files } = await listRes.json()
 
-      let removedFrom = 0
-      for (const playlist of files) {
-        try {
-          const fileRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${playlist.id}?alt=media`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          if (!fileRes.ok) continue
-          const text = await fileRes.text()
-          const lines = text.split('\n').filter((l: string) => l.trim())
-          let containerName = ''
-          let paths: string[] = []
-          for (const line of lines) {
-            if (line.startsWith('Container=')) {
-              const match = line.match(/Container=<([^>]+)>(.+)/)
-              if (match) {
-                containerName = decodeURIComponent(match[1].replace(/\+/g, ' '))
-                paths = match[2].split('|').filter((p: string) => p.trim())
+      const pathToRemove = removeAllFile.localPath
+      const BATCH = 10 // fetch 10 playlists at a time
+
+      // Step 1: Fetch all playlist contents in parallel batches
+      setRemoveAllMsg(`Scanning ${files.length} playlists...`)
+      const toUpdate: { id: string; name: string; containerName: string; updatedPaths: string[] }[] = []
+
+      for (let i = 0; i < files.length; i += BATCH) {
+        const batch = files.slice(i, i + BATCH)
+        await Promise.all(batch.map(async (playlist: { id: string; name: string }) => {
+          try {
+            const res = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${playlist.id}?alt=media`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            )
+            if (!res.ok) return
+            const text = await res.text()
+            let containerName = ''
+            let paths: string[] = []
+            for (const line of text.split('\n').filter((l: string) => l.trim())) {
+              if (line.startsWith('Container=')) {
+                const match = line.match(/Container=<([^>]+)>(.+)/)
+                if (match) {
+                  containerName = decodeURIComponent(match[1].replace(/\+/g, ' '))
+                  paths = match[2].split('|').filter((p: string) => p.trim())
+                }
               }
             }
-          }
-          if (!paths.includes(removeAllFile.localPath)) continue
-          const updated = paths.filter((p: string) => p !== removeAllFile.localPath)
-          const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+')
-          const newContent = updated.length > 0
-            ? `#EXTM3U\nContainer=<${encodedName}>${updated.join('|')}\n`
-            : `#EXTM3U\n`
-          const saveRes = await fetch(
-            `https://www.googleapis.com/upload/drive/v3/files/${playlist.id}?uploadType=media&supportsAllDrives=true`,
-            { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: newContent }
-          )
-          if (saveRes.ok) removedFrom++
-        } catch {}
+            // Only queue playlists that actually contain the file
+            if (!paths.includes(pathToRemove)) return
+            toUpdate.push({
+              id: playlist.id,
+              name: playlist.name,
+              containerName,
+              updatedPaths: paths.filter((p: string) => p !== pathToRemove),
+            })
+          } catch {}
+        }))
+        setRemoveAllMsg(`Scanning... ${Math.min(i + BATCH, files.length)} / ${files.length}`)
       }
-      setRemoveAllMsg(`✅ Removed from ${removedFrom} playlist${removedFrom !== 1 ? 's' : ''}`)
+
+      if (toUpdate.length === 0) {
+        setRemoveAllMsg('✅ File not found in any playlists')
+        setTimeout(() => { setRemoveAllFile(null); setRemoveAllMsg('') }, 2000)
+        return
+      }
+
+      // Step 2: Save only the playlists that contained the file, in parallel batches
+      setRemoveAllMsg(`Removing from ${toUpdate.length} playlist${toUpdate.length !== 1 ? 's' : ''}...`)
+      let saved = 0
+
+      for (let i = 0; i < toUpdate.length; i += BATCH) {
+        const batch = toUpdate.slice(i, i + BATCH)
+        await Promise.all(batch.map(async (pl) => {
+          try {
+            const encodedName = encodeURIComponent(pl.containerName || 'Not predefined').replace(/%20/g, '+')
+            const newContent = pl.updatedPaths.length > 0
+              ? `#EXTM3U\nContainer=<${encodedName}>${pl.updatedPaths.join('|')}\n`
+              : `#EXTM3U\n`
+            const res = await fetch(
+              `https://www.googleapis.com/upload/drive/v3/files/${pl.id}?uploadType=media&supportsAllDrives=true`,
+              { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: newContent }
+            )
+            if (res.ok) saved++
+          } catch {}
+        }))
+      }
+
+      setRemoveAllMsg(`✅ Removed from ${saved} playlist${saved !== 1 ? 's' : ''}`)
       setTimeout(() => { setRemoveAllFile(null); setRemoveAllMsg('') }, 2000)
-    } catch (err) {
+    } catch {
       setRemoveAllMsg('❌ Failed to remove from playlists')
     } finally {
       setRemoveAllLoading(false)
