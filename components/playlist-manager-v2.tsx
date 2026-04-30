@@ -914,22 +914,22 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       {expiryFile && (
         <div style={S.overlay}>
           <div style={{ ...S.dialog, maxWidth: 400, padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Set Expiry</h2>
-                <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>{removeFileExtension(expiryFile.name)}</p>
+                <h2 style={{ fontSize: 16, fontWeight: 500, margin: 0, color: 'white' }}>Set Expiry</h2>
+                <p style={{ fontSize: 13, color: '#aaa', margin: '3px 0 0' }}>{removeFileExtension(expiryFile.name)}</p>
               </div>
               <button onClick={() => setExpiryFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
-            <p style={{ fontSize: 15, color: '#888', marginBottom: 14 }}>This file will be automatically removed from all playlists after this date.</p>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              <input type="date" value={expiryForm.expires_at} onChange={e => setExpiryForm(f => ({ ...f, expires_at: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, boxSizing: 'border-box' as const }} />
-              <input type="time" value={expiryForm.expires_time} onChange={e => setExpiryForm(f => ({ ...f, expires_time: e.target.value }))} disabled={!expiryForm.expires_at} style={{ width: 110, padding: '9px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15 }} />
+            <p style={{ fontSize: 13, color: '#aaa', marginBottom: 16 }}>This file will be automatically removed from all playlists after this date.</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+              <input type="date" value={expiryForm.expires_at} onChange={e => setExpiryForm(f => ({ ...f, expires_at: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ flex: 1, padding: '8px 12px', border: '0.5px solid #666', borderRadius: 7, fontSize: 13, background: '#4a4a4c', color: 'white', colorScheme: 'dark', boxSizing: 'border-box' as const }} />
+              <input type="time" value={expiryForm.expires_time} onChange={e => setExpiryForm(f => ({ ...f, expires_time: e.target.value }))} disabled={!expiryForm.expires_at} style={{ width: 120, padding: '8px 12px', border: '0.5px solid #666', borderRadius: 7, fontSize: 13, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
             </div>
-            {expiryMsg && <p style={{ textAlign: 'center', fontSize: 18, marginBottom: 10 }}>{expiryMsg}</p>}
+            {expiryMsg && <p style={{ textAlign: 'center', fontSize: 14, color: '#e0e0e0', marginBottom: 10 }}>{expiryMsg}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setExpiryFile(null)} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={saveExpiryOnly} disabled={expirySaving} style={{ flex: 1, padding: '9px 0', background: '#e55', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer', opacity: expirySaving ? 0.6 : 1 }}>
+              <button onClick={() => setExpiryFile(null)} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={saveExpiryOnly} disabled={expirySaving} style={{ flex: 1, padding: '11px 0', background: '#cc3333', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: expirySaving ? 0.6 : 1 }}>
                 {expirySaving ? 'Saving...' : 'Set Expiry'}
               </button>
             </div>
