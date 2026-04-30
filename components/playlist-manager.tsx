@@ -238,16 +238,27 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     if (items.length === 0) return
     setDurationLoading(playlistId)
     try {
-      // Get all file IDs for this playlist's items from the directory files cache
-      const allFiles = Object.values(directoryFiles).flat()
-      
-      // Match playlist items to actual Google Drive file IDs by filename
+      // Load all directory files if not already cached
+      let allFiles = Object.values(directoryFiles).flat()
+      if (allFiles.length === 0) {
+        // Load all directories first
+        const loadedFiles: typeof allFiles = []
+        for (const dir of audioDirectories) {
+          if (!dir.driveId) continue
+          try {
+            const files = await googleDriveService.listFiles(dir.driveId)
+            loadedFiles.push(...files)
+          } catch {}
+        }
+        allFiles = loadedFiles
+      }
+
+      // Match playlist items to Google Drive file IDs by filename
       const fileMatches: { file_id: string; file_name: string }[] = []
       for (const item of items) {
-        const baseName = item.filename.toLowerCase()
-        const match = allFiles.find(f => 
-          f.name.toLowerCase().replace(/\.[^/.]+$/, '') === baseName ||
-          f.name.toLowerCase() === baseName
+        const baseName = item.filename.toLowerCase().replace(/\.[^/.]+$/, '')
+        const match = allFiles.find(f =>
+          f.name.toLowerCase().replace(/\.[^/.]+$/, '') === baseName
         )
         if (match) fileMatches.push({ file_id: match.id, file_name: match.name })
       }
