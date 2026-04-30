@@ -523,9 +523,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     // Column header
     colHeader: { padding: '6px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ddd', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, color: '#888', letterSpacing: '0.04em' },
     // File rows
-    fileRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s' },
-    fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb' },
-    playBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
+    fileRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '0px 10px', height: 36, borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s', boxSizing: 'border-box' as const },
+    fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '0px 10px', height: 36, borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb', boxSizing: 'border-box' as const },
+    playBtn: { width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
     iconBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: '0.5px solid #e8e8e8', background: 'white' },
     addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
     removeBtn: { padding: '6px 14px', background: '#e8e8ed', borderRadius: 5, fontSize: 17, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
@@ -672,7 +672,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
                   {/* Name + progress bar if playing */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, color: isPlaying ? '#0071e3' : '#1d1d1f', fontWeight: isPlaying ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: 14, color: isPlaying ? '#0071e3' : '#1d1d1f', fontWeight: isPlaying ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {removeFileExtension(file.name)}
                     </div>
                     {isPlaying && <div style={{ height: 2, background: '#b8d0f0', borderRadius: 1, marginTop: 3 }}><div style={{ width: '38%', height: 2, background: '#0071e3', borderRadius: 1 }}></div></div>}
@@ -769,7 +769,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     onDrop={(e) => handleDrop(e, index)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '6px 10px', margin: '1px 4px', borderRadius: 6,
+                      padding: '0px 10px', height: 36, margin: '1px 4px', borderRadius: 6, boxSizing: 'border-box' as const,
                       background: dragState.hoveredDropZone === index && dragState.draggedIndex !== index
                         ? '#e8f0fb'
                         : dragState.draggedIndex === index
