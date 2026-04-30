@@ -198,6 +198,100 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     }
   }
 
+  // Duration cache state
+  const [playlistDurations, setPlaylistDurations] = useState<Record<string, number>>({}) // playlistId -> total seconds
+  const [durationLoading, setDurationLoading] = useState<string | null>(null) // playlistId being calculated
+
+  const formatDuration = (seconds: number): string => {
+    if (!seconds) return ''
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = Math.floor(seconds % 60)
+    if (h > 0) return `${h}h ${m}m ${s}s`
+    if (m > 0) return `${m}m ${s}s`
+    return `${s}s`
+  }
+
+  const measureAudioDuration = (url: string): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio()
+      audio.preload = 'metadata'
+      audio.onloadedmetadata = () => resolve(audio.duration || 0)
+      audio.onerror = () => resolve(0)
+      audio.src = url
+    })
+  }
+
+  const calculatePlaylistDuration = async (playlistId: string, items: { path: string; filename: string }[]) => {
+    if (items.length === 0) return
+    setDurationLoading(playlistId)
+    try {
+      // Get all file IDs for this playlist's items from the directory files cache
+      const allFiles = Object.values(directoryFiles).flat()
+      
+      // Match playlist items to actual Google Drive file IDs by filename
+      const fileMatches: { file_id: string; file_name: string }[] = []
+      for (const item of items) {
+        const baseName = item.filename.toLowerCase()
+        const match = allFiles.find(f => 
+          f.name.toLowerCase().replace(/\.[^/.]+$/, '') === baseName ||
+          f.name.toLowerCase() === baseName
+        )
+        if (match) fileMatches.push({ file_id: match.id, file_name: match.name })
+      }
+
+      if (fileMatches.length === 0) {
+        setDurationLoading(null)
+        return
+      }
+
+      // Check which ones we already have cached
+      const ids = fileMatches.map(f => f.file_id).join(',')
+      const cacheRes = await fetch(`/api/durations?ids=${ids}`)
+      const cached: { file_id: string; duration_seconds: number }[] = cacheRes.ok ? await cacheRes.json() : []
+      const cachedMap = Object.fromEntries(cached.map(c => [c.file_id, c.duration_seconds]))
+
+      // Measure uncached files
+      const uncached = fileMatches.filter(f => cachedMap[f.file_id] === undefined)
+      const newDurations: { file_id: string; file_name: string; duration_seconds: number }[] = []
+
+      for (const file of uncached) {
+        try {
+          const url = `https://www.googleapis.com/drive/v3/files/${file.file_id}?alt=media`
+          const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+          if (!response.ok) continue
+          const blob = await response.blob()
+          const objectUrl = URL.createObjectURL(blob)
+          const duration = await measureAudioDuration(objectUrl)
+          URL.revokeObjectURL(objectUrl)
+          if (duration > 0) {
+            newDurations.push({ file_id: file.file_id, file_name: file.file_name, duration_seconds: duration })
+            cachedMap[file.file_id] = duration
+          }
+        } catch {
+          // skip failed files
+        }
+      }
+
+      // Save new durations to cache
+      if (newDurations.length > 0) {
+        await fetch('/api/durations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ durations: newDurations }),
+        })
+      }
+
+      // Calculate total
+      const total = fileMatches.reduce((sum, f) => sum + (cachedMap[f.file_id] || 0), 0)
+      setPlaylistDurations(prev => ({ ...prev, [playlistId]: total }))
+    } catch (err) {
+      console.error('[duration] Failed to calculate duration:', err)
+    } finally {
+      setDurationLoading(null)
+    }
+  }
+
   const { toast } = useToast()
 
   // Helper function to remove file extensions
@@ -350,6 +444,27 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         const content = await googleDriveService.getFileContent(selectedPlaylist.id)
         setOriginalContent(content)
         parsePlaylistContent(content)
+        // Trigger duration calculation after items are parsed
+        setTimeout(() => {
+          const lines2 = content.split("\n").filter(l => l.trim())
+          const parsedItems: { path: string; filename: string }[] = []
+          for (const line of lines2) {
+            if (line.startsWith("Container=")) {
+              const match = line.match(/Container=<([^>]+)>(.+)/)
+              if (match) {
+                match[2].split("|").forEach(p => {
+                  if (p.trim()) {
+                    const fullFilename = p.split("\\").pop() || p.split("/").pop() || p
+                    parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") })
+                  }
+                })
+              }
+            }
+          }
+          if (parsedItems.length > 0 && selectedPlaylist) {
+            calculatePlaylistDuration(selectedPlaylist.id, parsedItems)
+          }
+        }, 100)
       } catch (e) {
         console.error("Failed to load playlist content", e)
         const errorMessage = e instanceof Error ? e.message : "Failed to load playlist content"
@@ -677,12 +792,21 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                       >
                         <div className="w-full flex items-center justify-between">
                           <div className="font-medium truncate text-sm flex-1 mr-2">{removeFileExtension(pl.name)}</div>
-                          <div className={`text-xs whitespace-nowrap ${
+                          <div className={`text-xs whitespace-nowrap flex items-center gap-1 ${
                             selectedPlaylist?.id === pl.id 
                               ? "text-primary-foreground" 
                               : "text-muted-foreground"
                           }`}>
-                            {pl.modifiedTime && new Date(pl.modifiedTime).toLocaleDateString()}
+                            {durationLoading === pl.id ? (
+                              <span className="flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <span>Calculating...</span>
+                              </span>
+                            ) : playlistDurations[pl.id] ? (
+                              formatDuration(playlistDurations[pl.id])
+                            ) : (
+                              pl.modifiedTime && new Date(pl.modifiedTime).toLocaleDateString()
+                            )}
                           </div>
                         </div>
                       </Button>
