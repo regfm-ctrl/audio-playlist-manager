@@ -231,3 +231,4 @@ export async function GET(req: NextRequest) {
   // For now return instructions
   return NextResponse.json({ message: 'Use POST with accessToken for now' });
 }
+
