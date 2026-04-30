@@ -530,7 +530,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
     removeBtn: { padding: '6px 14px', background: '#e8e8ed', borderRadius: 5, fontSize: 17, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #bbb', background: '#eef2f7', padding: '12px 20px', flexShrink: 0, minHeight: 180, maxHeight: 280, display: 'flex', flexDirection: 'column' },
+    breakPanel: { borderTop: '0.5px solid #bbb', background: '#eef2f7', padding: '12px 20px', flexShrink: 0, minHeight: 200, maxHeight: 350, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
