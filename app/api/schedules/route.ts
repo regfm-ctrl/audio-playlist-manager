@@ -153,3 +153,4 @@ function calculateNextRun(
   const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth()+1)}-${pad(tomorrow.getDate())}`;
   return melbourneTimeToUTC(tomorrowStr, timeOfDay).toISOString();
 }
+
