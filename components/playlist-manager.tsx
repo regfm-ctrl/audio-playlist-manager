@@ -134,8 +134,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
       setInPlaylistsProgress({ scanned: 0, total: files.length })
       const found: string[] = []
-      const BATCH = 10
+      const BATCH = 25
       let scanned = 0
+      // Extract just the filename for quick pre-check
+      const quickCheck = file.localPath.split('\\').pop() || file.localPath.split('/').pop() || file.localPath
       for (let i = 0; i < files.length; i += BATCH) {
         const batch = files.slice(i, i + BATCH)
         await Promise.all(batch.map(async (pl: { id: string; name: string }) => {
@@ -146,11 +148,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             )
             if (!res.ok) return
             const text = await res.text()
-            for (const line of text.split('\n')) {
-              if (line.startsWith('Container=') && line.includes(file.localPath)) {
-                found.push(pl.name.replace(/\.m3u8$/i, ''))
-                break
-              }
+            // Quick check — if the filename isn't anywhere in the text, skip full parse
+            if (!text.includes(quickCheck)) return
+            if (text.includes(file.localPath)) {
+              found.push(pl.name.replace(/\.m3u8$/i, ''))
             }
           } catch {}
         }))
@@ -185,11 +186,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       const { files } = await listRes.json()
 
       const pathToRemove = removeAllFile.localPath
-      const BATCH = 10 // fetch 10 playlists at a time
+      const BATCH = 25
 
       // Step 1: Fetch all playlist contents in parallel batches
       setRemoveAllProgress({ scanned: 0, total: files.length, phase: 'scanning' })
       const toUpdate: { id: string; name: string; containerName: string; updatedPaths: string[] }[] = []
+
+      // Extract just the filename for quick pre-check
+      const quickCheck = pathToRemove.split('\\').pop() || pathToRemove.split('/').pop() || pathToRemove
 
       for (let i = 0; i < files.length; i += BATCH) {
         const batch = files.slice(i, i + BATCH)
@@ -201,6 +205,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             )
             if (!res.ok) return
             const text = await res.text()
+            // Quick pre-check before full parse
+            if (!text.includes(quickCheck)) return
             let containerName = ''
             let paths: string[] = []
             for (const line of text.split('\n').filter((l: string) => l.trim())) {
@@ -212,7 +218,6 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 }
               }
             }
-            // Only queue playlists that actually contain the file
             if (!paths.includes(pathToRemove)) return
             toUpdate.push({
               id: playlist.id,
