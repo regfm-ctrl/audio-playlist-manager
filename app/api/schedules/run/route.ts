@@ -131,6 +131,7 @@ async function processSchedules(accessToken: string) {
     WHERE is_active = true
     AND next_run_at <= ${now.toISOString()}
     AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
+    AND schedule_type != 'expiry_only'
   `;
 
   if (due.length === 0) return { processed: 0, results: [] };

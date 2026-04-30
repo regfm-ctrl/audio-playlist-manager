@@ -11,7 +11,7 @@ type Schedule = {
   audio_directory_name: string;
   playlist_name: string;
   position: number;
-  schedule_type: string;
+  schedule_type: string; // 'recurring' | 'once' | 'expiry_only'
   days_of_week: string | null;
   specific_dates: string | null;
   time_of_day: string;
@@ -170,14 +170,17 @@ export default function SchedulesPage() {
                     <td className="px-5 py-3">
                       <div className="text-xs">
                         <span className={`px-1.5 py-0.5 rounded text-xs font-medium mr-1 ${
+                          s.schedule_type === 'expiry_only' ? 'bg-gray-100 text-gray-600' :
                           s.schedule_type === 'once' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
                         }`}>
-                          {s.schedule_type === 'once' ? 'One-time' : 'Recurring'}
+                          {s.schedule_type === 'expiry_only' ? 'Expiry only' :
+                           s.schedule_type === 'once' ? 'One-time' : 'Recurring'}
                         </span>
-                        {s.schedule_type === 'recurring'
+                        {s.schedule_type === 'expiry_only' ? '—' :
+                         s.schedule_type === 'recurring'
                           ? formatDays(s.days_of_week)
                           : formatDates(s.specific_dates)}
-                        {' @ '}{s.time_of_day}
+                        {s.schedule_type !== 'expiry_only' && ` @ ${s.time_of_day}`}
                       </div>
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">

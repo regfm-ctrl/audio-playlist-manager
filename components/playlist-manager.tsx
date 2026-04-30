@@ -16,7 +16,7 @@ import {
 } from "@/lib/google-drive"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
-import { FileText, Loader2, AlertCircle, RefreshCw, Search, Music, Headphones, GripVertical, Play, Square, SkipBack, SkipForward, Clock, X } from "lucide-react"
+import { FileText, Loader2, AlertCircle, RefreshCw, Search, Music, Headphones, GripVertical, Play, Square, SkipBack, SkipForward, Clock, X, AlarmClock } from "lucide-react"
 
 interface PlaylistManagerProps {
   accessToken: string
@@ -108,6 +108,48 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
   // Schedule dialog state
   const [scheduleFile, setScheduleFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
+  const [expiryFile, setExpiryFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
+  const [expiryForm, setExpiryForm] = useState({ playlist_id: '', playlist_name: '', expires_at: '', expires_time: '23:59' })
+  const [expirySaving, setExpirySaving] = useState(false)
+  const [expiryMsg, setExpiryMsg] = useState('')
+
+  async function saveExpiryOnly() {
+    if (!expiryFile) return
+    if (!expiryForm.playlist_id) { setExpiryMsg('Please select a playlist'); return }
+    if (!expiryForm.expires_at) { setExpiryMsg('Please set an expiry date'); return }
+    setExpirySaving(true)
+    setExpiryMsg('')
+    try {
+      // Create a one-time schedule set in the past (already expired) just to register the expiry
+      // Actually create a special "expiry-only" schedule with no run date
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio_file_id: expiryFile.id,
+          audio_file_name: expiryFile.name,
+          audio_directory_name: expiryFile.directoryName,
+          audio_local_path: expiryFile.localPath,
+          playlist_id: expiryForm.playlist_id,
+          playlist_name: expiryForm.playlist_name,
+          position: -1,
+          schedule_type: 'expiry_only',
+          days_of_week: null,
+          specific_dates: null,
+          time_of_day: '00:00',
+          expires_at: `${expiryForm.expires_at}T${expiryForm.expires_time}:00`,
+        }),
+      })
+      if (res.ok) {
+        setExpiryMsg('✅ Expiry set!')
+        setTimeout(() => { setExpiryFile(null); setExpiryMsg('') }, 1500)
+      } else {
+        setExpiryMsg('❌ Failed to set expiry')
+      }
+    } finally {
+      setExpirySaving(false)
+    }
+  }
   const [scheduleForm, setScheduleForm] = useState({
     playlist_id: '', playlist_name: '', position: '-1',
     schedule_type: 'recurring', days_of_week: [] as number[],
@@ -790,6 +832,25 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                         >
                           <Clock className="h-3.5 w-3.5 text-gray-400 hover:text-gray-700" />
                         </button>
+                        {/* Expiry-only button */}
+                        <button
+                          onClick={() => {
+                            setExpiryFile({
+                              id: file.id, name: file.name,
+                              directoryName: selectedDirectory?.name || '',
+                              localPath: buildPathForFile(file, selectedDirectory),
+                            })
+                            setExpiryForm({
+                              playlist_id: selectedPlaylist?.id || '',
+                              playlist_name: selectedPlaylist?.name || '',
+                              expires_at: '', expires_time: '23:59',
+                            })
+                          }}
+                          className="p-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+                          title="Set expiry date (remove from playlist on a date)"
+                        >
+                          <AlarmClock className="h-3.5 w-3.5 text-gray-400 hover:text-gray-700" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1089,6 +1150,78 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 className="w-full bg-black text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
               >
                 {scheduleSaving ? 'Saving...' : 'Save Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Expiry-only Dialog */}
+      {expiryFile && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="font-semibold text-lg">Set Expiry: {expiryFile.name.replace(/\.[^/.]+$/, '')}</h2>
+                <p className="text-sm text-gray-500 mt-0.5">File will be automatically removed from the playlist on this date</p>
+              </div>
+              <button onClick={() => setExpiryFile(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Playlist selector */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Playlist to remove from</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  value={expiryForm.playlist_id}
+                  onChange={e => {
+                    const pl = playlists.find(p => p.id === e.target.value)
+                    setExpiryForm(f => ({ ...f, playlist_id: e.target.value, playlist_name: pl?.name || '' }))
+                  }}
+                >
+                  <option value="">Select a playlist...</option>
+                  {playlists.map(p => (
+                    <option key={p.id} value={p.id}>{p.name.replace(/\.m3u8$/i, '')}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Expiry date */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Expiry date</label>
+                <input
+                  type="date"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  value={expiryForm.expires_at}
+                  onChange={e => setExpiryForm(f => ({ ...f, expires_at: e.target.value }))}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              {/* Expiry time */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Expiry time (Melbourne)</label>
+                <input
+                  type="time"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  value={expiryForm.expires_time}
+                  onChange={e => setExpiryForm(f => ({ ...f, expires_time: e.target.value }))}
+                  disabled={!expiryForm.expires_at}
+                />
+              </div>
+
+              {expiryMsg && (
+                <p className="text-sm text-center">{expiryMsg}</p>
+              )}
+
+              <button
+                onClick={saveExpiryOnly}
+                disabled={expirySaving}
+                className="w-full bg-orange-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+              >
+                {expirySaving ? 'Saving...' : 'Set Expiry'}
               </button>
             </div>
           </div>
