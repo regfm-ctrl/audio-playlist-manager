@@ -757,69 +757,63 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : playlistItems.length === 0 ? (
               <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ overflowY: 'auto', flex: 1 }}>
+              <div style={{ overflowY: 'auto', flex: 1, background: '#f9f9fb', borderRadius: 8, border: '0.5px solid #e8e8e8', padding: '4px 0' }}>
                 {playlistItems.map((item, index) => (
-                  <div key={index}>
-                    {/* Drop indicator */}
-                    <div
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, index)}
-                      onDragEnter={() => handleDropZoneEnter(index)}
-                      onDragLeave={handleDropZoneLeave}
-                      style={{ height: dragState.isDragging && dragState.hoveredDropZone === index ? 3 : 1, background: dragState.isDragging && dragState.hoveredDropZone === index ? '#0071e3' : 'transparent', borderRadius: 2, margin: '1px 0', transition: 'all 0.1s' }}
-                    />
-                    <div
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragEnd={handleDragEnd}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 8px', borderRadius: 6, background: dragState.draggedIndex === index ? '#e8f0fb' : 'transparent', opacity: dragState.draggedIndex === index ? 0.5 : 1, transition: 'background 0.1s', cursor: 'grab' }}
-                    >
-                      {/* Number */}
-                      <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 500, width: 22, textAlign: 'right', flexShrink: 0 }}>{index + 1}</span>
-                      {/* Grip */}
-                      <span style={{ color: '#ccc', flexShrink: 0, cursor: 'grab', display: 'flex', alignItems: 'center' }}><IconGrip /></span>
-                      {/* Filename */}
-                      <span style={{ fontSize: 14, color: '#1d1d1f', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.filename}</span>
-                      {/* Up / Down buttons */}
-                      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                        <button
-                          onClick={() => {
-                            if (index === 0) return
-                            setPlaylistItems(prev => { const n = [...prev]; [n[index-1], n[index]] = [n[index], n[index-1]]; return n })
-                          }}
-                          disabled={index === 0}
-                          style={{ width: 22, height: 22, border: '0.5px solid #ddd', borderRadius: 4, background: 'white', cursor: index === 0 ? 'default' : 'pointer', color: index === 0 ? '#ddd' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, padding: 0 }}
-                          title="Move up"
-                        >▲</button>
-                        <button
-                          onClick={() => {
-                            if (index === playlistItems.length - 1) return
-                            setPlaylistItems(prev => { const n = [...prev]; [n[index], n[index+1]] = [n[index+1], n[index]]; return n })
-                          }}
-                          disabled={index === playlistItems.length - 1}
-                          style={{ width: 22, height: 22, border: '0.5px solid #ddd', borderRadius: 4, background: 'white', cursor: index === playlistItems.length - 1 ? 'default' : 'pointer', color: index === playlistItems.length - 1 ? '#ddd' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, padding: 0 }}
-                          title="Move down"
-                        >▼</button>
-                      </div>
-                      {/* Remove */}
+                  <div
+                    key={index}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => { e.preventDefault(); handleDropZoneEnter(index) }}
+                    onDragLeave={handleDropZoneLeave}
+                    onDrop={(e) => handleDrop(e, index)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '6px 10px', margin: '1px 4px', borderRadius: 6,
+                      background: dragState.hoveredDropZone === index && dragState.draggedIndex !== index
+                        ? '#e8f0fb'
+                        : dragState.draggedIndex === index
+                        ? '#f0f0f0'
+                        : 'white',
+                      opacity: dragState.draggedIndex === index ? 0.5 : 1,
+                      border: dragState.hoveredDropZone === index && dragState.draggedIndex !== index
+                        ? '0.5px solid #0071e3'
+                        : '0.5px solid #eee',
+                      cursor: 'grab', transition: 'background 0.1s, border 0.1s',
+                      userSelect: 'none' as const,
+                    }}
+                  >
+                    {/* Number */}
+                    <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 600, width: 22, textAlign: 'right' as const, flexShrink: 0 }}>{index + 1}</span>
+                    {/* Grip */}
+                    <span style={{ color: '#bbb', flexShrink: 0, display: 'flex', alignItems: 'center' }}><IconGrip /></span>
+                    {/* Filename */}
+                    <span style={{ fontSize: 14, color: '#1d1d1f', flex: 1, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.filename}</span>
+                    {/* Up / Down */}
+                    <div style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                       <button
-                        onClick={() => setPlaylistItems(prev => prev.filter((_, i) => i !== index))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ccc', flexShrink: 0, display: 'flex', alignItems: 'center' }}
-                        title="Remove"
-                      >
-                        <X style={{ width: 13, height: 13 }} />
-                      </button>
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); if (index === 0) return; setPlaylistItems(prev => { const n = [...prev]; [n[index-1], n[index]] = [n[index], n[index-1]]; return n }) }}
+                        disabled={index === 0}
+                        style={{ width: 22, height: 22, border: '0.5px solid #ddd', borderRadius: 4, background: 'white', cursor: index === 0 ? 'default' : 'pointer', color: index === 0 ? '#ddd' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, padding: 0 }}
+                      >▲</button>
+                      <button
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); if (index === playlistItems.length - 1) return; setPlaylistItems(prev => { const n = [...prev]; [n[index], n[index+1]] = [n[index+1], n[index]]; return n }) }}
+                        disabled={index === playlistItems.length - 1}
+                        style={{ width: 22, height: 22, border: '0.5px solid #ddd', borderRadius: 4, background: 'white', cursor: index === playlistItems.length - 1 ? 'default' : 'pointer', color: index === playlistItems.length - 1 ? '#ddd' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, padding: 0 }}
+                      >▼</button>
                     </div>
+                    {/* Remove */}
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); setPlaylistItems(prev => prev.filter((_, i) => i !== index)) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ccc', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                    >
+                      <X style={{ width: 13, height: 13 }} />
+                    </button>
                   </div>
                 ))}
-                {/* Final drop zone */}
-                <div
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, playlistItems.length)}
-                  onDragEnter={() => handleDropZoneEnter(playlistItems.length)}
-                  onDragLeave={handleDropZoneLeave}
-                  style={{ height: dragState.isDragging && dragState.hoveredDropZone === playlistItems.length ? 3 : 1, background: dragState.isDragging && dragState.hoveredDropZone === playlistItems.length ? '#0071e3' : 'transparent', borderRadius: 2, margin: '1px 0', transition: 'all 0.1s' }}
-                />
               </div>
             )}
           </div>
