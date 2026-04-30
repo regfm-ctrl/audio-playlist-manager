@@ -85,13 +85,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       const audio = new Audio(url)
       audioRef.current = audio
       audio.onended = () => {
-        // Auto-advance to next file
-        const idx = allFiles.findIndex(f => f.id === file.id)
-        if (idx >= 0 && idx < allFiles.length - 1) {
-          playFile(allFiles[idx + 1], allFiles)
-        } else {
-          setPlayingFileId(null)
-        }
+        setPlayingFileId(null)
       }
       await audio.play()
       setPlayingFileId(file.id)
@@ -667,15 +661,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                           : "hover:bg-[#efefef] dark:hover:bg-gray-1000"
                       }`}>
                         {/* Player controls */}
-                        <div className="flex items-center gap-0.5 flex-shrink-0">
-                          <button
-                            onClick={() => skipTo("prev", filteredFiles)}
-                            disabled={!playingFileId || filteredFiles.findIndex(f => f.id === playingFileId) === 0}
-                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 transition-colors"
-                            title="Previous"
-                          >
-                            <SkipBack className="h-3 w-3" />
-                          </button>
+                        <div className="flex items-center flex-shrink-0">
                           <button
                             onClick={() => playFile(file, filteredFiles)}
                             disabled={isLoadingAudio === file.id}
@@ -693,14 +679,6 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                             ) : (
                               <Play className="h-3 w-3" />
                             )}
-                          </button>
-                          <button
-                            onClick={() => skipTo("next", filteredFiles)}
-                            disabled={!playingFileId || filteredFiles.findIndex(f => f.id === playingFileId) === filteredFiles.length - 1}
-                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 transition-colors"
-                            title="Next"
-                          >
-                            <SkipForward className="h-3 w-3" />
                           </button>
                         </div>
                         {/* File name */}
