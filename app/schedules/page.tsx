@@ -36,6 +36,7 @@ export default function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [runMsg, setRunMsg] = useState('');
   const [runLoading, setRunLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   async function loadSchedules() {
     setLoading(true);
@@ -56,12 +57,12 @@ export default function SchedulesPage() {
   }
 
   async function deleteSchedule(id: number) {
-    if (!confirm('Delete this schedule?')) return;
     await fetch('/api/schedules', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
+    setConfirmDelete(null);
     loadSchedules();
   }
 
@@ -246,6 +247,29 @@ export default function SchedulesPage() {
           )}
         </div>
       </div>
+      {/* Delete confirmation dialog */}
+      {confirmDelete !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="font-semibold text-lg mb-2">Delete Schedule</h2>
+            <p className="text-sm text-gray-600 mb-6">Are you sure you want to delete this schedule? This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteSchedule(confirmDelete)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
