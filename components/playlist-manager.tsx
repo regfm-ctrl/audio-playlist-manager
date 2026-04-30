@@ -148,16 +148,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     }
   }
   const [scheduleForm, setScheduleForm] = useState({
-    playlist_id: '', playlist_name: '', position: '-1',
+    selected_playlists: [] as { id: string; name: string }[],
+    position: '-1',
     schedule_type: 'recurring', days_of_week: [] as number[],
     specific_dates: '', time_of_day: '08:00', expires_at: '', expires_time: '23:59',
   })
+  const [playlistSearchSchedule, setPlaylistSearchSchedule] = useState('')
   const [scheduleSaving, setScheduleSaving] = useState(false)
   const [scheduleMsg, setScheduleMsg] = useState('')
 
   async function saveSchedule() {
     if (!scheduleFile) return
-    if (!scheduleForm.playlist_id) { setScheduleMsg('Please select a playlist'); return }
+    if (scheduleForm.selected_playlists.length === 0) { setScheduleMsg('Please select at least one playlist'); return }
     if (scheduleForm.schedule_type === 'recurring' && scheduleForm.days_of_week.length === 0) {
       setScheduleMsg('Please select at least one day'); return
     }
@@ -167,31 +169,35 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     setScheduleSaving(true)
     setScheduleMsg('')
     try {
-      const res = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio_file_id: scheduleFile.id,
-          audio_file_name: scheduleFile.name,
-          audio_directory_name: scheduleFile.directoryName,
-          audio_local_path: scheduleFile.localPath,
-          playlist_id: scheduleForm.playlist_id,
-          playlist_name: scheduleForm.playlist_name,
-          position: parseInt(scheduleForm.position),
-          schedule_type: scheduleForm.schedule_type,
-          days_of_week: scheduleForm.days_of_week.join(',') || null,
-          specific_dates: scheduleForm.specific_dates || null,
-          time_of_day: scheduleForm.time_of_day,
-          expires_at: scheduleForm.expires_at
-            ? `${scheduleForm.expires_at}T${scheduleForm.expires_time}:00`
-            : null,
-        }),
-      })
-      if (res.ok) {
-        setScheduleMsg('✅ Schedule saved!')
-        setTimeout(() => { setScheduleFile(null); setScheduleMsg('') }, 1500)
+      let saved = 0
+      for (const pl of scheduleForm.selected_playlists) {
+        const res = await fetch('/api/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio_file_id: scheduleFile.id,
+            audio_file_name: scheduleFile.name,
+            audio_directory_name: scheduleFile.directoryName,
+            audio_local_path: scheduleFile.localPath,
+            playlist_id: pl.id,
+            playlist_name: pl.name,
+            position: parseInt(scheduleForm.position),
+            schedule_type: scheduleForm.schedule_type,
+            days_of_week: scheduleForm.days_of_week.join(',') || null,
+            specific_dates: scheduleForm.specific_dates || null,
+            time_of_day: scheduleForm.time_of_day,
+            expires_at: scheduleForm.expires_at
+              ? `${scheduleForm.expires_at}T${scheduleForm.expires_time}:00`
+              : null,
+          }),
+        })
+        if (res.ok) saved++
+      }
+      if (saved === scheduleForm.selected_playlists.length) {
+        setScheduleMsg(`✅ ${saved} schedule${saved > 1 ? 's' : ''} saved!`)
+        setTimeout(() => { setScheduleFile(null); setScheduleMsg(''); setPlaylistSearchSchedule('') }, 1500)
       } else {
-        setScheduleMsg('❌ Failed to save schedule')
+        setScheduleMsg(`⚠️ Saved ${saved} of ${scheduleForm.selected_playlists.length}`)
       }
     } finally {
       setScheduleSaving(false)
@@ -982,12 +988,12 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                               localPath: buildPathForFile(file, selectedDirectory),
                             })
                             setScheduleForm({
-                              playlist_id: selectedPlaylist?.id || '',
-                              playlist_name: selectedPlaylist?.name || '',
+                              selected_playlists: selectedPlaylist ? [{ id: selectedPlaylist.id, name: selectedPlaylist.name }] : [],
                               position: '-1', schedule_type: 'recurring',
                               days_of_week: [], specific_dates: '', time_of_day: '08:00',
                               expires_at: '', expires_time: '23:59',
                             })
+                            setPlaylistSearchSchedule('')
                           }}
                           className="p-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
                           title="Schedule this file"
@@ -1160,22 +1166,68 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             </div>
 
             <div className="space-y-4">
-              {/* Playlist selector */}
+              {/* Multi-playlist selector */}
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Playlist</label>
-                <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                  value={scheduleForm.playlist_id}
-                  onChange={e => {
-                    const pl = playlists.find(p => p.id === e.target.value)
-                    setScheduleForm(f => ({ ...f, playlist_id: e.target.value, playlist_name: pl?.name || '' }))
-                  }}
-                >
-                  <option value="">Select a playlist...</option>
-                  {playlists.map(p => (
-                    <option key={p.id} value={p.id}>{p.name.replace(/\.m3u8$/i, '')}</option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700">
+                    Playlists
+                    {scheduleForm.selected_playlists.length > 0 && (
+                      <span className="ml-2 px-1.5 py-0.5 bg-black text-white rounded text-xs">
+                        {scheduleForm.selected_playlists.length} selected
+                      </span>
+                    )}
+                  </label>
+                  {scheduleForm.selected_playlists.length > 0 && (
+                    <button
+                      onClick={() => setScheduleForm(f => ({ ...f, selected_playlists: [] }))}
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+                {/* Search */}
+                <input
+                  type="text"
+                  placeholder="Search playlists..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-black/10"
+                  value={playlistSearchSchedule}
+                  onChange={e => setPlaylistSearchSchedule(e.target.value)}
+                />
+                {/* Checkbox list */}
+                <div className="border border-gray-200 rounded-lg overflow-y-auto" style={{ maxHeight: '180px' }}>
+                  {playlists
+                    .filter(p => p.name.toLowerCase().includes(playlistSearchSchedule.toLowerCase()))
+                    .map(p => {
+                      const isSelected = scheduleForm.selected_playlists.some(s => s.id === p.id)
+                      return (
+                        <label
+                          key={p.id}
+                          className={`flex items-center gap-3 px-3 py-2 cursor-pointer text-sm transition-colors border-b border-gray-50 last:border-0 ${
+                            isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              setScheduleForm(f => ({
+                                ...f,
+                                selected_playlists: isSelected
+                                  ? f.selected_playlists.filter(s => s.id !== p.id)
+                                  : [...f.selected_playlists, { id: p.id, name: p.name }]
+                              }))
+                            }}
+                            className="rounded"
+                          />
+                          <span className={isSelected ? 'font-medium text-blue-700' : 'text-gray-700'}>
+                            {p.name.replace(/\.m3u8$/i, '')}
+                          </span>
+                        </label>
+                      )
+                    })
+                  }
+                </div>
               </div>
 
               {/* Position */}
