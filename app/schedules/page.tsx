@@ -104,7 +104,7 @@ export default function SchedulesPage() {
     toolbar: { padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 },
     badge: { padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 },
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
-    dialog: { background: '#2a2a2c', borderRadius: 14, padding: 24, width: '100%' },
+    dialog: { background: '#3a3a3c', borderRadius: 14, padding: 24, width: '100%' },
   };
 
   const IconBreaks = () => <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1"/></svg>;

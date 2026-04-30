@@ -527,14 +527,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '0px 10px', height: 36, borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb', boxSizing: 'border-box' as const },
     playBtn: { width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
     iconBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: '0.5px solid #e8e8e8', background: 'white' },
-    addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
-    removeBtn: { padding: '6px 14px', background: '#e8e8ed', borderRadius: 5, fontSize: 17, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
+    addBtn: { width: 66, height: 22, background: '#0071e3', borderRadius: 4, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    removeBtn: { width: 66, height: 22, background: '#e8e8ed', borderRadius: 4, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     // Bottom break content
     breakPanel: { borderTop: '0.5px solid #bbb', background: '#eef2f7', padding: '12px 20px', flexShrink: 0, minHeight: 200, maxHeight: 350, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
-    dialog: { background: '#2a2a2c', borderRadius: 14, width: '100%' },
+    dialog: { background: '#3a3a3c', borderRadius: 14, width: '100%' },
   }
 
   return (
@@ -838,19 +838,19 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   <label style={{ fontSize: 15, fontWeight: 500, color: '#333' }}>
                     Sponsorship Breaks {scheduleForm.selected_playlists.length > 0 && <span style={{ background: '#0071e3', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 17, marginLeft: 4 }}>{scheduleForm.selected_playlists.length}</span>}
                   </label>
-                  {scheduleForm.selected_playlists.length > 0 && <button onClick={() => setScheduleForm(f => ({ ...f, selected_playlists: [] }))} style={{ fontSize: 17, color: '#888', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
+                  {scheduleForm.selected_playlists.length > 0 && <button onClick={() => setScheduleForm(f => ({ ...f, selected_playlists: [] }))} style={{ fontSize: 13, color: '#888', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
                 </div>
                 <input
                   value={playlistSearchSchedule}
                   onChange={e => setPlaylistSearchSchedule(e.target.value)}
                   placeholder="Search breaks..."
-                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, marginBottom: 6, boxSizing: 'border-box' as const, outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #555', borderRadius: 7, fontSize: 14, marginBottom: 6, boxSizing: 'border-box' as const, outline: 'none', background: '#4a4a4c', color: '#e0e0e0' }}
                 />
-                <div style={{ border: '0.5px solid #444', borderRadius: 8, overflowY: 'auto', maxHeight: 240 }}>
+                <div style={{ border: '0.5px solid #555', borderRadius: 8, overflowY: 'auto', maxHeight: 240 }}>
                   {playlists.filter(p => p.name.toLowerCase().includes(playlistSearchSchedule.toLowerCase())).map(p => {
                     const isSelected = scheduleForm.selected_playlists.some(s => s.id === p.id)
                     return (
-                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', cursor: 'pointer', background: isSelected ? '#e8f0fb' : 'white', borderBottom: '0.5px solid #f0f0f0', fontSize: 15 }}>
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', cursor: 'pointer', background: isSelected ? '#0071e333' : '#2a2a2c', borderBottom: '0.5px solid #3a3a3c', fontSize: 14 }}>
                         <input type="checkbox" checked={isSelected} onChange={() => setScheduleForm(f => ({ ...f, selected_playlists: isSelected ? f.selected_playlists.filter(s => s.id !== p.id) : [...f.selected_playlists, { id: p.id, name: p.name }] }))} />
                         <span style={{ color: isSelected ? '#4da3ff' : '#aaa', fontWeight: isSelected ? 500 : 400 }}>{removeFileExtension(p.name)}</span>
                       </label>
@@ -861,18 +861,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               {/* Right: schedule options */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Position</label>
-                  <select value={scheduleForm.position} onChange={e => setScheduleForm(f => ({ ...f, position: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, background: 'white' }}>
+                  <label style={{ fontSize: 14, fontWeight: 500, color: '#ccc', display: 'block', marginBottom: 4 }}>Position</label>
+                  <select value={scheduleForm.position} onChange={e => setScheduleForm(f => ({ ...f, position: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #555', borderRadius: 7, fontSize: 14, background: '#4a4a4c', color: '#e0e0e0' }}>
                     <option value="-1">Add to end</option>
                     <option value="0">Add at beginning</option>
                     {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={String(n)}>After position {n}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Schedule type</label>
+                  <label style={{ fontSize: 14, fontWeight: 500, color: '#ccc', display: 'block', marginBottom: 4 }}>Schedule type</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {(['recurring', 'once'] as const).map(t => (
-                      <button key={t} onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))} style={{ flex: 1, padding: '8px 0', borderRadius: 7, fontSize: 15, cursor: 'pointer', border: '0.5px solid #ddd', background: scheduleForm.schedule_type === t ? '#0071e3' : '#1d1d1f', color: scheduleForm.schedule_type === t ? 'white' : '#888', border: '0.5px solid #444' }}>
+                      <button key={t} onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))} style={{ flex: 1, padding: '8px 0', borderRadius: 7, fontSize: 15, cursor: 'pointer', border: '0.5px solid #ddd', background: scheduleForm.schedule_type === t ? '#0071e3' : '#3a3a3c', color: scheduleForm.schedule_type === t ? 'white' : '#aaa', border: '0.5px solid #555' }}>
                         {t === 'recurring' ? '🔁 Recurring' : '1️⃣ One-time'}
                       </button>
                     ))}
@@ -880,10 +880,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 </div>
                 {scheduleForm.schedule_type === 'recurring' && (
                   <div>
-                    <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Days</label>
+                    <label style={{ fontSize: 14, fontWeight: 500, color: '#ccc', display: 'block', marginBottom: 4 }}>Days</label>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {['Su','Mo','Tu','We','Th','Fr','Sa'].map((day, idx) => (
-                        <button key={day} onClick={() => setScheduleForm(f => ({ ...f, days_of_week: f.days_of_week.includes(idx) ? f.days_of_week.filter(d => d !== idx) : [...f.days_of_week, idx] }))} style={{ flex: 1, padding: '5px 0', borderRadius: 5, fontSize: 17, cursor: 'pointer', border: 'none', background: scheduleForm.days_of_week.includes(idx) ? '#0071e3' : '#1d1d1f', color: scheduleForm.days_of_week.includes(idx) ? 'white' : '#666', border: '0.5px solid #444' }}>
+                        <button key={day} onClick={() => setScheduleForm(f => ({ ...f, days_of_week: f.days_of_week.includes(idx) ? f.days_of_week.filter(d => d !== idx) : [...f.days_of_week, idx] }))} style={{ flex: 1, padding: '5px 0', borderRadius: 5, fontSize: 17, cursor: 'pointer', border: 'none', background: scheduleForm.days_of_week.includes(idx) ? '#0071e3' : '#3a3a3c', color: scheduleForm.days_of_week.includes(idx) ? 'white' : '#aaa', border: '0.5px solid #555' }}>
                           {day}
                         </button>
                       ))}
@@ -892,12 +892,12 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 )}
                 {scheduleForm.schedule_type === 'once' && (
                   <div>
-                    <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Date</label>
+                    <label style={{ fontSize: 14, fontWeight: 500, color: '#ccc', display: 'block', marginBottom: 4 }}>Date</label>
                     <input type="date" value={scheduleForm.specific_dates} onChange={e => setScheduleForm(f => ({ ...f, specific_dates: e.target.value }))} min={new Date().toISOString().split('T')[0]} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, boxSizing: 'border-box' as const }} />
                   </div>
                 )}
                 <div>
-                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Time</label>
+                  <label style={{ fontSize: 14, fontWeight: 500, color: '#ccc', display: 'block', marginBottom: 4 }}>Time</label>
                   <input type="time" value={scheduleForm.time_of_day} onChange={e => setScheduleForm(f => ({ ...f, time_of_day: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, boxSizing: 'border-box' as const }} />
                 </div>
               </div>
@@ -1039,4 +1039,3 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     </ErrorBoundary>
   )
 }
-
