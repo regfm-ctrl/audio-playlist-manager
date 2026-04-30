@@ -30,8 +30,18 @@ export async function POST(req: NextRequest) {
     schedule_type, days_of_week, specific_dates, time_of_day, expires_at,
   } = await req.json();
 
-  // Calculate next run
-  const next_run_at = calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
+  // For expiry_only, no next_run needed. Convert expires_at from Melbourne to UTC.
+  const next_run_at = schedule_type === 'expiry_only'
+    ? null
+    : calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
+
+  // Convert expires_at from Melbourne local time to UTC
+  let expires_at_utc = null;
+  if (expires_at) {
+    const offsetMinutes = getMelbourneOffset();
+    const localMs = new Date(expires_at).getTime();
+    expires_at_utc = new Date(localMs - offsetMinutes * 60000).toISOString();
+  }
 
   const rows = await sql`
     INSERT INTO schedules (
@@ -43,7 +53,7 @@ export async function POST(req: NextRequest) {
       ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
       ${playlist_id}, ${playlist_name}, ${position ?? -1},
       ${schedule_type}, ${days_of_week ?? null}, ${specific_dates ?? null}, ${time_of_day},
-      ${next_run_at}, ${expires_at ?? null}, ${user.username}
+      ${next_run_at}, ${expires_at_utc}, ${user.username}
     ) RETURNING *
   `;
   return NextResponse.json(rows[0]);
@@ -56,7 +66,16 @@ export async function PATCH(req: NextRequest) {
 
   const { id, is_active, days_of_week, specific_dates, time_of_day, schedule_type, position, expires_at } = await req.json();
 
-  const next_run_at = calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
+  const next_run_at = schedule_type === 'expiry_only'
+    ? null
+    : calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
+
+  let expires_at_utc = null;
+  if (expires_at) {
+    const offsetMinutes = getMelbourneOffset();
+    const localMs = new Date(expires_at).getTime();
+    expires_at_utc = new Date(localMs - offsetMinutes * 60000).toISOString();
+  }
 
   await sql`
     UPDATE schedules SET
@@ -67,7 +86,7 @@ export async function PATCH(req: NextRequest) {
       schedule_type = ${schedule_type},
       position = ${position ?? -1},
       next_run_at = ${next_run_at},
-      expires_at = ${expires_at ?? null}
+      expires_at = ${expires_at_utc ?? null}
     WHERE id = ${id}
   `;
   return NextResponse.json({ ok: true });

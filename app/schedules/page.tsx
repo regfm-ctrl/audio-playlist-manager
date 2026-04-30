@@ -184,7 +184,7 @@ export default function SchedulesPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
-                      {s.next_run_at ? new Date(s.next_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : '—'}
+                      {s.schedule_type === 'expiry_only' ? '—' : s.next_run_at ? new Date(s.next_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : '—'}
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
                       {s.last_run_at ? new Date(s.last_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : 'Never'}
