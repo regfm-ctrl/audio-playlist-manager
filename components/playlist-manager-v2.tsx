@@ -835,7 +835,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               {/* Left: playlist selector */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label style={{ fontSize: 15, fontWeight: 500, color: '#333' }}>
+                  <label style={{ fontSize: 15, fontWeight: 500, color: 'white' }}>
                     Sponsorship Breaks {scheduleForm.selected_playlists.length > 0 && <span style={{ background: '#0071e3', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 17, marginLeft: 4 }}>{scheduleForm.selected_playlists.length}</span>}
                   </label>
                   {scheduleForm.selected_playlists.length > 0 && <button onClick={() => setScheduleForm(f => ({ ...f, selected_playlists: [] }))} style={{ fontSize: 13, color: '#888', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
