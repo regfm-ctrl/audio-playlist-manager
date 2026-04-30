@@ -530,7 +530,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
     removeBtn: { padding: '6px 14px', background: '#e8e8ed', borderRadius: 5, fontSize: 17, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #ccc', background: 'white', padding: '10px 20px', flexShrink: 0 },
+    breakPanel: { borderTop: '0.5px solid #ccc', background: 'white', padding: '10px 20px', flexShrink: 0, minHeight: 180, maxHeight: 280, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
@@ -755,32 +755,59 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : !selectedPlaylist ? (
               <p style={{ fontSize: 17, color: '#aaa' }}>Select a sponsorship break to view its content</p>
             ) : playlistItems.length === 0 ? (
-              <p style={{ fontSize: 17, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
+              <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
                 {playlistItems.map((item, index) => (
                   <div key={index}>
-                    {/* Drop zone */}
+                    {/* Drop indicator */}
                     <div
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, index)}
                       onDragEnter={() => handleDropZoneEnter(index)}
                       onDragLeave={handleDropZoneLeave}
-                      style={{ width: 4, borderRadius: 2, background: dragState.isDragging && dragState.hoveredDropZone === index ? '#0071e3' : 'transparent', transition: 'background 0.1s' }}
+                      style={{ height: dragState.isDragging && dragState.hoveredDropZone === index ? 3 : 1, background: dragState.isDragging && dragState.hoveredDropZone === index ? '#0071e3' : 'transparent', borderRadius: 2, margin: '1px 0', transition: 'all 0.1s' }}
                     />
                     <div
                       draggable
                       onDragStart={(e) => handleDragStart(e, index)}
                       onDragEnd={handleDragEnd}
-                      style={{ ...S.breakChip, opacity: dragState.draggedIndex === index ? 0.4 : 1, cursor: 'grab' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 8px', borderRadius: 6, background: dragState.draggedIndex === index ? '#e8f0fb' : 'transparent', opacity: dragState.draggedIndex === index ? 0.5 : 1, transition: 'background 0.1s', cursor: 'grab' }}
                     >
-                      <span style={{ color: '#aaa', cursor: 'grab' }}><IconGrip /></span>
-                      <span style={{ fontSize: 17, color: '#444', whiteSpace: 'nowrap' }}>{item.filename}</span>
+                      {/* Number */}
+                      <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 500, width: 22, textAlign: 'right', flexShrink: 0 }}>{index + 1}</span>
+                      {/* Grip */}
+                      <span style={{ color: '#ccc', flexShrink: 0, cursor: 'grab', display: 'flex', alignItems: 'center' }}><IconGrip /></span>
+                      {/* Filename */}
+                      <span style={{ fontSize: 14, color: '#1d1d1f', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.filename}</span>
+                      {/* Up / Down buttons */}
+                      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                        <button
+                          onClick={() => {
+                            if (index === 0) return
+                            setPlaylistItems(prev => { const n = [...prev]; [n[index-1], n[index]] = [n[index], n[index-1]]; return n })
+                          }}
+                          disabled={index === 0}
+                          style={{ width: 22, height: 22, border: '0.5px solid #ddd', borderRadius: 4, background: 'white', cursor: index === 0 ? 'default' : 'pointer', color: index === 0 ? '#ddd' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, padding: 0 }}
+                          title="Move up"
+                        >▲</button>
+                        <button
+                          onClick={() => {
+                            if (index === playlistItems.length - 1) return
+                            setPlaylistItems(prev => { const n = [...prev]; [n[index], n[index+1]] = [n[index+1], n[index]]; return n })
+                          }}
+                          disabled={index === playlistItems.length - 1}
+                          style={{ width: 22, height: 22, border: '0.5px solid #ddd', borderRadius: 4, background: 'white', cursor: index === playlistItems.length - 1 ? 'default' : 'pointer', color: index === playlistItems.length - 1 ? '#ddd' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, padding: 0 }}
+                          title="Move down"
+                        >▼</button>
+                      </div>
+                      {/* Remove */}
                       <button
                         onClick={() => setPlaylistItems(prev => prev.filter((_, i) => i !== index))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ccc', lineHeight: 1 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ccc', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                        title="Remove"
                       >
-                        <X style={{ width: 10, height: 10 }} />
+                        <X style={{ width: 13, height: 13 }} />
                       </button>
                     </div>
                   </div>
@@ -791,7 +818,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   onDrop={(e) => handleDrop(e, playlistItems.length)}
                   onDragEnter={() => handleDropZoneEnter(playlistItems.length)}
                   onDragLeave={handleDropZoneLeave}
-                  style={{ width: 4, borderRadius: 2, background: dragState.isDragging && dragState.hoveredDropZone === playlistItems.length ? '#0071e3' : 'transparent' }}
+                  style={{ height: dragState.isDragging && dragState.hoveredDropZone === playlistItems.length ? 3 : 1, background: dragState.isDragging && dragState.hoveredDropZone === playlistItems.length ? '#0071e3' : 'transparent', borderRadius: 2, margin: '1px 0', transition: 'all 0.1s' }}
                 />
               </div>
             )}
