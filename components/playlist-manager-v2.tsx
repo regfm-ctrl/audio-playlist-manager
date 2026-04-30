@@ -523,8 +523,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     // Column header
     colHeader: { padding: '6px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ddd', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, color: '#888', letterSpacing: '0.04em' },
     // File rows
-    fileRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s' },
-    fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb' },
+    fileRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s' },
+    fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb' },
     playBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
     iconBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: '0.5px solid #e8e8e8', background: 'white' },
     addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
