@@ -234,7 +234,7 @@ export default function SchedulesPage() {
                           className="text-xs text-blue-500 hover:underline">
                           {s.is_active ? 'Pause' : 'Resume'}
                         </button>
-                        <button onClick={() => deleteSchedule(s.id)}
+                        <button onClick={() => setConfirmDelete(s.id)}
                           className="text-xs text-red-400 hover:underline">
                           Delete
                         </button>
