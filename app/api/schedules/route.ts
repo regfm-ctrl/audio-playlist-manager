@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const {
     audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     playlist_id, playlist_name, position,
-    schedule_type, days_of_week, specific_dates, time_of_day,
+    schedule_type, days_of_week, specific_dates, time_of_day, expires_at,
   } = await req.json();
 
   // Calculate next run
@@ -38,12 +38,12 @@ export async function POST(req: NextRequest) {
       audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
       playlist_id, playlist_name, position,
       schedule_type, days_of_week, specific_dates, time_of_day,
-      next_run_at, created_by
+      next_run_at, expires_at, created_by
     ) VALUES (
       ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
       ${playlist_id}, ${playlist_name}, ${position ?? -1},
       ${schedule_type}, ${days_of_week ?? null}, ${specific_dates ?? null}, ${time_of_day},
-      ${next_run_at}, ${user.username}
+      ${next_run_at}, ${expires_at ?? null}, ${user.username}
     ) RETURNING *
   `;
   return NextResponse.json(rows[0]);
@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { id, is_active, days_of_week, specific_dates, time_of_day, schedule_type, position } = await req.json();
+  const { id, is_active, days_of_week, specific_dates, time_of_day, schedule_type, position, expires_at } = await req.json();
 
   const next_run_at = calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
 
@@ -66,7 +66,8 @@ export async function PATCH(req: NextRequest) {
       time_of_day = ${time_of_day},
       schedule_type = ${schedule_type},
       position = ${position ?? -1},
-      next_run_at = ${next_run_at}
+      next_run_at = ${next_run_at},
+      expires_at = ${expires_at ?? null}
     WHERE id = ${id}
   `;
   return NextResponse.json({ ok: true });

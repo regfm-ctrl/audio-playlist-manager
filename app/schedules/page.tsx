@@ -18,6 +18,7 @@ type Schedule = {
   is_active: boolean;
   last_run_at: string | null;
   next_run_at: string | null;
+  expires_at: string | null;
   created_by: string;
   created_at: string;
 };
@@ -150,6 +151,7 @@ export default function SchedulesPage() {
                   <th className="px-5 py-3 font-medium">Schedule</th>
                   <th className="px-5 py-3 font-medium">Next Run</th>
                   <th className="px-5 py-3 font-medium">Last Run</th>
+                  <th className="px-5 py-3 font-medium">Expires</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Actions</th>
                 </tr>
@@ -183,6 +185,13 @@ export default function SchedulesPage() {
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
                       {s.last_run_at ? new Date(s.last_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : 'Never'}
+                    </td>
+                    <td className="px-5 py-3 text-gray-400 text-xs">
+                      {s.expires_at
+                        ? <span className={new Date(s.expires_at) < new Date() ? "text-red-400" : ""}>
+                            {new Date(s.expires_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}
+                          </span>
+                        : "No expiry"}
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${

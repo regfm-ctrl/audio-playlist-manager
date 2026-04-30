@@ -111,7 +111,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [scheduleForm, setScheduleForm] = useState({
     playlist_id: '', playlist_name: '', position: '-1',
     schedule_type: 'recurring', days_of_week: [] as number[],
-    specific_dates: '', time_of_day: '08:00',
+    specific_dates: '', time_of_day: '08:00', expires_at: '', expires_time: '23:59',
   })
   const [scheduleSaving, setScheduleSaving] = useState(false)
   const [scheduleMsg, setScheduleMsg] = useState('')
@@ -143,6 +143,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           days_of_week: scheduleForm.days_of_week.join(',') || null,
           specific_dates: scheduleForm.specific_dates || null,
           time_of_day: scheduleForm.time_of_day,
+          expires_at: scheduleForm.expires_at
+            ? `${scheduleForm.expires_at}T${scheduleForm.expires_time}:00`
+            : null,
         }),
       })
       if (res.ok) {
@@ -779,6 +782,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                               playlist_name: selectedPlaylist?.name || '',
                               position: '-1', schedule_type: 'recurring',
                               days_of_week: [], specific_dates: '', time_of_day: '08:00',
+                              expires_at: '', expires_time: '23:59',
                             })
                           }}
                           className="p-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
@@ -1043,6 +1047,38 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 />
               </div>
 
+              {/* Expiry date/time */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="text-sm font-medium text-gray-700 block mb-1">
+                  Expiry date <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <p className="text-xs text-gray-400 mb-2">After this date the schedule will be automatically disabled.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    value={scheduleForm.expires_at}
+                    onChange={e => setScheduleForm(f => ({ ...f, expires_at: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <input
+                    type="time"
+                    className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    value={scheduleForm.expires_time}
+                    onChange={e => setScheduleForm(f => ({ ...f, expires_time: e.target.value }))}
+                    disabled={!scheduleForm.expires_at}
+                  />
+                </div>
+                {scheduleForm.expires_at && (
+                  <button
+                    onClick={() => setScheduleForm(f => ({ ...f, expires_at: '', expires_time: '23:59' }))}
+                    className="text-xs text-red-400 hover:underline mt-1"
+                  >
+                    Clear expiry
+                  </button>
+                )}
+              </div>
+
               {scheduleMsg && (
                 <p className="text-sm text-center">{scheduleMsg}</p>
               )}
@@ -1061,5 +1097,3 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     </ErrorBoundary>
   )
 }
-
-

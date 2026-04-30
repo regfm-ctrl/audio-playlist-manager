@@ -41,11 +41,21 @@ Use the Gmail send tool to send this email now.`
 async function processSchedules(accessToken: string) {
   const now = new Date();
 
-  // Get all active schedules due to run
+  // First deactivate any expired schedules
+  await sql`
+    UPDATE schedules
+    SET is_active = false
+    WHERE is_active = true
+    AND expires_at IS NOT NULL
+    AND expires_at <= ${now.toISOString()}
+  `;
+
+  // Get all active schedules due to run (not expired)
   const due = await sql`
     SELECT * FROM schedules
     WHERE is_active = true
     AND next_run_at <= ${now.toISOString()}
+    AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
   `;
 
   if (due.length === 0) return { processed: 0, results: [] };
@@ -231,4 +241,3 @@ export async function GET(req: NextRequest) {
   // For now return instructions
   return NextResponse.json({ message: 'Use POST with accessToken for now' });
 }
-
