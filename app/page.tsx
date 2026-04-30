@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { GoogleAuth } from "@/components/google-auth"
-import { PlaylistManager } from "@/components/playlist-manager"
+import { PlaylistManager } from "@/components/playlist-manager-v2"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { SetupGuide } from "@/components/setup-guide"
 import { googleDriveService, PLAYLIST_FOLDER_ID } from "@/lib/google-drive"
