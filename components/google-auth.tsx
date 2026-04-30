@@ -67,8 +67,6 @@ export function GoogleAuth({ onAuthenticated }: GoogleAuthProps) {
         await scriptPromise
 
         console.log("[v0] Initializing Google Drive service...")
-        // Clear any existing authentication state first
-        googleDriveService.clearAuthentication()
         await googleDriveService.authenticate()
         console.log("[v0] Google Drive service initialized successfully")
 
