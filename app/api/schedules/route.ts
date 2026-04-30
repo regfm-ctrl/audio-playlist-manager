@@ -82,35 +82,23 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-const MELBOURNE_TZ = 'Australia/Melbourne';
-
-function getMelbourneDate(date: Date): Date {
-  // Convert a UTC date to Melbourne local time representation
-  const melb = new Date(date.toLocaleString('en-AU', { timeZone: MELBOURNE_TZ }));
-  return melb;
-}
-
-function melbourneTimeToUTC(dateStr: string, timeOfDay: string): Date {
-  // dateStr: 'YYYY-MM-DD', timeOfDay: 'HH:MM'
-  // Create a date string in Melbourne time and convert to UTC
-  const [hours, minutes] = timeOfDay.split(':').map(Number);
-  const [year, month, day] = dateStr.split('-').map(Number);
-  
-  // Use Intl to find the UTC offset for Melbourne on that date
-  const testDate = new Date(year, month - 1, day, hours, minutes, 0);
-  const melbStr = testDate.toLocaleString('en-AU', { timeZone: MELBOURNE_TZ, hour12: false });
-  const utcStr = testDate.toLocaleString('en-AU', { timeZone: 'UTC', hour12: false });
-  
-  // Calculate offset in minutes
-  const toMs = (s: string) => {
-    const parts = s.split(/[/, :]/).map(Number);
-    return new Date(parts[2], parts[1]-1, parts[0], parts[3], parts[4]).getTime();
-  };
-  const offsetMs = toMs(melbStr) - toMs(utcStr);
-  
-  // Build the target UTC time
-  const localMs = new Date(`${dateStr}T${timeOfDay.padStart(5,'0')}:00`).getTime();
-  return new Date(localMs - offsetMs);
+// Melbourne is UTC+11 (AEDT) in summer, UTC+10 (AEST) in winter
+// We use Intl.DateTimeFormat to reliably get the offset
+function getMelbourneOffset(): number {
+  const now = new Date();
+  const utcMs = now.getTime();
+  const melbStr = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Melbourne',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).format(now);
+  // Parse the formatted Melbourne time back to ms
+  const [datePart, timePart] = melbStr.split(', ');
+  const [day, month, year] = datePart.split('/').map(Number);
+  const [hour, min, sec] = timePart.split(':').map(Number);
+  const melbMs = Date.UTC(year, month - 1, day, hour === 24 ? 0 : hour, min, sec);
+  return (melbMs - utcMs) / 60000; // offset in minutes
 }
 
 function calculateNextRun(
@@ -119,38 +107,52 @@ function calculateNextRun(
   specificDates: string | null,
   timeOfDay: string
 ): string {
+  const offsetMinutes = getMelbourneOffset();
   const nowUTC = new Date();
-  const nowMelb = getMelbourneDate(nowUTC);
+  // Current Melbourne time as a plain date
+  const nowMelbMs = nowUTC.getTime() + offsetMinutes * 60000;
+  const nowMelb = new Date(nowMelbMs);
 
+  const [hours, minutes] = timeOfDay.split(':').map(Number);
   const pad = (n: number) => String(n).padStart(2, '0');
-  const todayMelbStr = `${nowMelb.getFullYear()}-${pad(nowMelb.getMonth()+1)}-${pad(nowMelb.getDate())}`;
+
+  const melbDateToUTC = (y: number, mo: number, d: number, h: number, m: number): Date => {
+    const melbMs = Date.UTC(y, mo, d, h, m, 0) - offsetMinutes * 60000;
+    return new Date(melbMs);
+  };
 
   if (scheduleType === 'once' && specificDates) {
     const dates = specificDates.split(',').map((d: string) => d.trim());
-    const futureDates = dates
-      .map(d => ({ str: d, utc: melbourneTimeToUTC(d, timeOfDay) }))
-      .filter(d => d.utc > nowUTC)
-      .sort((a, b) => a.utc.getTime() - b.utc.getTime());
-    if (futureDates.length > 0) return futureDates[0].utc.toISOString();
+    const future = dates
+      .map(d => {
+        const [y, mo, day] = d.split('-').map(Number);
+        return melbDateToUTC(y, mo - 1, day, hours, minutes);
+      })
+      .filter(d => d > nowUTC)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (future.length > 0) return future[0].toISOString();
   }
 
   if (scheduleType === 'recurring' && daysOfWeek) {
     const days = daysOfWeek.split(',').map(Number);
     for (let i = 0; i <= 7; i++) {
       const candidate = new Date(nowMelb);
-      candidate.setDate(nowMelb.getDate() + i);
-      const candidateStr = `${candidate.getFullYear()}-${pad(candidate.getMonth()+1)}-${pad(candidate.getDate())}`;
-      const candidateUTC = melbourneTimeToUTC(candidateStr, timeOfDay);
-      if (days.includes(candidate.getDay()) && candidateUTC > nowUTC) {
-        return candidateUTC.toISOString();
+      candidate.setUTCDate(nowMelb.getUTCDate() + i);
+      const utcCandidate = melbDateToUTC(
+        candidate.getUTCFullYear(), candidate.getUTCMonth(),
+        candidate.getUTCDate(), hours, minutes
+      );
+      if (days.includes(candidate.getUTCDay()) && utcCandidate > nowUTC) {
+        return utcCandidate.toISOString();
       }
     }
   }
 
   // Default: tomorrow Melbourne time
   const tomorrow = new Date(nowMelb);
-  tomorrow.setDate(nowMelb.getDate() + 1);
-  const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth()+1)}-${pad(tomorrow.getDate())}`;
-  return melbourneTimeToUTC(tomorrowStr, timeOfDay).toISOString();
+  tomorrow.setUTCDate(nowMelb.getUTCDate() + 1);
+  return melbDateToUTC(
+    tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(),
+    tomorrow.getUTCDate(), hours, minutes
+  ).toISOString();
 }
-
