@@ -179,10 +179,10 @@ export default function SchedulesPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
-                      {s.next_run_at ? new Date(s.next_run_at).toLocaleString('en-AU') : '—'}
+                      {s.next_run_at ? new Date(s.next_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : '—'}
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
-                      {s.last_run_at ? new Date(s.last_run_at).toLocaleString('en-AU') : 'Never'}
+                      {s.last_run_at ? new Date(s.last_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : 'Never'}
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -217,4 +217,3 @@ export default function SchedulesPage() {
     </div>
   );
 }
-
