@@ -324,14 +324,30 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
   useEffect(() => {
     if (!accessToken) return
-    const checkSession = () => {
+
+    const silentRefresh = async () => {
       try {
-        const sessionInfo = googleDriveService.getSessionInfo()
-        if (sessionInfo && sessionInfo.timeUntilExpiry < 24 * 60 * 60 * 1000 && !sessionInfo.isExpired) googleDriveService.checkSessionValidity()
-      } catch {}
+        // Check if token is close to expiry (within 10 minutes)
+        const expStr = localStorage.getItem('google_access_token_expires_at')
+        const exp = expStr ? parseInt(expStr, 10) : 0
+        const now = Date.now()
+        const tenMinutes = 10 * 60 * 1000
+
+        if (!exp || (exp - now) < tenMinutes) {
+          console.log('[auth] Google token expiring soon, silently refreshing...')
+          // Request a new token silently (no popup if user is still logged into Google)
+          await googleDriveService.signIn()
+          console.log('[auth] Silent token refresh successful')
+        }
+      } catch (err) {
+        console.warn('[auth] Silent token refresh failed:', err)
+        // Don't show error — popup will appear naturally when token is needed
+      }
     }
-    checkSession()
-    const interval = setInterval(checkSession, 60 * 60 * 1000)
+
+    // Check immediately then every 5 minutes
+    silentRefresh()
+    const interval = setInterval(silentRefresh, 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [accessToken])
 
