@@ -110,6 +110,52 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [scheduleFile, setScheduleFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
   const [expiryFile, setExpiryFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
   const [removeAllFile, setRemoveAllFile] = useState<{ id: string; name: string; localPath: string } | null>(null)
+  const [inPlaylistsFile, setInPlaylistsFile] = useState<{ name: string; localPath: string } | null>(null)
+  const [inPlaylistsList, setInPlaylistsList] = useState<string[]>([])
+  const [inPlaylistsLoading, setInPlaylistsLoading] = useState(false)
+
+  async function findFileInPlaylists(file: { name: string; localPath: string }) {
+    setInPlaylistsFile(file)
+    setInPlaylistsList([])
+    setInPlaylistsLoading(true)
+    try {
+      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
+      const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
+      if (!token) { setInPlaylistsLoading(false); return }
+
+      const listRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (!listRes.ok) { setInPlaylistsLoading(false); return }
+      const { files } = await listRes.json()
+
+      const found: string[] = []
+      const BATCH = 10
+      for (let i = 0; i < files.length; i += BATCH) {
+        const batch = files.slice(i, i + BATCH)
+        await Promise.all(batch.map(async (pl: { id: string; name: string }) => {
+          try {
+            const res = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${pl.id}?alt=media`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            )
+            if (!res.ok) return
+            const text = await res.text()
+            for (const line of text.split('\n')) {
+              if (line.startsWith('Container=') && line.includes(file.localPath)) {
+                found.push(pl.name.replace(/\.m3u8$/i, ''))
+                break
+              }
+            }
+          } catch {}
+        }))
+        setInPlaylistsList([...found])
+      }
+    } finally {
+      setInPlaylistsLoading(false)
+    }
+  }
   const [removeAllLoading, setRemoveAllLoading] = useState(false)
   const [removeAllMsg, setRemoveAllMsg] = useState('')
 
@@ -1123,6 +1169,17 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                         >
                           <X className="h-3.5 w-3.5 text-red-400 hover:text-red-600" />
                         </button>
+                        {/* Show which playlists contain this file */}
+                        <button
+                          onClick={() => findFileInPlaylists({
+                            name: file.name,
+                            localPath: buildPathForFile(file, selectedDirectory),
+                          })}
+                          className="p-1 rounded hover:bg-blue-100 transition-colors flex-shrink-0"
+                          title="Show which playlists contain this file"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-blue-400 hover:text-blue-600" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1492,6 +1549,58 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 {expirySaving ? 'Saving...' : 'Set Expiry'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* In Playlists dialog */}
+      {inPlaylistsFile && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="font-semibold text-lg">{inPlaylistsFile.name.replace(/\.[^/.]+$/, '')}</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Sponsorship breaks containing this file</p>
+              </div>
+              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {inPlaylistsLoading ? (
+              <div className="py-6">
+                <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Scanning {inPlaylistsList.length > 0 ? `— found ${inPlaylistsList.length} so far...` : 'playlists...'}</span>
+                </div>
+                {inPlaylistsList.length > 0 && (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {inPlaylistsList.map((name, i) => (
+                      <div key={i} className="px-3 py-2 bg-blue-50 rounded-lg text-sm text-blue-700 font-medium">{name}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : inPlaylistsList.length === 0 ? (
+              <div className="py-6 text-center text-gray-400 text-sm">
+                This file is not in any sponsorship breaks.
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-gray-500 mb-3">Found in <span className="font-semibold text-gray-700">{inPlaylistsList.length}</span> sponsorship break{inPlaylistsList.length !== 1 ? 's' : ''}:</p>
+                <div className="space-y-1 max-h-80 overflow-y-auto">
+                  {inPlaylistsList.map((name, i) => (
+                    <div key={i} className="px-3 py-2 bg-blue-50 rounded-lg text-sm text-blue-700 font-medium border border-blue-100">{name}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }}
+              className="w-full mt-4 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
