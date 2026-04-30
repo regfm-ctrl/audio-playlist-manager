@@ -530,7 +530,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { padding: '6px 14px', background: '#0071e3', borderRadius: 5, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer' },
     removeBtn: { padding: '6px 14px', background: '#e8e8ed', borderRadius: 5, fontSize: 17, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #ccc', background: 'white', padding: '10px 20px', flexShrink: 0, minHeight: 180, maxHeight: 280, display: 'flex', flexDirection: 'column' },
+    breakPanel: { borderTop: '0.5px solid #bbb', background: '#eef2f7', padding: '12px 20px', flexShrink: 0, minHeight: 180, maxHeight: 280, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
@@ -727,7 +727,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={S.breakPanel}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 500, color: '#1d1d1f' }}>
+                <span style={{ fontSize: 15, fontWeight: 500, color: '#2a3a4a' }}>
                   {selectedPlaylist ? removeFileExtension(selectedPlaylist.name) : 'Sponsorship Break Content'}
                 </span>
                 {playlistItems.length > 0 && (
@@ -740,8 +740,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               </div>
               {selectedPlaylist && (
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={resetPlaylist} style={{ padding: '6px 14px', background: 'white', borderRadius: 6, fontSize: 17, color: '#666', border: '0.5px solid #ccc', cursor: 'pointer' }}>Reset</button>
-                  <button onClick={savePlaylist} disabled={isSaving} style={{ padding: '6px 16px', background: '#0071e3', borderRadius: 6, fontSize: 17, color: 'white', border: 'none', cursor: 'pointer', opacity: isSaving ? 0.6 : 1 }}>
+                  <button onClick={resetPlaylist} style={{ padding: '6px 14px', background: 'white', borderRadius: 6, fontSize: 15, color: '#555', border: '0.5px solid #c0c8d4', cursor: 'pointer' }}>Reset</button>
+                  <button onClick={savePlaylist} disabled={isSaving} style={{ padding: '6px 16px', background: '#0071e3', borderRadius: 6, fontSize: 15, color: 'white', border: 'none', cursor: 'pointer', opacity: isSaving ? 0.6 : 1 }}>
                     {isSaving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
@@ -757,7 +757,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : playlistItems.length === 0 ? (
               <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ overflowY: 'auto', flex: 1, background: '#f9f9fb', borderRadius: 8, border: '0.5px solid #e8e8e8', padding: '4px 0' }}>
+              <div style={{ overflowY: 'auto', flex: 1, background: 'white', borderRadius: 8, border: '0.5px solid #d0d8e4', padding: '4px 0' }}>
                 {playlistItems.map((item, index) => (
                   <div
                     key={index}
