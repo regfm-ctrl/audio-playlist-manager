@@ -223,8 +223,13 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     return new Promise((resolve) => {
       const audio = new Audio()
       audio.preload = 'metadata'
-      audio.onloadedmetadata = () => resolve(audio.duration || 0)
-      audio.onerror = () => resolve(0)
+      const timeout = setTimeout(() => resolve(0), 10000) // 10s timeout
+      audio.onloadedmetadata = () => {
+        clearTimeout(timeout)
+        const d = audio.duration
+        resolve(typeof d === 'number' && !isNaN(d) && isFinite(d) && d > 0 ? d : 0)
+      }
+      audio.onerror = () => { clearTimeout(timeout); resolve(0) }
       audio.src = url
     })
   }
@@ -271,7 +276,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           const objectUrl = URL.createObjectURL(blob)
           const duration = await measureAudioDuration(objectUrl)
           URL.revokeObjectURL(objectUrl)
-          if (duration > 0) {
+          if (typeof duration === 'number' && !isNaN(duration) && isFinite(duration) && duration > 0) {
             newDurations.push({ file_id: file.file_id, file_name: file.file_name, duration_seconds: duration })
             cachedMap[file.file_id] = duration
           }
@@ -289,9 +294,15 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         })
       }
 
-      // Calculate total
-      const total = fileMatches.reduce((sum, f) => sum + (cachedMap[f.file_id] || 0), 0)
-      setPlaylistDurations(prev => ({ ...prev, [playlistId]: total }))
+      // Calculate total — only include valid non-NaN durations
+      const total = fileMatches.reduce((sum, f) => {
+        const d = cachedMap[f.file_id]
+        return sum + (typeof d === 'number' && !isNaN(d) && d > 0 ? d : 0)
+      }, 0)
+      // Only set if we got at least some valid durations
+      if (total > 0) {
+        setPlaylistDurations(prev => ({ ...prev, [playlistId]: total }))
+      }
     } catch (err) {
       console.error('[duration] Failed to calculate duration:', err)
     } finally {
