@@ -1605,7 +1605,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : (
               <div>
                 <p className="text-sm text-gray-500 mb-3">Found in <span className="font-semibold text-gray-700">{inPlaylistsList.length}</span> sponsorship break{inPlaylistsList.length !== 1 ? 's' : ''}:</p>
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                <div className="space-y-1 max-h-64 overflow-y-auto">
                   {inPlaylistsList.map((name, i) => (
                     <div key={i} className="px-3 py-2 bg-blue-50 rounded-lg text-sm text-blue-700 font-medium border border-blue-100">{name}</div>
                   ))}
@@ -1613,12 +1613,40 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               </div>
             )}
 
-            <button
-              onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }}
-              className="w-full mt-4 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
-            >
-              Close
-            </button>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              {!inPlaylistsLoading && inPlaylistsList.length > 0 && (
+                <button
+                  onClick={() => {
+                    const fileName = inPlaylistsFile?.name.replace(/\.[^/.]+$/, '') || 'audio-file'
+                    const date = new Date().toLocaleDateString('en-AU').replace(/\//g, '-')
+                    const csvContent = [
+                      `Audio File,${fileName}`,
+                      `Export Date,${date}`,
+                      `Total Breaks,${inPlaylistsList.length}`,
+                      '',
+                      'Sponsorship Break',
+                      ...inPlaylistsList
+                    ].join('\n')
+                    const blob = new Blob([csvContent], { type: 'text/csv' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${fileName} - playlists - ${date}.csv`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Export CSV
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
