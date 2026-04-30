@@ -113,11 +113,13 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [inPlaylistsFile, setInPlaylistsFile] = useState<{ name: string; localPath: string } | null>(null)
   const [inPlaylistsList, setInPlaylistsList] = useState<string[]>([])
   const [inPlaylistsLoading, setInPlaylistsLoading] = useState(false)
+  const [inPlaylistsProgress, setInPlaylistsProgress] = useState({ scanned: 0, total: 0 })
 
   async function findFileInPlaylists(file: { name: string; localPath: string }) {
     setInPlaylistsFile(file)
     setInPlaylistsList([])
     setInPlaylistsLoading(true)
+    setInPlaylistsProgress({ scanned: 0, total: 0 })
     try {
       const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
       const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
@@ -130,8 +132,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       if (!listRes.ok) { setInPlaylistsLoading(false); return }
       const { files } = await listRes.json()
 
+      setInPlaylistsProgress({ scanned: 0, total: files.length })
       const found: string[] = []
       const BATCH = 10
+      let scanned = 0
       for (let i = 0; i < files.length; i += BATCH) {
         const batch = files.slice(i, i + BATCH)
         await Promise.all(batch.map(async (pl: { id: string; name: string }) => {
@@ -150,6 +154,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             }
           } catch {}
         }))
+        scanned = Math.min(i + BATCH, files.length)
+        setInPlaylistsProgress({ scanned, total: files.length })
         setInPlaylistsList([...found])
       }
     } finally {
@@ -1567,16 +1573,26 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             </div>
 
             {inPlaylistsLoading ? (
-              <div className="py-6">
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Scanning {inPlaylistsList.length > 0 ? `— found ${inPlaylistsList.length} so far...` : 'playlists...'}</span>
+              <div className="py-4">
+                {/* Progress bar */}
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                  <span>Scanning sponsorship breaks...</span>
+                  <span className="font-medium">{inPlaylistsProgress.scanned} / {inPlaylistsProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 mb-4 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: inPlaylistsProgress.total > 0 ? `${(inPlaylistsProgress.scanned / inPlaylistsProgress.total) * 100}%` : '0%' }}
+                  />
                 </div>
                 {inPlaylistsList.length > 0 && (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {inPlaylistsList.map((name, i) => (
-                      <div key={i} className="px-3 py-2 bg-blue-50 rounded-lg text-sm text-blue-700 font-medium">{name}</div>
-                    ))}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Found in {inPlaylistsList.length} break{inPlaylistsList.length !== 1 ? 's' : ''} so far...</p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {inPlaylistsList.map((name, i) => (
+                        <div key={i} className="px-3 py-2 bg-blue-50 rounded-lg text-sm text-blue-700 font-medium">{name}</div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
