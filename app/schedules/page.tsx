@@ -103,8 +103,8 @@ export default function SchedulesPage() {
     navItemActive: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', fontSize: 14, textDecoration: 'none' },
     toolbar: { padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 },
     badge: { padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 },
-    overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
-    dialog: { background: 'white', borderRadius: 14, padding: 24, width: '100%' },
+    overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
+    dialog: { background: '#2a2a2c', borderRadius: 14, padding: 24, width: '100%' },
   };
 
   const IconBreaks = () => <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1"/></svg>;
@@ -253,10 +253,10 @@ export default function SchedulesPage() {
       {confirmDelete !== null && (
         <div style={S.overlay}>
           <div style={{ ...S.dialog, maxWidth: 360 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 500, margin: '0 0 8px' }}>Delete Schedule</h2>
-            <p style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>Are you sure you want to delete this schedule? This cannot be undone.</p>
+            <h2 style={{ fontSize: 17, fontWeight: 500, margin: '0 0 8px', color: 'white' }}>Delete Schedule</h2>
+            <p style={{ fontSize: 14, color: '#888', marginBottom: 24 }}>Are you sure you want to delete this schedule? This cannot be undone.</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '10px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '10px 0', background: '#3a3a3c', color: '#e0e0e0', border: '0.5px solid #555', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => deleteSchedule(confirmDelete)} style={{ flex: 1, padding: '10px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Delete</button>
             </div>
           </div>

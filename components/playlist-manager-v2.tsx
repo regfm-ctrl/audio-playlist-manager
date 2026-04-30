@@ -533,8 +533,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     breakPanel: { borderTop: '0.5px solid #ccc', background: 'white', padding: '10px 20px', flexShrink: 0 },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
-    overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
-    dialog: { background: 'white', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', width: '100%' },
+    overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
+    dialog: { background: '#2a2a2c', borderRadius: 14, width: '100%' },
   }
 
   return (
@@ -808,7 +808,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Schedule: {removeFileExtension(scheduleFile.name)}</h2>
                 <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Select one or more breaks to add this file on a schedule</p>
               </div>
-              <button onClick={() => setScheduleFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => setScheduleFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {/* Left: playlist selector */}
@@ -825,13 +825,13 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   placeholder="Search breaks..."
                   style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 15, marginBottom: 6, boxSizing: 'border-box' as const, outline: 'none' }}
                 />
-                <div style={{ border: '0.5px solid #ddd', borderRadius: 8, overflowY: 'auto', maxHeight: 240 }}>
+                <div style={{ border: '0.5px solid #444', borderRadius: 8, overflowY: 'auto', maxHeight: 240 }}>
                   {playlists.filter(p => p.name.toLowerCase().includes(playlistSearchSchedule.toLowerCase())).map(p => {
                     const isSelected = scheduleForm.selected_playlists.some(s => s.id === p.id)
                     return (
                       <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', cursor: 'pointer', background: isSelected ? '#e8f0fb' : 'white', borderBottom: '0.5px solid #f0f0f0', fontSize: 15 }}>
                         <input type="checkbox" checked={isSelected} onChange={() => setScheduleForm(f => ({ ...f, selected_playlists: isSelected ? f.selected_playlists.filter(s => s.id !== p.id) : [...f.selected_playlists, { id: p.id, name: p.name }] }))} />
-                        <span style={{ color: isSelected ? '#0071e3' : '#333', fontWeight: isSelected ? 500 : 400 }}>{removeFileExtension(p.name)}</span>
+                        <span style={{ color: isSelected ? '#4da3ff' : '#aaa', fontWeight: isSelected ? 500 : 400 }}>{removeFileExtension(p.name)}</span>
                       </label>
                     )
                   })}
@@ -851,7 +851,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Schedule type</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {(['recurring', 'once'] as const).map(t => (
-                      <button key={t} onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))} style={{ flex: 1, padding: '8px 0', borderRadius: 7, fontSize: 15, cursor: 'pointer', border: '0.5px solid #ddd', background: scheduleForm.schedule_type === t ? '#1d1d1f' : 'white', color: scheduleForm.schedule_type === t ? 'white' : '#444' }}>
+                      <button key={t} onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))} style={{ flex: 1, padding: '8px 0', borderRadius: 7, fontSize: 15, cursor: 'pointer', border: '0.5px solid #ddd', background: scheduleForm.schedule_type === t ? '#0071e3' : '#1d1d1f', color: scheduleForm.schedule_type === t ? 'white' : '#888', border: '0.5px solid #444' }}>
                         {t === 'recurring' ? '🔁 Recurring' : '1️⃣ One-time'}
                       </button>
                     ))}
@@ -862,7 +862,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     <label style={{ fontSize: 15, fontWeight: 500, color: '#333', display: 'block', marginBottom: 4 }}>Days</label>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {['Su','Mo','Tu','We','Th','Fr','Sa'].map((day, idx) => (
-                        <button key={day} onClick={() => setScheduleForm(f => ({ ...f, days_of_week: f.days_of_week.includes(idx) ? f.days_of_week.filter(d => d !== idx) : [...f.days_of_week, idx] }))} style={{ flex: 1, padding: '5px 0', borderRadius: 5, fontSize: 17, cursor: 'pointer', border: 'none', background: scheduleForm.days_of_week.includes(idx) ? '#1d1d1f' : '#f0f0f0', color: scheduleForm.days_of_week.includes(idx) ? 'white' : '#666' }}>
+                        <button key={day} onClick={() => setScheduleForm(f => ({ ...f, days_of_week: f.days_of_week.includes(idx) ? f.days_of_week.filter(d => d !== idx) : [...f.days_of_week, idx] }))} style={{ flex: 1, padding: '5px 0', borderRadius: 5, fontSize: 17, cursor: 'pointer', border: 'none', background: scheduleForm.days_of_week.includes(idx) ? '#0071e3' : '#1d1d1f', color: scheduleForm.days_of_week.includes(idx) ? 'white' : '#666', border: '0.5px solid #444' }}>
                           {day}
                         </button>
                       ))}
@@ -898,7 +898,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Set Expiry</h2>
                 <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>{removeFileExtension(expiryFile.name)}</p>
               </div>
-              <button onClick={() => setExpiryFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => setExpiryFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             <p style={{ fontSize: 15, color: '#888', marginBottom: 14 }}>This file will be automatically removed from all playlists after this date.</p>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
@@ -922,7 +922,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={{ ...S.dialog, maxWidth: 380, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, color: '#cc0000', margin: 0 }}>Remove from All Playlists</h2>
-              <button onClick={() => setRemoveAllFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => setRemoveAllFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {!removeAllLoading && !removeAllMsg ? (
               <>
@@ -941,8 +941,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : (
               <div style={{ padding: '8px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: '#666', marginBottom: 6 }}>
-                  <span>{removeAllProgress.phase === 'scanning' ? 'Scanning breaks...' : 'Removing...'}</span>
-                  <span style={{ fontWeight: 500 }}>{removeAllProgress.scanned} / {removeAllProgress.total}</span>
+                  <span style={{color:'#aaa'}}>{removeAllProgress.phase === 'scanning' ? 'Scanning breaks...' : 'Removing...'}</span>
+                  <span style={{ fontWeight: 500, color: '#ccc' }}>{removeAllProgress.scanned} / {removeAllProgress.total}</span>
                 </div>
                 <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{ height: 6, borderRadius: 3, background: removeAllProgress.phase === 'scanning' ? '#0071e3' : '#cc0000', width: removeAllProgress.total > 0 ? `${(removeAllProgress.scanned / removeAllProgress.total) * 100}%` : '0%', transition: 'width 0.3s' }} />
@@ -962,15 +962,15 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>{removeFileExtension(inPlaylistsFile.name)}</h2>
                 <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Sponsorship breaks containing this file</p>
               </div>
-              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {inPlaylistsLoading ? (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: '#666', marginBottom: 6 }}>
-                  <span>Scanning sponsorship breaks...</span>
-                  <span style={{ fontWeight: 500 }}>{inPlaylistsProgress.scanned} / {inPlaylistsProgress.total}</span>
+                  <span style={{color:'#aaa'}}>Scanning sponsorship breaks...</span>
+                  <span style={{ fontWeight: 500, color: '#ccc' }}>{inPlaylistsProgress.scanned} / {inPlaylistsProgress.total}</span>
                 </div>
-                <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3, overflow: 'hidden', marginBottom: 12 }}>
+                <div style={{ height: 6, background: '#444', borderRadius: 3, overflow: 'hidden', marginBottom: 12 }}>
                   <div style={{ height: 6, borderRadius: 3, background: '#0071e3', width: inPlaylistsProgress.total > 0 ? `${(inPlaylistsProgress.scanned / inPlaylistsProgress.total) * 100}%` : '0%', transition: 'width 0.3s' }} />
                 </div>
                 {inPlaylistsList.length > 0 && (
