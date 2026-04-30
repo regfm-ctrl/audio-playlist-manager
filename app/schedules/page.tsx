@@ -256,7 +256,7 @@ export default function SchedulesPage() {
             <h2 style={{ fontSize: 17, fontWeight: 500, margin: '0 0 8px', color: 'white' }}>Delete Schedule</h2>
             <p style={{ fontSize: 14, color: '#888', marginBottom: 24 }}>Are you sure you want to delete this schedule? This cannot be undone.</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '10px 0', background: '#3a3a3c', color: '#e0e0e0', border: '0.5px solid #555', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '11px 0', background: '#3a3a3c', color: '#ccc', border: '0.5px solid #555', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => deleteSchedule(confirmDelete)} style={{ flex: 1, padding: '10px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Delete</button>
             </div>
           </div>

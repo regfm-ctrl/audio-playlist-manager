@@ -808,7 +808,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Schedule: {removeFileExtension(scheduleFile.name)}</h2>
                 <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Select one or more breaks to add this file on a schedule</p>
               </div>
-              <button onClick={() => setScheduleFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => setScheduleFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {/* Left: playlist selector */}
@@ -898,7 +898,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Set Expiry</h2>
                 <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>{removeFileExtension(expiryFile.name)}</p>
               </div>
-              <button onClick={() => setExpiryFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => setExpiryFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             <p style={{ fontSize: 15, color: '#888', marginBottom: 14 }}>This file will be automatically removed from all playlists after this date.</p>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
@@ -922,7 +922,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={{ ...S.dialog, maxWidth: 380, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, color: '#cc0000', margin: 0 }}>Remove from All Playlists</h2>
-              <button onClick={() => setRemoveAllFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => setRemoveAllFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {!removeAllLoading && !removeAllMsg ? (
               <>
@@ -962,7 +962,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>{removeFileExtension(inPlaylistsFile.name)}</h2>
                 <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Sponsorship breaks containing this file</p>
               </div>
-              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}><X style={{ width: 18, height: 18 }} /></button>
+              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {inPlaylistsLoading ? (
               <div>
