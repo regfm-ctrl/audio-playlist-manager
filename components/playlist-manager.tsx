@@ -16,7 +16,7 @@ import {
 } from "@/lib/google-drive"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
-import { FileText, Loader2, AlertCircle, RefreshCw, Search, Music, Headphones, GripVertical, Play, Square, SkipBack, SkipForward } from "lucide-react"
+import { FileText, Loader2, AlertCircle, RefreshCw, Search, Music, Headphones, GripVertical, Play, Square, SkipBack, SkipForward, Clock, X } from "lucide-react"
 
 interface PlaylistManagerProps {
   accessToken: string
@@ -103,6 +103,56 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     const nextIdx = direction === "next" ? idx + 1 : idx - 1
     if (nextIdx >= 0 && nextIdx < allFiles.length) {
       playFile(allFiles[nextIdx], allFiles)
+    }
+  }
+
+  // Schedule dialog state
+  const [scheduleFile, setScheduleFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
+  const [scheduleForm, setScheduleForm] = useState({
+    playlist_id: '', playlist_name: '', position: '-1',
+    schedule_type: 'recurring', days_of_week: [] as number[],
+    specific_dates: '', time_of_day: '08:00',
+  })
+  const [scheduleSaving, setScheduleSaving] = useState(false)
+  const [scheduleMsg, setScheduleMsg] = useState('')
+
+  async function saveSchedule() {
+    if (!scheduleFile) return
+    if (!scheduleForm.playlist_id) { setScheduleMsg('Please select a playlist'); return }
+    if (scheduleForm.schedule_type === 'recurring' && scheduleForm.days_of_week.length === 0) {
+      setScheduleMsg('Please select at least one day'); return
+    }
+    if (scheduleForm.schedule_type === 'once' && !scheduleForm.specific_dates) {
+      setScheduleMsg('Please enter a date'); return
+    }
+    setScheduleSaving(true)
+    setScheduleMsg('')
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio_file_id: scheduleFile.id,
+          audio_file_name: scheduleFile.name,
+          audio_directory_name: scheduleFile.directoryName,
+          audio_local_path: scheduleFile.localPath,
+          playlist_id: scheduleForm.playlist_id,
+          playlist_name: scheduleForm.playlist_name,
+          position: parseInt(scheduleForm.position),
+          schedule_type: scheduleForm.schedule_type,
+          days_of_week: scheduleForm.days_of_week.join(',') || null,
+          specific_dates: scheduleForm.specific_dates || null,
+          time_of_day: scheduleForm.time_of_day,
+        }),
+      })
+      if (res.ok) {
+        setScheduleMsg('✅ Schedule saved!')
+        setTimeout(() => { setScheduleFile(null); setScheduleMsg('') }, 1500)
+      } else {
+        setScheduleMsg('❌ Failed to save schedule')
+      }
+    } finally {
+      setScheduleSaving(false)
     }
   }
 
@@ -519,6 +569,21 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 <Headphones className="h-8 w-8 text-primary" />
                 <h1 className="font-serif text-2xl font-bold text-foreground">Audio Playlist Manager</h1>
               </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href="/schedules"
+                  className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <Clock className="h-4 w-4 text-gray-500" />
+                  Schedules
+                </a>
+                <a
+                  href="/admin"
+                  className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  Admin
+                </a>
+              </div>
             </div>
           </div>
         </header>
@@ -701,6 +766,26 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                             Add
                           </Button>
                         )}
+                        {/* Schedule button */}
+                        <button
+                          onClick={() => {
+                            setScheduleFile({
+                              id: file.id, name: file.name,
+                              directoryName: selectedDirectory?.name || '',
+                              localPath: buildPathForFile(file, selectedDirectory),
+                            })
+                            setScheduleForm({
+                              playlist_id: selectedPlaylist?.id || '',
+                              playlist_name: selectedPlaylist?.name || '',
+                              position: '-1', schedule_type: 'recurring',
+                              days_of_week: [], specific_dates: '', time_of_day: '08:00',
+                            })
+                          }}
+                          className="p-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+                          title="Schedule this file"
+                        >
+                          <Clock className="h-3.5 w-3.5 text-gray-400 hover:text-gray-700" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -840,6 +925,139 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </Card>
         </div>
       </div>
+      {/* Schedule Dialog */}
+      {scheduleFile && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-semibold text-lg">Schedule: {scheduleFile.name.replace(/\.[^/.]+$/, '')}</h2>
+              <button onClick={() => setScheduleFile(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Playlist selector */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Playlist</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  value={scheduleForm.playlist_id}
+                  onChange={e => {
+                    const pl = playlists.find(p => p.id === e.target.value)
+                    setScheduleForm(f => ({ ...f, playlist_id: e.target.value, playlist_name: pl?.name || '' }))
+                  }}
+                >
+                  <option value="">Select a playlist...</option>
+                  {playlists.map(p => (
+                    <option key={p.id} value={p.id}>{p.name.replace(/\.m3u8$/i, '')}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Position */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Position in playlist</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  value={scheduleForm.position}
+                  onChange={e => setScheduleForm(f => ({ ...f, position: e.target.value }))}
+                >
+                  <option value="-1">Add to end</option>
+                  <option value="0">Add at beginning</option>
+                  {[1,2,3,4,5,6,7,8,9].map(n => (
+                    <option key={n} value={String(n)}>After position {n}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Schedule type */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Schedule type</label>
+                <div className="flex gap-2">
+                  {(['recurring', 'once'] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setScheduleForm(f => ({ ...f, schedule_type: t }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                        scheduleForm.schedule_type === t
+                          ? 'bg-black text-white border-black'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {t === 'recurring' ? '🔁 Recurring' : '1️⃣ One-time'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Days of week (recurring) */}
+              {scheduleForm.schedule_type === 'recurring' && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Days of week</label>
+                  <div className="flex gap-1.5">
+                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day, idx) => (
+                      <button
+                        key={day}
+                        onClick={() => setScheduleForm(f => ({
+                          ...f,
+                          days_of_week: f.days_of_week.includes(idx)
+                            ? f.days_of_week.filter(d => d !== idx)
+                            : [...f.days_of_week, idx]
+                        }))}
+                        className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${
+                          scheduleForm.days_of_week.includes(idx)
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Specific dates (one-time) */}
+              {scheduleForm.schedule_type === 'once' && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Date</label>
+                  <input
+                    type="date"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    value={scheduleForm.specific_dates}
+                    onChange={e => setScheduleForm(f => ({ ...f, specific_dates: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              )}
+
+              {/* Time */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Time</label>
+                <input
+                  type="time"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  value={scheduleForm.time_of_day}
+                  onChange={e => setScheduleForm(f => ({ ...f, time_of_day: e.target.value }))}
+                />
+              </div>
+
+              {scheduleMsg && (
+                <p className="text-sm text-center">{scheduleMsg}</p>
+              )}
+
+              <button
+                onClick={saveSchedule}
+                disabled={scheduleSaving}
+                className="w-full bg-black text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {scheduleSaving ? 'Saving...' : 'Save Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ErrorBoundary>
   )
 }
