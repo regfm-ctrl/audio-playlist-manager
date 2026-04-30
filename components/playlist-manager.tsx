@@ -109,19 +109,16 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   // Schedule dialog state
   const [scheduleFile, setScheduleFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
   const [expiryFile, setExpiryFile] = useState<{ id: string; name: string; directoryName: string; localPath: string } | null>(null)
-  const [expiryForm, setExpiryForm] = useState({ playlist_id: '', playlist_name: '', expires_at: '', expires_time: '23:59' })
+  const [expiryForm, setExpiryForm] = useState({ expires_at: '', expires_time: '23:59' })
   const [expirySaving, setExpirySaving] = useState(false)
   const [expiryMsg, setExpiryMsg] = useState('')
 
   async function saveExpiryOnly() {
     if (!expiryFile) return
-    if (!expiryForm.playlist_id) { setExpiryMsg('Please select a playlist'); return }
     if (!expiryForm.expires_at) { setExpiryMsg('Please set an expiry date'); return }
     setExpirySaving(true)
     setExpiryMsg('')
     try {
-      // Create a one-time schedule set in the past (already expired) just to register the expiry
-      // Actually create a special "expiry-only" schedule with no run date
       const res = await fetch('/api/schedules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,8 +127,8 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           audio_file_name: expiryFile.name,
           audio_directory_name: expiryFile.directoryName,
           audio_local_path: expiryFile.localPath,
-          playlist_id: expiryForm.playlist_id,
-          playlist_name: expiryForm.playlist_name,
+          playlist_id: 'all',
+          playlist_name: 'All playlists',
           position: -1,
           schedule_type: 'expiry_only',
           days_of_week: null,
@@ -840,11 +837,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                               directoryName: selectedDirectory?.name || '',
                               localPath: buildPathForFile(file, selectedDirectory),
                             })
-                            setExpiryForm({
-                              playlist_id: selectedPlaylist?.id || '',
-                              playlist_name: selectedPlaylist?.name || '',
-                              expires_at: '', expires_time: '23:59',
-                            })
+                            setExpiryForm({ expires_at: '', expires_time: '23:59' })
                           }}
                           className="p-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
                           title="Set expiry date (remove from playlist on a date)"
@@ -1170,24 +1163,6 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             </div>
 
             <div className="space-y-4">
-              {/* Playlist selector */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Playlist to remove from</label>
-                <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                  value={expiryForm.playlist_id}
-                  onChange={e => {
-                    const pl = playlists.find(p => p.id === e.target.value)
-                    setExpiryForm(f => ({ ...f, playlist_id: e.target.value, playlist_name: pl?.name || '' }))
-                  }}
-                >
-                  <option value="">Select a playlist...</option>
-                  {playlists.map(p => (
-                    <option key={p.id} value={p.id}>{p.name.replace(/\.m3u8$/i, '')}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Expiry date */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Expiry date</label>

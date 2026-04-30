@@ -49,64 +49,94 @@ async function processSchedules(accessToken: string) {
     AND expires_at <= ${now.toISOString()}
   `;
 
-  // For each expired schedule, remove the file from its playlist
+  // For each expired schedule, remove the file from ALL playlists that contain it
   for (const schedule of expired) {
     try {
-      // Fetch current playlist content
-      const fileRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${schedule.playlist_id}?alt=media`,
+      const pathToRemove = schedule.audio_local_path;
+
+      // 1. List all playlists in the playlist folder
+      const listRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${process.env.PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (!fileRes.ok) throw new Error(`Failed to fetch playlist: ${fileRes.status}`);
 
-      const content = await fileRes.text();
-      const lines = content.split('\n').filter((l: string) => l.trim());
-      let containerName = '';
-      let existingPaths: string[] = [];
+      let playlistFiles: { id: string; name: string }[] = [];
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        playlistFiles = listData.files || [];
+      } else {
+        // Fallback: just use the playlist from the schedule record
+        playlistFiles = [{ id: schedule.playlist_id, name: schedule.playlist_name }];
+      }
 
-      for (const line of lines) {
-        if (line.startsWith('#EXTM3U')) continue;
-        if (line.startsWith('Container=')) {
-          const match = line.match(/Container=<([^>]+)>(.+)/);
-          if (match) {
-            containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-            existingPaths = match[2].split('|').filter((p: string) => p.trim());
+      let removedFrom: string[] = [];
+
+      // 2. Check each playlist for the file and remove it
+      for (const playlist of playlistFiles) {
+        try {
+          const fileRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${playlist.id}?alt=media`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!fileRes.ok) continue;
+
+          const playlistContent = await fileRes.text();
+          const lines = playlistContent.split('\n').filter((l: string) => l.trim());
+          let containerName = '';
+          let existingPaths: string[] = [];
+
+          for (const line of lines) {
+            if (line.startsWith('#EXTM3U')) continue;
+            if (line.startsWith('Container=')) {
+              const match = line.match(/Container=<([^>]+)>(.+)/);
+              if (match) {
+                containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+                existingPaths = match[2].split('|').filter((p: string) => p.trim());
+              }
+            }
           }
+
+          // Skip if file not in this playlist
+          if (!existingPaths.includes(pathToRemove)) continue;
+
+          // Remove the file
+          const updatedPaths = existingPaths.filter((p: string) => p !== pathToRemove);
+          const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
+          const newContent = updatedPaths.length > 0
+            ? `#EXTM3U\nContainer=<${encodedName}>${updatedPaths.join('|')}\n`
+            : `#EXTM3U\n`;
+
+          const saveRes = await fetch(
+            `https://www.googleapis.com/upload/drive/v3/files/${playlist.id}?uploadType=media&supportsAllDrives=true`,
+            {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'text/plain' },
+              body: newContent,
+            }
+          );
+
+          if (saveRes.ok) {
+            removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
+          }
+        } catch (innerErr) {
+          console.error(`[scheduler] Error checking playlist ${playlist.name}:`, innerErr);
         }
       }
 
-      // Remove the file from the playlist
-      const pathToRemove = schedule.audio_local_path;
-      const updatedPaths = existingPaths.filter((p: string) => p !== pathToRemove);
-
-      if (updatedPaths.length !== existingPaths.length) {
-        // File was found and removed — save the playlist back
-        const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
-        const newContent = updatedPaths.length > 0
-          ? `#EXTM3U\nContainer=<${encodedName}>${updatedPaths.join('|')}\n`
-          : `#EXTM3U\n`;
-
-        const saveRes = await fetch(
-          `https://www.googleapis.com/upload/drive/v3/files/${schedule.playlist_id}?uploadType=media&supportsAllDrives=true`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'text/plain',
-            },
-            body: newContent,
-          }
-        );
-
-        if (saveRes.ok) {
-          await sql`
-            INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', 'File removed from playlist on expiry')
-          `;
-          await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${schedule.playlist_name}`, '/api/schedules/run');
-          console.log(`[scheduler] Removed expired file ${schedule.audio_file_name} from ${schedule.playlist_name}`);
-        }
+      if (removedFrom.length > 0) {
+        await sql`
+          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${removedFrom.join(', ')}, 'expired', ${'Removed from: ' + removedFrom.join(', ')})
+        `;
+        await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${removedFrom.join(', ')}`, '/api/schedules/run');
+        console.log(`[scheduler] Removed expired ${schedule.audio_file_name} from: ${removedFrom.join(', ')}`);
+      } else {
+        await sql`
+          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+          VALUES (${schedule.id}, ${schedule.audio_file_name}, 'none', 'expired', 'File not found in any playlists')
+        `;
       }
+
     } catch (err: any) {
       console.error('[scheduler] Error removing expired file:', schedule.id, err);
       await sql`
