@@ -823,11 +823,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       {/* ── Schedule Dialog ──────────────────────────────────────────────── */}
       {scheduleFile && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 640, padding: 24 }}>
+          <div style={{ ...S.dialog, maxWidth: 740, padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Schedule: {removeFileExtension(scheduleFile.name)}</h2>
-                <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Select one or more breaks to add this file on a schedule</p>
+                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0, color: 'white' }}>Schedule: {removeFileExtension(scheduleFile.name)}</h2>
+                <p style={{ fontSize: 14, color: '#aaa', margin: '2px 0 0' }}>Select one or more breaks to add this file on a schedule</p>
               </div>
               <button onClick={() => setScheduleFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
@@ -846,7 +846,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                   placeholder="Search breaks..."
                   style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #555', borderRadius: 7, fontSize: 14, marginBottom: 6, boxSizing: 'border-box' as const, outline: 'none', background: '#4a4a4c', color: '#e0e0e0' }}
                 />
-                <div style={{ border: '0.5px solid #555', borderRadius: 8, overflowY: 'auto', maxHeight: 240 }}>
+                <div style={{ border: '0.5px solid #555', borderRadius: 8, overflowY: 'auto', maxHeight: 320 }}>
                   {playlists.filter(p => p.name.toLowerCase().includes(playlistSearchSchedule.toLowerCase())).map(p => {
                     const isSelected = scheduleForm.selected_playlists.some(s => s.id === p.id)
                     return (
