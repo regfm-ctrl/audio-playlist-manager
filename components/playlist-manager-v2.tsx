@@ -700,33 +700,37 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     <button
                       title="Schedule"
                       onClick={() => { setScheduleFile({ id: file.id, name: file.name, directoryName: selectedDirectory?.name || '', localPath: buildPathForFile(file, selectedDirectory) }); setScheduleForm({ selected_playlists: selectedPlaylist ? [{ id: selectedPlaylist.id, name: selectedPlaylist.name }] : [], position: '-1', schedule_type: 'recurring', days_of_week: [], specific_dates: '', time_of_day: '08:00' }); setPlaylistSearchSchedule('') }}
-                      style={{ ...S.iconBtn, border: '0.5px solid #e0e0e0' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, background: '#e8f0fb', border: '0.5px solid #b8d0f0', cursor: 'pointer' }}
                     >
-                      <Clock style={{ width: 10, height: 10, color: '#aaa' }} />
+                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="#0055cc" strokeWidth="1.5"><circle cx="7" cy="7" r="5.5"/><path d="M7 4v3.5l2.5 1.5"/></svg>
+                      <span style={{ fontSize: 11, color: '#0055cc', fontWeight: 500 }}>Schedule</span>
                     </button>
                     {/* Expiry */}
                     <button
                       title="Set expiry"
                       onClick={() => { setExpiryFile({ id: file.id, name: file.name, directoryName: selectedDirectory?.name || '', localPath: buildPathForFile(file, selectedDirectory) }); setExpiryForm({ expires_at: '', expires_time: '23:59' }) }}
-                      style={{ ...S.iconBtn, border: '0.5px solid #e0e0e0' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, background: '#fff8e8', border: '0.5px solid #f0d080', cursor: 'pointer' }}
                     >
-                      <AlarmClock style={{ width: 10, height: 10, color: '#aaa' }} />
+                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="#a06000" strokeWidth="1.5"><circle cx="7" cy="8" r="4.5"/><path d="M7 5.5v3l1.5 1"/><path d="M5 1.5h4"/><path d="M7 1.5v1.5"/></svg>
+                      <span style={{ fontSize: 11, color: '#a06000', fontWeight: 500 }}>Expiry</span>
                     </button>
                     {/* Find in playlists */}
                     <button
                       title="Find in playlists"
                       onClick={() => findFileInPlaylists({ name: file.name, localPath: buildPathForFile(file, selectedDirectory) })}
-                      style={{ ...S.iconBtn, border: '0.5px solid #e0e0e0' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, background: '#e4f5ee', border: '0.5px solid #80d0aa', cursor: 'pointer' }}
                     >
-                      <FileText style={{ width: 10, height: 10, color: '#88aadd' }} />
+                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="#0a6e46" strokeWidth="1.5"><circle cx="5.5" cy="5.5" r="4"/><line x1="8.8" y1="8.8" x2="12" y2="12"/></svg>
+                      <span style={{ fontSize: 11, color: '#0a6e46', fontWeight: 500 }}>Find</span>
                     </button>
-                    {/* Remove from all */}
+                    {/* Delete from all blocks */}
                     <button
-                      title="Remove from all playlists"
+                      title="Delete from all blocks"
                       onClick={() => setRemoveAllFile({ id: file.id, name: file.name, localPath: buildPathForFile(file, selectedDirectory) })}
-                      style={{ ...S.iconBtn, background: '#fff0f0', border: '0.5px solid #ffcccc' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, background: '#fff0f0', border: '0.5px solid #ffb8b8', cursor: 'pointer' }}
                     >
-                      <X style={{ width: 10, height: 10, color: '#cc3333' }} />
+                      <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="#cc0000" strokeWidth="1.5"><polyline points="3,4 3,12 11,12 11,4"/><line x1="2" y1="4" x2="12" y2="4"/><line x1="5" y1="4" x2="5" y2="2"/><line x1="9" y1="4" x2="9" y2="2"/><line x1="5" y1="2" x2="9" y2="2"/></svg>
+                      <span style={{ fontSize: 11, color: '#cc0000', fontWeight: 500 }}>Delete from All Blocks</span>
                     </button>
                     {/* Add / Remove */}
                     {inPlaylist
