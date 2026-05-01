@@ -546,7 +546,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { width: 66, height: 22, background: '#0071e3', borderRadius: 4, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     removeBtn: { width: 66, height: 22, background: '#e8e8ed', borderRadius: 4, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #c0cad8', background: '#dde4ed', padding: '8px 20px', flexShrink: 0, height: 310, display: 'flex', flexDirection: 'column' },
+    breakPanel: { borderTop: '0.5px solid #b0bac8', background: '#cdd5e0', padding: '8px 20px', flexShrink: 0, height: 310, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
@@ -765,7 +765,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               </div>
               {selectedPlaylist && (
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={resetPlaylist} style={{ padding: '6px 14px', background: 'white', borderRadius: 6, fontSize: 15, color: '#555', border: '0.5px solid #c0c8d4', cursor: 'pointer' }}>Reset</button>
+                  <button onClick={resetPlaylist} style={{ padding: '6px 14px', background: 'white', borderRadius: 6, fontSize: 15, color: '#555', border: '0.5px solid #b0bac8', cursor: 'pointer' }}>Reset</button>
                   <button onClick={savePlaylist} disabled={isSaving} style={{ padding: '6px 16px', background: '#0071e3', borderRadius: 6, fontSize: 15, color: 'white', border: 'none', cursor: 'pointer', opacity: isSaving ? 0.6 : 1 }}>
                     {isSaving ? 'Saving...' : 'Save'}
                   </button>
@@ -782,7 +782,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : playlistItems.length === 0 ? (
               <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ overflowY: 'auto', height: 252, background: '#e8eef5', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
+              <div style={{ overflowY: 'auto', height: 252, background: '#cdd5e0', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
                 {playlistItems.map((item, index) => (
                   <div
                     key={index}
@@ -799,9 +799,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                         ? '#e8f0fb'
                         : dragState.draggedIndex === index
                         ? '#f0f4f8'
-                        : 'white',
+                        : index % 2 === 1 ? '#f5f7fa' : 'white',
                       opacity: dragState.draggedIndex === index ? 0.5 : 1,
-                      borderBottom: '0.5px solid #f0f0f0',
+                      borderBottom: `0.5px solid ${index % 2 === 1 ? '#edf0f4' : '#f0f0f0'}`,
                       borderTop: 'none', borderLeft: 'none', borderRight: 'none',
                       outline: dragState.hoveredDropZone === index && dragState.draggedIndex !== index ? '0.5px solid #0071e3' : 'none',
                       cursor: 'grab', transition: 'background 0.1s',
