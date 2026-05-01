@@ -956,32 +956,34 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       {/* ── Remove from all dialog ───────────────────────────────────────── */}
       {removeAllFile && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 380, padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 500, color: '#cc0000', margin: 0 }}>Remove from All Playlists</h2>
+          <div style={{ ...S.dialog, maxWidth: 400, padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>Remove from all playlists</h2>
+                <p style={{ fontSize: 13, color: '#aaa', margin: '3px 0 0' }}>{removeFileExtension(removeAllFile.name)}</p>
+              </div>
               <button onClick={() => setRemoveAllFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {!removeAllLoading && !removeAllMsg ? (
               <>
-                <p style={{ fontSize: 18, color: '#444', marginBottom: 6 }}>Remove <strong>{removeFileExtension(removeAllFile.name)}</strong> from all sponsorship breaks?</p>
-                <p style={{ fontSize: 15, color: '#aaa', marginBottom: 20 }}>This will scan every break and remove this file wherever it appears. This cannot be undone.</p>
+                <p style={{ fontSize: 13, color: '#aaa', marginBottom: 20 }}>This will scan every break and remove this file wherever it appears. This cannot be undone.</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setRemoveAllFile(null)} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={removeFromAllPlaylists} style={{ flex: 1, padding: '9px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Yes, Remove</button>
+                  <button onClick={() => setRemoveAllFile(null)} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={removeFromAllPlaylists} style={{ flex: 1, padding: '11px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Yes, Remove</button>
                 </div>
               </>
             ) : removeAllMsg ? (
               <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <p style={{ fontSize: 17, marginBottom: 16 }}>{removeAllMsg}</p>
-                <button onClick={() => { setRemoveAllFile(null); setRemoveAllMsg('') }} style={{ padding: '8px 24px', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Close</button>
+                <p style={{ fontSize: 14, color: '#e0e0e0', marginBottom: 16 }}>{removeAllMsg}</p>
+                <button onClick={() => { setRemoveAllFile(null); setRemoveAllMsg('') }} style={{ padding: '9px 24px', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Close</button>
               </div>
             ) : (
               <div style={{ padding: '8px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: '#666', marginBottom: 6 }}>
-                  <span style={{color:'#aaa'}}>{removeAllProgress.phase === 'scanning' ? 'Scanning breaks...' : 'Removing...'}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: '#aaa' }}>{removeAllProgress.phase === 'scanning' ? 'Scanning breaks...' : 'Removing...'}</span>
                   <span style={{ fontWeight: 500, color: '#ccc' }}>{removeAllProgress.scanned} / {removeAllProgress.total}</span>
                 </div>
-                <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: 6, background: '#555', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{ height: 6, borderRadius: 3, background: removeAllProgress.phase === 'scanning' ? '#0071e3' : '#cc0000', width: removeAllProgress.total > 0 ? `${(removeAllProgress.scanned / removeAllProgress.total) * 100}%` : '0%', transition: 'width 0.3s' }} />
                 </div>
               </div>
@@ -996,41 +998,41 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           <div style={{ ...S.dialog, maxWidth: 440, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>{removeFileExtension(inPlaylistsFile.name)}</h2>
-                <p style={{ fontSize: 15, color: '#888', margin: '2px 0 0' }}>Sponsorship breaks containing this file</p>
+                <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>{removeFileExtension(inPlaylistsFile.name)}</h2>
+                <p style={{ fontSize: 13, color: '#aaa', margin: '3px 0 0' }}>Sponsorship breaks containing this file</p>
               </div>
               <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><X style={{ width: 18, height: 18 }} /></button>
             </div>
             {inPlaylistsLoading ? (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: '#666', marginBottom: 6 }}>
-                  <span style={{color:'#aaa'}}>Scanning sponsorship breaks...</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                  <span style={{ color: '#aaa' }}>Scanning sponsorship breaks...</span>
                   <span style={{ fontWeight: 500, color: '#ccc' }}>{inPlaylistsProgress.scanned} / {inPlaylistsProgress.total}</span>
                 </div>
-                <div style={{ height: 6, background: '#444', borderRadius: 3, overflow: 'hidden', marginBottom: 12 }}>
+                <div style={{ height: 6, background: '#555', borderRadius: 3, overflow: 'hidden', marginBottom: 12 }}>
                   <div style={{ height: 6, borderRadius: 3, background: '#0071e3', width: inPlaylistsProgress.total > 0 ? `${(inPlaylistsProgress.scanned / inPlaylistsProgress.total) * 100}%` : '0%', transition: 'width 0.3s' }} />
                 </div>
                 {inPlaylistsList.length > 0 && (
                   <div>
-                    <p style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>Found in {inPlaylistsList.length} so far...</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 160, overflowY: 'auto' }}>
-                      {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '6px 12px', background: '#e8f0fb', borderRadius: 6, fontSize: 15, color: '#0071e3', fontWeight: 500 }}>{name}</div>)}
+                    <p style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>Found in {inPlaylistsList.length} so far...</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
+                      {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '9px 14px', background: '#0071e322', borderRadius: 7, fontSize: 13, color: '#4da3ff', fontWeight: 500, border: '0.5px solid #0071e344' }}>{name}</div>)}
                     </div>
                   </div>
                 )}
               </div>
             ) : inPlaylistsList.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#aaa', fontSize: 18, padding: '20px 0' }}>This file is not in any sponsorship breaks.</p>
+              <p style={{ textAlign: 'center', color: '#777', fontSize: 14, padding: '24px 0' }}>This file is not in any sponsorship breaks.</p>
             ) : (
               <div>
-                <p style={{ fontSize: 15, color: '#666', marginBottom: 8 }}>Found in <strong>{inPlaylistsList.length}</strong> break{inPlaylistsList.length !== 1 ? 's' : ''}:</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
-                  {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '7px 12px', background: '#e8f0fb', borderRadius: 7, fontSize: 15, color: '#0071e3', fontWeight: 500, border: '0.5px solid #b8d0f0' }}>{name}</div>)}
+                <p style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>Found in <strong style={{ color: 'white' }}>{inPlaylistsList.length}</strong> break{inPlaylistsList.length !== 1 ? 's' : ''}:</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
+                  {inPlaylistsList.map((name, i) => <div key={i} style={{ padding: '9px 14px', background: '#0071e322', borderRadius: 7, fontSize: 13, color: '#4da3ff', fontWeight: 500, border: '0.5px solid #0071e344' }}>{name}</div>)}
                 </div>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ flex: 1, padding: '9px 0', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}>Close</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => { setInPlaylistsFile(null); setInPlaylistsList([]) }} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Close</button>
               {!inPlaylistsLoading && inPlaylistsList.length > 0 && (
                 <button
                   onClick={() => {
@@ -1041,7 +1043,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     const url = URL.createObjectURL(blob)
                     const a = document.createElement('a'); a.href = url; a.download = `${fileName} - playlists - ${date}.csv`; a.click(); URL.revokeObjectURL(url)
                   }}
-                  style={{ flex: 1, padding: '9px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 18, cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '11px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
                 >
                   Export CSV
                 </button>
