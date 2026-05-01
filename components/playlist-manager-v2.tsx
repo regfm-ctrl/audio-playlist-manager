@@ -546,7 +546,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { width: 66, height: 22, background: '#0071e3', borderRadius: 4, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     removeBtn: { width: 66, height: 22, background: '#e8e8ed', borderRadius: 4, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #bbb', background: '#eef2f7', padding: '12px 20px', flexShrink: 0, minHeight: 200, maxHeight: 350, display: 'flex', flexDirection: 'column' },
+    breakPanel: { borderTop: '0.5px solid #c0cad8', background: '#dde4ed', padding: '8px 20px', flexShrink: 0, height: 310, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
@@ -773,7 +773,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : playlistItems.length === 0 ? (
               <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ overflowY: 'auto', flex: 1, background: 'white', borderRadius: 8, border: '0.5px solid #d0d8e4', padding: '4px 0' }}>
+              <div style={{ overflowY: 'auto', height: 252, background: '#e8eef5', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
                 {playlistItems.map((item, index) => (
                   <div
                     key={index}
@@ -785,17 +785,17 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     onDrop={(e) => handleDrop(e, index)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '0px 10px', height: 36, margin: '1px 4px', borderRadius: 6, boxSizing: 'border-box' as const,
+                      padding: '0px 10px', height: 36, margin: '1px 0', borderRadius: 5, boxSizing: 'border-box' as const,
                       background: dragState.hoveredDropZone === index && dragState.draggedIndex !== index
                         ? '#e8f0fb'
                         : dragState.draggedIndex === index
-                        ? '#f0f0f0'
+                        ? '#f0f4f8'
                         : 'white',
                       opacity: dragState.draggedIndex === index ? 0.5 : 1,
-                      border: dragState.hoveredDropZone === index && dragState.draggedIndex !== index
-                        ? '0.5px solid #0071e3'
-                        : '0.5px solid #eee',
-                      cursor: 'grab', transition: 'background 0.1s, border 0.1s',
+                      borderBottom: '0.5px solid #f0f0f0',
+                      borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                      outline: dragState.hoveredDropZone === index && dragState.draggedIndex !== index ? '0.5px solid #0071e3' : 'none',
+                      cursor: 'grab', transition: 'background 0.1s',
                       userSelect: 'none' as const,
                     }}
                   >
@@ -824,9 +824,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     <button
                       onMouseDown={e => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); setPlaylistItems(prev => prev.filter((_, i) => i !== index)) }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ccc', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                      style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff0f0', border: '0.5px solid #ffcccc', cursor: 'pointer', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <X style={{ width: 13, height: 13 }} />
+                      <X style={{ width: 8, height: 8, color: '#cc3333' }} />
                     </button>
                   </div>
                 ))}
