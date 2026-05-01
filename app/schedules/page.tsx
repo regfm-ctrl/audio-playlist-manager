@@ -116,18 +116,12 @@ export default function SchedulesPage() {
 
       {/* Sidebar */}
       <div style={S.sidebar}>
-        <div style={S.sidebarHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={S.sidebarLogo}>
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5">
-                <circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.5" fill="white" stroke="none"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>REGFM</div>
-              <div style={{ color: '#666', fontSize: 12 }}>Sponsorship Scheduler</div>
-            </div>
-          </div>
+        <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #333' }}>
+          <img
+            src="/regfm-logo.png"
+            alt="REGFM"
+            style={{ width: '100%', height: 'auto', borderRadius: 6, objectFit: 'contain', display: 'block' }}
+          />
         </div>
         <div style={{ padding: '12px 10px 6px' }}>
           <span style={{ fontSize: 11, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>LIBRARY</span>

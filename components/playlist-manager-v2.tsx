@@ -560,18 +560,12 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         {/* ── Sidebar ────────────────────────────────────────────────── */}
         <div style={S.sidebar}>
           {/* Logo */}
-          <div style={S.sidebarHeader}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <div style={S.sidebarLogo}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5">
-                  <circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.5" fill="white" stroke="none"/>
-                </svg>
-              </div>
-              <div>
-                <div style={{ color: 'white', fontSize: 15, fontWeight: 500 }}>REGFM</div>
-                <div style={{ color: '#666', fontSize: 10 }}>Sponsorship Scheduler</div>
-              </div>
-            </div>
+          <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #333' }}>
+            <img
+              src="/regfm-logo.png"
+              alt="REGFM"
+              style={{ width: '100%', height: 'auto', borderRadius: 6, objectFit: 'contain', display: 'block' }}
+            />
           </div>
 
           {/* Nav */}
