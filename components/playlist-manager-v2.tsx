@@ -451,7 +451,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const isInPlaylist = (file: GoogleDriveFile): boolean => playlistItems.some((it) => it.path === buildPathForFile(file, selectedDirectory))
 
   const addFileToPlaylist = (file: GoogleDriveFile) => {
-    if (!selectedPlaylist) { toast({ title: "Select a playlist", description: "Please select a sponsorship break first.", variant: "error" as any }); return }
+    if (!selectedPlaylist) { toast({ title: "Select A Break", description: "Please select a sponsorship break first.", variant: "error" as any }); return }
     const p = buildPathForFile(file, selectedDirectory)
     if (playlistItems.some((it) => it.path === p)) return
     setPlaylistItems((prev) => [...prev, { path: p, filename: removeFileExtension(file.name) }])
