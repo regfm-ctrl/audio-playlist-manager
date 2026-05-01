@@ -813,7 +813,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     {/* Grip */}
                     <span style={{ color: '#bbb', flexShrink: 0, display: 'flex', alignItems: 'center' }}><IconGrip /></span>
                     {/* Filename */}
-                    <span style={{ fontSize: 14, color: '#1d1d1f', flex: 1, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.filename}</span>
+                    <span style={{ fontSize: 14, color: '#1d1d1f', flex: 1, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{removeFileExtension(item.filename)}</span>
                     {/* Up / Down */}
                     <div style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                       <button
