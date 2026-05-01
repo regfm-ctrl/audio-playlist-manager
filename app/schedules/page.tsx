@@ -94,10 +94,10 @@ export default function SchedulesPage() {
     : schedules;
 
   const S: Record<string, React.CSSProperties> = {
-    app: { display: 'flex', height: '100vh', background: '#1d1d1f', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
-    sidebar: { width: 260, background: '#1d1d1f', borderRight: '0.5px solid #333', display: 'flex', flexDirection: 'column', flexShrink: 0 },
+    app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
+    sidebar: { width: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
     main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
-    sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #333' },
+    sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #3a3a3c' },
     sidebarLogo: { width: 40, height: 40, borderRadius: 10, background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 14, textDecoration: 'none' },
     navItemActive: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', fontSize: 14, textDecoration: 'none' },
@@ -116,7 +116,7 @@ export default function SchedulesPage() {
 
       {/* Sidebar */}
       <div style={S.sidebar}>
-        <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #333' }}>
+        <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #3a3a3c' }}>
           <img
             src="/regfm-logo.png"
             alt="REGFM"
@@ -132,9 +132,9 @@ export default function SchedulesPage() {
           <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ padding: '10px 14px', borderTop: '0.5px solid #333', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>A</div>
-          <span style={{ color: '#666', fontSize: 13 }}>admin</span>
+          <span style={{ color: '#888', fontSize: 13 }}>admin</span>
         </div>
       </div>
 

@@ -522,11 +522,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
   const S: Record<string, React.CSSProperties> = {
     // Layout
-    app: { display: 'flex', height: '100vh', background: '#1d1d1f', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
-    sidebar: { width: 260, background: '#1d1d1f', borderRight: '0.5px solid #333', display: 'flex', flexDirection: 'column', flexShrink: 0 },
+    app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
+    sidebar: { width: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
     main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
     // Sidebar elements
-    sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #333' },
+    sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #3a3a3c' },
     sidebarLogo: { width: 40, height: 40, borderRadius: 10, background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     sidebarSection: { padding: '12px 10px 6px' },
     sidebarLabel: { fontSize: 15, color: '#555', padding: '0 8px', marginBottom: 4, letterSpacing: '0.05em', display: 'block' },
@@ -560,7 +560,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         {/* ── Sidebar ────────────────────────────────────────────────── */}
         <div style={S.sidebar}>
           {/* Logo */}
-          <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #333' }}>
+          <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #3a3a3c' }}>
             <img
               src="/regfm-logo.png"
               alt="REGFM"
@@ -600,7 +600,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     marginBottom: 1,
                     borderRadius: 5,
                     cursor: 'pointer',
-                    background: selectedPlaylist?.id === pl.id ? '#2a2a2c' : 'transparent',
+                    background: selectedPlaylist?.id === pl.id ? '#1d1d1f' : 'transparent',
                     borderLeft: selectedPlaylist?.id === pl.id ? '2px solid #0071e3' : '2px solid transparent',
                   }}
                 >
@@ -618,7 +618,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* User */}
-          <div style={{ padding: '10px 14px', borderTop: '0.5px solid #333', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: 'white', fontWeight: 500 }}>A</div>
             <span style={{ color: '#666', fontSize: 14 }}>admin</span>
           </div>
