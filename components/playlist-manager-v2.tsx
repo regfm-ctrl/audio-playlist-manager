@@ -541,7 +541,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     // File rows
     fileRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '0px 10px', height: 36, borderRadius: 7, marginBottom: 2, border: '0.5px solid #e8e8e8', background: 'white', transition: 'background 0.1s', boxSizing: 'border-box' as const },
     fileRowPlaying: { display: 'flex', alignItems: 'center', gap: 12, padding: '0px 10px', height: 36, borderRadius: 7, marginBottom: 2, border: '0.5px solid #b8d0f0', background: '#e8f0fb', boxSizing: 'border-box' as const },
-    playBtn: { width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
+    playBtn: { width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: 'none' },
     iconBtn: { width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', border: '0.5px solid #e8e8e8', background: 'white' },
     addBtn: { width: 66, height: 22, background: '#0071e3', borderRadius: 4, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     removeBtn: { width: 66, height: 22, background: '#e8e8ed', borderRadius: 4, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -675,15 +675,20 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
               const isPlaying = playingFileId === file.id
               const isLoadingThis = isLoadingAudio === file.id
               const inPlaylist = isInPlaylist(file)
+              const isEvenRow = filteredFiles.indexOf(file) % 2 === 1
               return (
-                <div key={file.id} style={isPlaying ? S.fileRowPlaying : S.fileRow}>
+                <div key={file.id} style={isPlaying ? S.fileRowPlaying : { ...S.fileRow, background: isEvenRow ? '#f5f7fa' : 'white', borderBottom: `0.5px solid ${isEvenRow ? '#edf0f4' : '#f0f0f0'}` }}>
                   {/* Play button */}
                   <button
                     onClick={() => playFile(file)}
                     disabled={!!isLoadingAudio && !isPlaying}
-                    style={{ ...S.playBtn, background: isPlaying ? '#0071e3' : '#e8e8ed', color: isPlaying ? 'white' : '#666' }}
+                    style={{ ...S.playBtn, background: isPlaying ? '#005bb5' : '#0071e3' }}
                   >
-                    {isLoadingThis ? <Loader2 style={{ width: 10, height: 10, animation: 'spin 1s linear infinite' }} /> : isPlaying ? <Square style={{ width: 8, height: 8 }} /> : <Play style={{ width: 8, height: 8 }} />}
+                    {isLoadingThis
+                    ? <Loader2 style={{ width: 10, height: 10, animation: 'spin 1s linear infinite', color: 'white' }} />
+                    : isPlaying
+                    ? <svg width="9" height="9" viewBox="0 0 9 9" fill="white"><rect x="1" y="1" width="3" height="7" rx="1"/><rect x="5" y="1" width="3" height="7" rx="1"/></svg>
+                    : <svg width="10" height="10" viewBox="0 0 10 10" fill="white"><polygon points="2.5,1.5 9,5 2.5,8.5"/></svg>}
                   </button>
 
                   {/* Name + progress bar if playing */}
