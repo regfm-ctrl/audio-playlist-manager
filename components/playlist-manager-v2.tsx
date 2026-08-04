@@ -395,23 +395,59 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = (): string => {
-    // Always re-inject protected paths from original content so they are never lost
-    const protectedPaths: string[] = []
+    // Re-build the full path list preserving original positions of protected files
+    // Step 1: Get original full path list with positions
+    const originalAllPaths: string[] = []
     for (const line of originalContent.split('\n')) {
       if (line.startsWith('Container=')) {
         const match = line.match(/Container=<([^>]+)>(.+)/)
         if (match) {
-          match[2].split('|').forEach(p => {
-            if (p.trim() && isProtectedPath(p)) protectedPaths.push(p.trim())
-          })
+          match[2].split('|').forEach(p => { if (p.trim()) originalAllPaths.push(p.trim()) })
         }
       }
     }
+
+    // Step 2: Build a map of protected path -> original index
+    const protectedWithPositions: { path: string; originalIndex: number }[] = []
+    originalAllPaths.forEach((p, i) => {
+      if (isProtectedPath(p)) protectedWithPositions.push({ path: p, originalIndex: i })
+    })
+
+    // Step 3: Start with editable paths
     const editablePaths = playlistItems.map((i) => i.path)
-    const allPaths = [...editablePaths, ...protectedPaths]
-    if (allPaths.length === 0) return "#EXTM3U\n"
+
+    // Step 4: Re-insert protected paths at their original relative positions
+    // If originally at index 0 = before everything, insert at start
+    // If originally at last index = after everything, insert at end
+    // For positions in between, insert proportionally
+    const totalOriginal = originalAllPaths.length
+    const result: string[] = [...editablePaths]
+
+    // Sort protected paths by original index so we insert in order
+    protectedWithPositions.sort((a, b) => a.originalIndex - b.originalIndex)
+
+    let offset = 0
+    for (const { path, originalIndex } of protectedWithPositions) {
+      // If it was at the very start originally, put it at start
+      // If it was at the very end, put it at the end
+      // Otherwise insert proportionally
+      let insertAt: number
+      if (originalIndex === 0) {
+        insertAt = offset
+      } else if (originalIndex >= totalOriginal - 1) {
+        insertAt = result.length
+      } else {
+        // Proportional position within editable paths
+        const ratio = originalIndex / totalOriginal
+        insertAt = Math.round(ratio * editablePaths.length)
+      }
+      result.splice(insertAt + offset, 0, path)
+      offset++
+    }
+
+    if (result.length === 0) return "#EXTM3U\n"
     const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
-    return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
+    return `#EXTM3U\nContainer=<${encodedName}>${result.join('|')}\n`
   }
 
   useEffect(() => {
