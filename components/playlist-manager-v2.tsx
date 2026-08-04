@@ -398,10 +398,33 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     } finally { setIsLoading(false) }
   }
 
+  const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+  const sortPlaylistsByDayTime = (a: { name: string }, b: { name: string }) => {
+    const getDay = (name: string) => {
+      const lower = name.toLowerCase()
+      const idx = DAY_ORDER.findIndex(d => lower.startsWith(d))
+      return idx === -1 ? 99 : idx
+    }
+    const getTime = (name: string) => {
+      const match = name.match(/(\d{2})[\.\:](\d{2})/)
+      return match ? parseInt(match[1]) * 60 + parseInt(match[2]) : 0
+    }
+    const getBlock = (name: string) => {
+      const match = name.match(/Block\s*(\d+)/i)
+      return match ? parseInt(match[1]) : 0
+    }
+    const dayDiff = getDay(a.name) - getDay(b.name)
+    if (dayDiff !== 0) return dayDiff
+    const timeDiff = getTime(a.name) - getTime(b.name)
+    if (timeDiff !== 0) return timeDiff
+    return getBlock(a.name) - getBlock(b.name)
+  }
+
   const filteredPlaylists = useMemo(() => {
     let filtered = playlists
     if (playlistSearch) filtered = playlists.filter((pl) => pl.name.toLowerCase().includes(playlistSearch.toLowerCase()))
-    return filtered.sort((a, b) => a.name.localeCompare(b.name))
+    return filtered.sort(sortPlaylistsByDayTime)
   }, [playlists, playlistSearch])
 
   const parsePlaylistContent = (content: string) => {
