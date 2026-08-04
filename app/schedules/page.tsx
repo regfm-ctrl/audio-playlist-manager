@@ -101,9 +101,23 @@ export default function SchedulesPage() {
     return s.time_of_day;
   }
 
-  const filtered = filter
+  const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Mon, Tue, Wed, Thu, Fri, Sat, Sun
+
+  const filtered = (filter
     ? schedules.filter(s => s.audio_file_name.toLowerCase().includes(filter.toLowerCase()) || s.playlist_name.toLowerCase().includes(filter.toLowerCase()))
-    : schedules;
+    : schedules
+  ).sort((a, b) => {
+    // Sort by day of week (Mon first)
+    const dayA = a.days_of_week ? parseInt(a.days_of_week.split(',')[0]) : 7
+    const dayB = b.days_of_week ? parseInt(b.days_of_week.split(',')[0]) : 7
+    const dayOrderA = DAY_ORDER.indexOf(dayA) === -1 ? 7 : DAY_ORDER.indexOf(dayA)
+    const dayOrderB = DAY_ORDER.indexOf(dayB) === -1 ? 7 : DAY_ORDER.indexOf(dayB)
+    if (dayOrderA !== dayOrderB) return dayOrderA - dayOrderB
+    // Then sort by time
+    if (a.time_of_day && b.time_of_day) return a.time_of_day.localeCompare(b.time_of_day)
+    // Then by playlist name
+    return a.playlist_name.localeCompare(b.playlist_name)
+  });
 
   const S: Record<string, React.CSSProperties> = {
     app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
@@ -299,4 +313,3 @@ export default function SchedulesPage() {
     </div>
   );
 }
-
