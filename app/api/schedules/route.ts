@@ -1,366 +1,156 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { logActivity } from '@/lib/activity';
 
-const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
-const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
-const CRON_SECRET = process.env.CRON_SECRET;
-
-// Protected path — never modify files in this directory
-const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
-const GMAIL_MCP_URL = 'https://gmailmcp.googleapis.com/mcp/v1';
-
-async function sendEmailViaMCP(subject: string, body: string) {
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: `Send an email using Gmail MCP. 
-To: ${NOTIFY_EMAIL}
-From: ${FROM_EMAIL}
-Subject: ${subject}
-Body: ${body}
-
-Use the Gmail send tool to send this email now.`
-        }],
-        mcp_servers: [{ type: 'url', url: GMAIL_MCP_URL, name: 'gmail' }],
-      }),
-    });
-    const data = await response.json();
-    console.log('[scheduler] Email send result:', JSON.stringify(data).slice(0, 200));
-    return true;
-  } catch (err) {
-    console.error('[scheduler] Email failed:', err);
-    return false;
-  }
+async function getUser(req: NextRequest) {
+  const token = req.cookies.get('token')?.value;
+  if (!token) return null;
+  return verifyToken(token);
 }
 
-async function processSchedules(accessToken: string, forceRun = false) {
-  const now = new Date();
+// GET — list all schedules
+export async function GET(req: NextRequest) {
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Find expired schedules before deactivating them
-  const expired = await sql`
-    SELECT * FROM schedules
-    WHERE is_active = true
-    AND expires_at IS NOT NULL
-    AND expires_at <= ${now.toISOString()}
-  `;
+  const rows = await sql`SELECT * FROM schedules ORDER BY created_at DESC`;
+  return NextResponse.json(rows);
+}
 
-  // For each expired schedule, remove the file from ALL playlists that contain it
-  for (const schedule of expired) {
-    try {
-      const pathToRemove = schedule.audio_local_path;
+// POST — create a schedule
+export async function POST(req: NextRequest) {
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-      // 1. List all playlists in the playlist folder
-      const listRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${process.env.PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+  const {
+    audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+    playlist_id, playlist_name, position,
+    schedule_type, days_of_week, specific_dates, time_of_day, expires_at,
+  } = await req.json();
 
-      let playlistFiles: { id: string; name: string }[] = [];
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        playlistFiles = listData.files || [];
-      } else {
-        // Fallback: just use the playlist from the schedule record
-        playlistFiles = [{ id: schedule.playlist_id, name: schedule.playlist_name }];
-      }
+  const next_run_at = schedule_type === 'expiry_only'
+    ? null
+    : calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
 
-      let removedFrom: string[] = [];
-
-      // 2. Check each playlist for the file and remove it
-      for (const playlist of playlistFiles) {
-        try {
-          const fileRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${playlist.id}?alt=media`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          if (!fileRes.ok) continue;
-
-          const playlistContent = await fileRes.text();
-          const lines = playlistContent.split('\n').filter((l: string) => l.trim());
-          let containerName = '';
-          let existingPaths: string[] = [];
-
-          for (const line of lines) {
-            if (line.startsWith('#EXTM3U')) continue;
-            if (line.startsWith('Container=')) {
-              const match = line.match(/Container=<([^>]+)>(.+)/);
-              if (match) {
-                containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-                existingPaths = match[2].split('|').filter((p: string) => p.trim());
-              }
-            }
-          }
-
-          // Skip if file not in this playlist
-          if (!existingPaths.includes(pathToRemove)) continue;
-
-          // Remove the file
-          const updatedPaths = existingPaths.filter((p: string) => p !== pathToRemove);
-          const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
-          const newContent = updatedPaths.length > 0
-            ? `#EXTM3U\nContainer=<${encodedName}>${updatedPaths.join('|')}\n`
-            : `#EXTM3U\n`;
-
-          const saveRes = await fetch(
-            `https://www.googleapis.com/upload/drive/v3/files/${playlist.id}?uploadType=media&supportsAllDrives=true`,
-            {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'text/plain' },
-              body: newContent,
-            }
-          );
-
-          if (saveRes.ok) {
-            removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
-          }
-        } catch (innerErr) {
-          console.error(`[scheduler] Error checking playlist ${playlist.name}:`, innerErr);
-        }
-      }
-
-      if (removedFrom.length > 0) {
-        await sql`
-          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${removedFrom.join(', ')}, 'expired', ${'Removed from: ' + removedFrom.join(', ')})
-        `;
-        await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${removedFrom.join(', ')}`, '/api/schedules/run');
-        console.log(`[scheduler] Removed expired ${schedule.audio_file_name} from: ${removedFrom.join(', ')}`);
-      } else {
-        await sql`
-          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, 'none', 'expired', 'File not found in any playlists')
-        `;
-      }
-
-    } catch (err: any) {
-      console.error('[scheduler] Error removing expired file:', schedule.id, err);
-      await sql`
-        INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-        VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expire_error', ${err.message})
-      `;
-    }
+  let expires_at_utc = null;
+  if (expires_at) {
+    const offsetMinutes = getMelbourneOffset();
+    const localMs = new Date(expires_at).getTime();
+    expires_at_utc = new Date(localMs - offsetMinutes * 60000).toISOString();
   }
 
-  // Now deactivate all expired schedules
+  const rows = await sql`
+    INSERT INTO schedules (
+      audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+      playlist_id, playlist_name, position,
+      schedule_type, days_of_week, specific_dates, time_of_day,
+      next_run_at, expires_at, created_by
+    ) VALUES (
+      ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
+      ${playlist_id}, ${playlist_name}, ${position ?? -1},
+      ${schedule_type}, ${days_of_week ?? null}, ${specific_dates ?? null}, ${time_of_day},
+      ${next_run_at}, ${expires_at_utc}, ${user.username}
+    ) RETURNING *
+  `;
+  return NextResponse.json(rows[0]);
+}
+
+// PATCH — update a schedule
+export async function PATCH(req: NextRequest) {
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id, is_active, days_of_week, specific_dates, time_of_day, schedule_type, position, expires_at } = await req.json();
+
+  const next_run_at = schedule_type === 'expiry_only'
+    ? null
+    : calculateNextRun(schedule_type, days_of_week, specific_dates, time_of_day);
+
+  let expires_at_utc = null;
+  if (expires_at) {
+    const offsetMinutes = getMelbourneOffset();
+    const localMs = new Date(expires_at).getTime();
+    expires_at_utc = new Date(localMs - offsetMinutes * 60000).toISOString();
+  }
+
   await sql`
-    UPDATE schedules
-    SET is_active = false
-    WHERE is_active = true
-    AND expires_at IS NOT NULL
-    AND expires_at <= ${now.toISOString()}
+    UPDATE schedules SET
+      is_active = ${is_active},
+      days_of_week = ${days_of_week ?? null},
+      specific_dates = ${specific_dates ?? null},
+      time_of_day = ${time_of_day},
+      schedule_type = ${schedule_type},
+      position = ${position ?? -1},
+      next_run_at = ${next_run_at},
+      expires_at = ${expires_at_utc ?? null}
+    WHERE id = ${id}
   `;
+  return NextResponse.json({ ok: true });
+}
 
-  // Get all active schedules due to run (not expired)
-  // forceRun=true ignores next_run_at and runs ALL active schedules immediately
-  const due = forceRun
-    ? await sql`
-        SELECT * FROM schedules
-        WHERE is_active = true
-        AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
-        AND schedule_type != 'expiry_only'
-      `
-    : await sql`
-        SELECT * FROM schedules
-        WHERE is_active = true
-        AND next_run_at <= ${now.toISOString()}
-        AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
-        AND schedule_type != 'expiry_only'
-      `;
+// DELETE — remove a schedule
+export async function DELETE(req: NextRequest) {
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (due.length === 0 && !forceRun) return { processed: 0, results: [] };
-  if (due.length === 0) return { processed: 0, results: [], message: 'No active schedules found' };
+  const { id } = await req.json();
+  await sql`DELETE FROM schedules WHERE id = ${id}`;
+  return NextResponse.json({ ok: true });
+}
 
-  const results: any[] = [];
-
-  for (const schedule of due) {
-    try {
-      // 1. Fetch current playlist content from Google Drive
-      const fileRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${schedule.playlist_id}?alt=media`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      if (!fileRes.ok) throw new Error(`Failed to fetch playlist: ${fileRes.status}`);
-
-      const content = await fileRes.text();
-
-      // 2. Parse existing playlist items
-      const lines = content.split('\n').filter((l: string) => l.trim());
-      let containerName = '';
-      let existingPaths: string[] = [];
-
-      for (const line of lines) {
-        if (line.startsWith('#EXTM3U')) continue;
-        if (line.startsWith('Container=')) {
-          const match = line.match(/Container=<([^>]+)>(.+)/);
-          if (match) {
-            containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-            existingPaths = match[2].split('|').filter((p: string) => p.trim());
-          }
-        }
-      }
-
-      // 3. Build the new file path
-      const newPath = schedule.audio_local_path;
-
-      // Skip if already in playlist
-      if (existingPaths.includes(newPath)) {
-        await sql`
-          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'skipped', 'Already in playlist')
-        `;
-        results.push({ schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' });
-      } else {
-        // 4. Insert at position or append
-        const position = schedule.position;
-        if (position >= 0 && position < existingPaths.length) {
-          existingPaths.splice(position, 0, newPath);
-        } else {
-          existingPaths.push(newPath);
-        }
-
-        // 5. Generate new playlist content
-        const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
-        const newContent = `#EXTM3U\nContainer=<${encodedName}>${existingPaths.join('|')}\n`;
-
-        // 6. Save back to Google Drive
-        const saveRes = await fetch(
-          `https://www.googleapis.com/upload/drive/v3/files/${schedule.playlist_id}?uploadType=media&supportsAllDrives=true`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'text/plain',
-            },
-            body: newContent,
-          }
-        );
-
-        if (!saveRes.ok) throw new Error(`Failed to save playlist: ${saveRes.status}`);
-
-        await sql`
-          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'success', 'Added to playlist')
-        `;
-
-        await logActivity(0, 'scheduler', `SCHEDULED_ADD: ${schedule.audio_file_name} → ${schedule.playlist_name}`, '/api/schedules/run');
-
-        results.push({ schedule: schedule.audio_file_name, playlist: schedule.playlist_name, status: 'success' });
-      }
-
-      // 7. Update next_run_at or deactivate if one-time
-      if (schedule.schedule_type === 'once') {
-        await sql`UPDATE schedules SET is_active = false, last_run_at = ${now.toISOString()} WHERE id = ${schedule.id}`;
-      } else {
-        const next = calculateNextRun(schedule.schedule_type, schedule.days_of_week, schedule.specific_dates, schedule.time_of_day, now);
-        await sql`UPDATE schedules SET last_run_at = ${now.toISOString()}, next_run_at = ${next} WHERE id = ${schedule.id}`;
-      }
-
-    } catch (err: any) {
-      console.error('[scheduler] Error processing schedule:', schedule.id, err);
-      await sql`
-        INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-        VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'error', ${err.message})
-      `;
-      results.push({ schedule: schedule.audio_file_name, status: 'error', error: err.message });
-    }
-  }
-
-  // Send email notification
-  const expiredNames = expired.map((s: any) => `${s.audio_file_name} from ${s.playlist_name}`);
-  if (results.length > 0 || expired.length > 0) {
-    const successful = results.filter(r => r.status === 'success');
-    const failed = results.filter(r => r.status === 'error');
-    const skipped = results.filter(r => r.status === 'skipped');
-
-    const subject = `Audio Playlist Scheduler — ${successful.length} added, ${expired.length} expired, ${failed.length} failed`;
-    const body = [
-      `Scheduled playlist updates ran at ${now.toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}`,
-      '',
-      successful.length > 0 ? `✅ Successfully added (${successful.length}):` : '',
-      ...successful.map(r => `  • ${r.schedule} → ${r.playlist}`),
-      '',
-      expired.length > 0 ? `🗑 Expired & removed from playlist (${expired.length}):` : '',
-      ...expiredNames.map((n: string) => `  • ${n}`),
-      '',
-      skipped.length > 0 ? `⏭ Skipped (${skipped.length}):` : '',
-      ...skipped.map(r => `  • ${r.schedule} (${r.reason})`),
-      '',
-      failed.length > 0 ? `❌ Failed (${failed.length}):` : '',
-      ...failed.map(r => `  • ${r.schedule}: ${r.error}`),
-    ].filter(l => l !== undefined).join('\n');
-
-    await sendEmailViaMCP(subject, body);
-  }
-
-  return { processed: due.length, results };
+function getMelbourneOffset(): number {
+  const now = new Date();
+  const utcMs = now.getTime();
+  const melbStr = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Melbourne',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).format(now);
+  const [datePart, timePart] = melbStr.split(', ');
+  const [day, month, year] = datePart.split('/').map(Number);
+  const [hour, min, sec] = timePart.split(':').map(Number);
+  const melbMs = Date.UTC(year, month - 1, day, hour === 24 ? 0 : hour, min, sec);
+  return (melbMs - utcMs) / 60000;
 }
 
 function calculateNextRun(
   scheduleType: string,
   daysOfWeek: string | null,
   specificDates: string | null,
-  timeOfDay: string,
-  fromDate: Date = new Date()
+  timeOfDay: string
 ): string {
+  const offsetMinutes = getMelbourneOffset();
+  const nowUTC = new Date();
+  const nowMelbMs = nowUTC.getTime() + offsetMinutes * 60000;
+  const nowMelb = new Date(nowMelbMs);
   const [hours, minutes] = timeOfDay.split(':').map(Number);
+
+  const melbDateToUTC = (y: number, mo: number, d: number, h: number, m: number): Date => {
+    const melbMs = Date.UTC(y, mo, d, h, m, 0) - offsetMinutes * 60000;
+    return new Date(melbMs);
+  };
+
+  if (scheduleType === 'once' && specificDates) {
+    const dates = specificDates.split(',').map((d: string) => d.trim());
+    const future = dates
+      .map(d => { const [y, mo, day] = d.split('-').map(Number); return melbDateToUTC(y, mo - 1, day, hours, minutes); })
+      .filter(d => d > nowUTC)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (future.length > 0) return future[0].toISOString();
+  }
 
   if (scheduleType === 'recurring' && daysOfWeek) {
     const days = daysOfWeek.split(',').map(Number);
-    for (let i = 1; i <= 7; i++) {
-      const d = new Date(fromDate);
-      d.setDate(fromDate.getDate() + i);
-      d.setHours(hours, minutes, 0, 0);
-      if (days.includes(d.getDay())) return d.toISOString();
+    for (let i = 0; i <= 7; i++) {
+      const candidate = new Date(nowMelb);
+      candidate.setUTCDate(nowMelb.getUTCDate() + i);
+      const utcCandidate = melbDateToUTC(candidate.getUTCFullYear(), candidate.getUTCMonth(), candidate.getUTCDate(), hours, minutes);
+      if (days.includes(candidate.getUTCDay()) && utcCandidate > nowUTC) return utcCandidate.toISOString();
     }
   }
 
-  const tomorrow = new Date(fromDate);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(hours, minutes, 0, 0);
-  return tomorrow.toISOString();
+  const tomorrow = new Date(nowMelb);
+  tomorrow.setUTCDate(nowMelb.getUTCDate() + 1);
+  return melbDateToUTC(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(), tomorrow.getUTCDate(), hours, minutes).toISOString();
 }
-
-// POST — manual "Run Now" trigger (requires login)
-export async function POST(req: NextRequest) {
-  const token = req.cookies.get('token')?.value;
-  const user = token ? await verifyToken(token) : null;
-
-  // Also allow cron secret
-  const authHeader = req.headers.get('authorization');
-  const isCron = authHeader === `Bearer ${CRON_SECRET}`;
-
-  if (!user && !isCron) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { accessToken, forceRun = false } = await req.json().catch(() => ({ accessToken: null, forceRun: false }));
-
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Google Drive access token required' }, { status: 400 });
-  }
-
-  const result = await processSchedules(accessToken, forceRun);
-  return NextResponse.json(result);
-}
-
-// GET — cron endpoint (Vercel calls this)
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // For cron, we need the stored Google token — fetch from DB if you store it
-  // For now return instructions
-  return NextResponse.json({ message: 'Use POST with accessToken for now' });
-}
-
