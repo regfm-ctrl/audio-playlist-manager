@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   const {
     campaign,
     playlists: clientPlaylists,
+    previewSlots,  // pre-calculated slots from the preview step
     accessToken,
     confirm = false,
   } = await req.json();
@@ -151,16 +152,20 @@ export async function POST(req: NextRequest) {
   const errors: string[] = []
   const weeklyEndDate = endDate ? endDate.toISOString() : null
 
-  // slotsWithDates may be empty if confirm=true was sent without preview data
-  // Re-run the slot selection to be safe
-  if (slotsWithDates.length === 0) {
+  // If previewSlots were passed directly (from the confirm step), use those instead
+  // This avoids re-running the filter which may behave differently
+  const finalSlots = (confirm && previewSlots && previewSlots.length > 0)
+    ? previewSlots
+    : slotsWithDates
+
+  if (finalSlots.length === 0) {
     return NextResponse.json({
       error: 'No slots to schedule — preview returned 0 results',
       debug: { ...debug, slotsWithDatesLength: 0, matchingLength: matching.length }
     }, { status: 400 })
   }
 
-  for (const slot of slotsWithDates) {
+  for (const slot of finalSlots) {
     try {
       const dayOfWeek = slot.day.toString()
       const hour = parseBreakHour(slot.name) ?? 9
@@ -203,5 +208,5 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, created, total: slotsWithDates.length, errors, slots: slotsWithDates, debug })
+  return NextResponse.json({ ok: true, created, total: finalSlots.length, errors, slots: finalSlots, debug })
 }

@@ -241,13 +241,19 @@ export default function CampaignsPage() {
       });
       const campaign = await saveRes.json();
 
-      // Then generate schedules
+      // Then generate schedules — pass preview slots directly so API doesn't recalculate
       const tokenKey2 = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
       const accessToken2 = tokenKey2 ? localStorage.getItem(tokenKey2) : null;
       const res = await fetch('/api/campaigns/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaign: { ...previewCampaign, id: campaign.id }, playlists, accessToken: accessToken2, confirm: true }),
+        body: JSON.stringify({
+          campaign: { ...previewCampaign, id: campaign.id },
+          previewSlots: preview, // send the already-calculated slots directly
+          playlists,
+          accessToken: accessToken2,
+          confirm: true
+        }),
       });
       const data = await res.json();
       if (res.ok) {
