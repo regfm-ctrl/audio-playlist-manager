@@ -208,14 +208,21 @@ export default function CampaignsPage() {
     };
 
     setMsg('Generating preview...');
+    const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
+    const accessToken = tokenKey ? localStorage.getItem(tokenKey) : null;
+
     const res = await fetch('/api/campaigns/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ campaign, playlists, confirm: false }),
+      body: JSON.stringify({ campaign, playlists, accessToken, confirm: false }),
     });
 
     const data = await res.json();
-    if (!res.ok) { setMsg(`❌ ${data.error}`); return; }
+    if (!res.ok) {
+      const debugInfo = data.debug ? `\n\nDebug: ${data.debug.playlistCount} playlists loaded, ${data.debug.matchingCount ?? 0} matched. Sample: ${data.debug.samplePlaylists?.join(', ')}` : '';
+      setMsg(`❌ ${data.error}${debugInfo}`);
+      return;
+    }
 
     setPreviewCampaign(campaign);
     setPreview(data.preview);
@@ -235,10 +242,12 @@ export default function CampaignsPage() {
       const campaign = await saveRes.json();
 
       // Then generate schedules
+      const tokenKey2 = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
+      const accessToken2 = tokenKey2 ? localStorage.getItem(tokenKey2) : null;
       const res = await fetch('/api/campaigns/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaign: { ...previewCampaign, id: campaign.id }, playlists, confirm: true }),
+        body: JSON.stringify({ campaign: { ...previewCampaign, id: campaign.id }, playlists, accessToken: accessToken2, confirm: true }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -799,4 +808,3 @@ export default function CampaignsPage() {
     </div>
   );
 }
-
