@@ -141,6 +141,10 @@ export async function POST(req: NextRequest) {
     // Calculate next_run_at
     const nextRun = new Date(slot.scheduledFor)
 
+    // If start date is today, set next_run_at to NOW so it fires immediately on next Run Now
+    const isToday = new Date(start_date).toDateString() === new Date().toDateString()
+    const scheduledTime = isToday ? new Date().toISOString() : nextRun.toISOString()
+
     await sql`
       INSERT INTO schedules (
         audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
@@ -151,7 +155,7 @@ export async function POST(req: NextRequest) {
         ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
         ${slot.id}, ${slot.name}, ${position ?? -1},
         'recurring', ${dayOfWeek}, null, ${timeOfDay},
-        ${nextRun.toISOString()}, ${weeklyEndDate}, ${user.username}
+        ${scheduledTime}, ${weeklyEndDate}, ${user.username}
       )
     `
     created++
@@ -164,3 +168,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, created, slots: slotsWithDates })
 }
+

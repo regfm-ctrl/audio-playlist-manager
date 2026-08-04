@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -32,11 +31,12 @@ const fmt = (dt: string | null) =>
   }) : '—';
 
 export default function SchedulesPage() {
-  const router = useRouter();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [runMsg, setRunMsg] = useState('');
   const [runLoading, setRunLoading] = useState(false);
+  const [forceRunLoading, setForceRunLoading] = useState(false);
+  const [showForceConfirm, setShowForceConfirm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [filter, setFilter] = useState('');
 
@@ -60,20 +60,32 @@ export default function SchedulesPage() {
     loadSchedules();
   }
 
-  async function runNow() {
-    setRunLoading(true); setRunMsg('');
+  async function runNow(force = false) {
+    if (force) setForceRunLoading(true);
+    else setRunLoading(true);
+    setRunMsg('');
+    setShowForceConfirm(false);
     try {
       const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
       const accessToken = tokenKey ? localStorage.getItem(tokenKey) : null;
       if (!accessToken) { setRunMsg('⚠️ Please log in to the main app first to connect Google Drive.'); return; }
-      const res = await fetch('/api/schedules/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessToken }) });
+      const res = await fetch('/api/schedules/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken, forceRun: force }),
+      });
       const data = await res.json();
       const success = data.results?.filter((r: any) => r.status === 'success').length ?? 0;
       const skipped = data.results?.filter((r: any) => r.status === 'skipped').length ?? 0;
       const failed = data.results?.filter((r: any) => r.status === 'error').length ?? 0;
-      setRunMsg(`✅ ${success} added, ${skipped} skipped, ${failed} failed.${data.processed === 0 ? ' No schedules were due.' : ''}`);
+      if (force) {
+        setRunMsg(`⚡ Force run: ${success} added, ${skipped} skipped (already in break), ${failed} failed.`);
+      } else {
+        setRunMsg(`✅ ${success} added, ${skipped} skipped, ${failed} failed.${data.processed === 0 ? ' No schedules were due.' : ''}`);
+      }
       loadSchedules();
-    } catch { setRunMsg('❌ Failed to run schedules'); } finally { setRunLoading(false); }
+    } catch { setRunMsg('❌ Failed to run schedules'); }
+    finally { setRunLoading(false); setForceRunLoading(false); }
   }
 
   function formatSchedule(s: Schedule) {
@@ -97,11 +109,8 @@ export default function SchedulesPage() {
     app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
     sidebar: { width: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
     main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
-    sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #3a3a3c' },
-    sidebarLogo: { width: 40, height: 40, borderRadius: 10, background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 14, textDecoration: 'none' },
     navItemActive: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', fontSize: 14, textDecoration: 'none' },
-    toolbar: { padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 },
     badge: { padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 },
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
     dialog: { background: '#3a3a3c', borderRadius: 14, padding: 24, width: '100%' },
@@ -110,18 +119,14 @@ export default function SchedulesPage() {
   const IconBreaks = () => <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1"/></svg>;
   const IconSchedule = () => <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v3.5l2 1.5"/></svg>;
   const IconAdmin = () => <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>;
+  const IconCampaign = () => <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h2l2-5 4 10 2-5h2"/></svg>;
 
   return (
     <div style={S.app}>
-
       {/* Sidebar */}
       <div style={S.sidebar}>
         <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #3a3a3c' }}>
-          <img
-            src="/regfm-logo.png"
-            alt="REGFM"
-            style={{ width: '100%', height: 'auto', borderRadius: 6, objectFit: 'contain', display: 'block' }}
-          />
+          <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
         <div style={{ padding: '12px 10px 6px' }}>
           <span style={{ fontSize: 11, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>LIBRARY</span>
@@ -129,19 +134,20 @@ export default function SchedulesPage() {
         </div>
         <div style={{ padding: '4px 10px' }}>
           <a href="/schedules" style={S.navItemActive}><IconSchedule /> Schedules</a>
+          <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>A</div>
-          <span style={{ color: '#888', fontSize: 13 }}>admin</span>
+          <span style={{ color: '#666', fontSize: 13 }}>admin</span>
         </div>
       </div>
 
       {/* Main */}
       <div style={S.main}>
         {/* Toolbar */}
-        <div style={S.toolbar}>
+        <div style={{ padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0, color: '#1d1d1f' }}>Schedules</h1>
             <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Automatically add audio files to sponsorship breaks</p>
@@ -152,8 +158,17 @@ export default function SchedulesPage() {
             placeholder="Filter schedules..."
             style={{ padding: '7px 12px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13, background: 'white', outline: 'none', width: 200 }}
           />
+          {/* Force Run button */}
           <button
-            onClick={runNow}
+            onClick={() => setShowForceConfirm(true)}
+            disabled={forceRunLoading}
+            style={{ padding: '8px 16px', background: '#ff9500', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: forceRunLoading ? 0.7 : 1, whiteSpace: 'nowrap' }}
+          >
+            {forceRunLoading ? '⟳ Running...' : '⚡ Force Run All'}
+          </button>
+          {/* Normal Run Now */}
+          <button
+            onClick={() => runNow(false)}
             disabled={runLoading}
             style={{ padding: '8px 18px', background: '#34c759', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: runLoading ? 0.7 : 1, whiteSpace: 'nowrap' }}
           >
@@ -163,7 +178,7 @@ export default function SchedulesPage() {
 
         {/* Run message */}
         {runMsg && (
-          <div style={{ margin: '0 20px', padding: '10px 14px', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 13, marginTop: 12 }}>
+          <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'white', border: '0.5px solid #ddd', borderRadius: 8, fontSize: 13 }}>
             {runMsg}
           </div>
         )}
@@ -183,7 +198,7 @@ export default function SchedulesPage() {
               </div>
             ) : filtered.length === 0 ? (
               <div style={{ padding: '40px 0', textAlign: 'center', color: '#aaa', fontSize: 14 }}>
-                {schedules.length === 0 ? 'No schedules yet. Use the 🕐 button on any audio file in the main app.' : 'No schedules match your filter.'}
+                {schedules.length === 0 ? 'No schedules yet.' : 'No schedules match your filter.'}
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -198,6 +213,7 @@ export default function SchedulesPage() {
                   <tbody>
                     {filtered.map((s) => {
                       const isExpired = !s.is_active && s.expires_at && new Date(s.expires_at) < new Date();
+                      const isDue = s.next_run_at && new Date(s.next_run_at) <= new Date();
                       return (
                         <tr key={s.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
                           <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap', color: '#1d1d1f' }}>{s.audio_file_name.replace(/\.[^/.]+$/, '')}</td>
@@ -210,7 +226,12 @@ export default function SchedulesPage() {
                             </span>
                           </td>
                           <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#444' }}>{formatSchedule(s)}</td>
-                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#888', fontSize: 12 }}>{s.schedule_type === 'expiry_only' ? '—' : fmt(s.next_run_at)}</td>
+                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontSize: 12 }}>
+                            <span style={{ color: isDue && s.is_active ? '#e55' : '#888' }}>
+                              {s.schedule_type === 'expiry_only' ? '—' : fmt(s.next_run_at)}
+                            </span>
+                            {isDue && s.is_active && <span style={{ marginLeft: 4, fontSize: 10, background: '#fde8e8', color: '#cc0000', padding: '1px 5px', borderRadius: 4, fontWeight: 500 }}>DUE</span>}
+                          </td>
                           <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#888', fontSize: 12 }}>{s.last_run_at ? fmt(s.last_run_at) : 'Never'}</td>
                           <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontSize: 12 }}>
                             {s.expires_at
@@ -243,6 +264,23 @@ export default function SchedulesPage() {
         </div>
       </div>
 
+      {/* Force Run confirm dialog */}
+      {showForceConfirm && (
+        <div style={S.overlay}>
+          <div style={{ ...S.dialog, maxWidth: 400 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: '0 0 10px' }}>⚡ Force Run All Schedules</h2>
+            <p style={{ fontSize: 14, color: '#aaa', marginBottom: 8 }}>This will immediately run <strong style={{ color: 'white' }}>ALL active schedules</strong> regardless of their scheduled time.</p>
+            <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>Use this after creating a new campaign to add files to playlists right away. Files already in a break will be skipped automatically.</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowForceConfirm(false)} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => runNow(true)} style={{ flex: 1, padding: '11px 0', background: '#ff9500', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
+                ⚡ Yes, Force Run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirm dialog */}
       {confirmDelete !== null && (
         <div style={S.overlay}>
@@ -250,8 +288,8 @@ export default function SchedulesPage() {
             <h2 style={{ fontSize: 17, fontWeight: 500, margin: '0 0 8px', color: 'white' }}>Delete Schedule</h2>
             <p style={{ fontSize: 14, color: '#888', marginBottom: 24 }}>Are you sure you want to delete this schedule? This cannot be undone.</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '11px 0', background: '#3a3a3c', color: '#ccc', border: '0.5px solid #555', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => deleteSchedule(confirmDelete)} style={{ flex: 1, padding: '10px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Delete</button>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ccc', border: '0.5px solid #555', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteSchedule(confirmDelete)} style={{ flex: 1, padding: '11px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Delete</button>
             </div>
           </div>
         </div>
@@ -261,3 +299,4 @@ export default function SchedulesPage() {
     </div>
   );
 }
+
