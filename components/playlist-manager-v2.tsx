@@ -72,6 +72,35 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ─── Resizable panel divider ────────────────────────────────────────────────
+  const [breakPanelHeight, setBreakPanelHeight] = useState(310)
+  const isDraggingDivider = useRef(false)
+  const dragStartY = useRef(0)
+  const dragStartHeight = useRef(310)
+
+  const handleDividerMouseDown = (e: React.MouseEvent) => {
+    isDraggingDivider.current = true
+    dragStartY.current = e.clientY
+    dragStartHeight.current = breakPanelHeight
+    e.preventDefault()
+  }
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingDivider.current) return
+      const delta = dragStartY.current - e.clientY
+      const newHeight = Math.max(120, Math.min(600, dragStartHeight.current + delta))
+      setBreakPanelHeight(newHeight)
+    }
+    const onMouseUp = () => { isDraggingDivider.current = false }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
   // ─── Audio player ────────────────────────────────────────────────────────
   const [playingFileId, setPlayingFileId] = useState<string | null>(null)
   const [isLoadingAudio, setIsLoadingAudio] = useState<string | null>(null)
@@ -565,7 +594,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { width: 66, height: 22, background: '#0071e3', borderRadius: 4, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     removeBtn: { width: 66, height: 22, background: '#e8e8ed', borderRadius: 4, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #b0bac8', background: '#cdd5e0', padding: '8px 20px', flexShrink: 0, height: 310, display: 'flex', flexDirection: 'column' },
+    breakPanel: { background: '#cdd5e0', padding: '8px 20px', flexShrink: 0, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
@@ -594,6 +623,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
           <div style={{ padding: '6px 10px' }}>
             <a href="/schedules" style={{ ...S.navItem, textDecoration: 'none' }}><IconSchedule /> Schedules</a>
+            <a href="/campaigns" style={{ ...S.navItem, textDecoration: 'none' }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h2l2-5 4 10 2-5h2"/></svg>
+              Campaigns
+            </a>
             <a href="/admin" style={{ ...S.navItem, textDecoration: 'none' }}><IconAdmin /> Admin</a>
           </div>
 
@@ -772,7 +805,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* ── Break content panel ────────────────────────────────── */}
-          <div style={S.breakPanel}>
+          {/* Draggable divider */}
+          <div
+            onMouseDown={handleDividerMouseDown}
+            style={{ height: 6, background: '#b0bac8', cursor: 'ns-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}
+          >
+            <div style={{ width: 40, height: 3, background: '#8a9ab0', borderRadius: 2 }} />
+          </div>
+          <div style={{ ...S.breakPanel, height: breakPanelHeight }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 15, fontWeight: 500, color: '#2a3a4a' }}>
@@ -805,7 +845,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : playlistItems.length === 0 ? (
               <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ overflowY: 'auto', height: 252, background: '#cdd5e0', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
+              <div style={{ overflowY: 'auto', height: Math.max(60, breakPanelHeight - 58), background: '#cdd5e0', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
                 {playlistItems.map((item, index) => (
                   <div
                     key={index}
