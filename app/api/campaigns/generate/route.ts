@@ -148,33 +148,60 @@ export async function POST(req: NextRequest) {
 
   // Confirm — create schedules
   let created = 0
+  const errors: string[] = []
   const weeklyEndDate = endDate ? endDate.toISOString() : null
 
-  for (const slot of slotsWithDates) {
-    const dayOfWeek = slot.day.toString()
-    const hour = parseBreakHour(slot.name) ?? 9
-    const timeOfDay = `${String(hour).padStart(2, '0')}:00`
-    const nextRun = isToday ? new Date() : new Date(slot.scheduledFor)
+  // slotsWithDates may be empty if confirm=true was sent without preview data
+  // Re-run the slot selection to be safe
+  if (slotsWithDates.length === 0) {
+    return NextResponse.json({
+      error: 'No slots to schedule — preview returned 0 results',
+      debug: { ...debug, slotsWithDatesLength: 0, matchingLength: matching.length }
+    }, { status: 400 })
+  }
 
-    await sql`
-      INSERT INTO schedules (
-        audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
-        playlist_id, playlist_name, position,
-        schedule_type, days_of_week, specific_dates, time_of_day,
-        next_run_at, expires_at, created_by
-      ) VALUES (
-        ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
-        ${slot.id}, ${slot.name}, ${position ?? -1},
-        'recurring', ${dayOfWeek}, null, ${timeOfDay},
-        ${nextRun.toISOString()}, ${weeklyEndDate}, ${user.username}
-      )
-    `
-    created++
+  for (const slot of slotsWithDates) {
+    try {
+      const dayOfWeek = slot.day.toString()
+      const hour = parseBreakHour(slot.name) ?? 9
+      const timeOfDay = `${String(hour).padStart(2, '0')}:00`
+      const nextRun = isToday ? new Date() : new Date(slot.scheduledFor)
+
+      await sql`
+        INSERT INTO schedules (
+          audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+          playlist_id, playlist_name, position,
+          schedule_type, days_of_week, specific_dates, time_of_day,
+          next_run_at, expires_at, created_by
+        ) VALUES (
+          ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
+          ${slot.id}, ${slot.name}, ${position ?? -1},
+          'recurring', ${dayOfWeek}, null, ${timeOfDay},
+          ${nextRun.toISOString()}, ${weeklyEndDate}, ${user.username}
+        )
+      `
+      created++
+    } catch (err: any) {
+      console.error('[campaigns/generate] Insert failed:', err)
+      errors.push(`${slot.name}: ${err.message}`)
+    }
   }
 
   if (campaign.id) {
-    await sql`UPDATE campaigns SET status = 'active' WHERE id = ${campaign.id}`
+    try {
+      await sql`UPDATE campaigns SET status = 'active' WHERE id = ${campaign.id}`
+    } catch (err: any) {
+      console.error('[campaigns/generate] Status update failed:', err)
+    }
   }
 
-  return NextResponse.json({ ok: true, created, slots: slotsWithDates, debug })
+  if (created === 0) {
+    return NextResponse.json({
+      error: `Failed to create any schedules. ${errors.length} errors.`,
+      errors,
+      debug: { ...debug, slotsWithDatesLength: slotsWithDates.length }
+    }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true, created, total: slotsWithDates.length, errors, slots: slotsWithDates, debug })
 }

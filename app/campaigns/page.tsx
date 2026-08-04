@@ -251,13 +251,16 @@ export default function CampaignsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMsg(`✅ Campaign created! ${data.created} schedules added.`);
+        const errNote = data.errors?.length > 0 ? ` (${data.errors.length} failed)` : '';
+        setMsg(`✅ Campaign created! ${data.created} of ${data.total} schedules added${errNote}.`);
         setPreview(null);
         setPreviewCampaign(null);
         setShowForm(false);
         loadCampaigns();
       } else {
-        setMsg(`❌ ${data.error}`);
+        const errDetail = data.errors?.length > 0 ? `\n${data.errors.slice(0,3).join('\n')}` : '';
+        const debugDetail = data.debug ? `\nDebug: slots=${data.debug.slotsWithDatesLength}, playlists=${data.debug.playlistCount}` : '';
+        setMsg(`❌ ${data.error}${errDetail}${debugDetail}`);
       }
     } finally {
       setConfirming(false);
