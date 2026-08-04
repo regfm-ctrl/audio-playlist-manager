@@ -12,6 +12,10 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, AlertCircle, RefreshCw, Play, Square, Clock, X, AlarmClock, FileText } from "lucide-react"
 
+// ─── Protected path — files in this directory are always preserved and hidden ──
+const PROTECTED_PATH = 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\'
+const isProtectedPath = (path: string) => path.replace(/\\/g, '\\').includes(PROTECTED_PATH)
+
 interface PlaylistManagerProps {
   accessToken: string
   onAuthError?: () => void
@@ -306,7 +310,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             if (!res.ok) return
             const text = await res.text()
             if (!text.includes(quickCheck)) return
-            if (text.includes(file.localPath)) found.push(pl.name.replace(/\.m3u8$/i, ''))
+            if (text.includes(file.localPath) && !isProtectedPath(file.localPath)) found.push(pl.name.replace(/\.m3u8$/i, ''))
           } catch {}
         }))
         scanned = Math.min(i + BATCH, files.length)
@@ -383,7 +387,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         const match = line.match(/Container=<([^>]+)>(.+)/)
         if (match) {
           name = decodeURIComponent(match[1].replace(/\+/g, " "))
-          match[2].split("|").forEach((p) => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
+          match[2].split("|").forEach((p) => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
         }
       }
     }
@@ -391,10 +395,23 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = (): string => {
-    if (playlistItems.length === 0) return "#EXTM3U\n"
-    const paths = playlistItems.map((i) => i.path).join("|")
+    // Re-extract protected paths from original content so they are always preserved
+    const protectedPaths: string[] = []
+    for (const line of originalContent.split('\n')) {
+      if (line.startsWith('Container=')) {
+        const match = line.match(/Container=<([^>]+)>(.+)/)
+        if (match) {
+          match[2].split('|').forEach(p => {
+            if (p.trim() && isProtectedPath(p)) protectedPaths.push(p.trim())
+          })
+        }
+      }
+    }
+    const editablePaths = playlistItems.map((i) => i.path)
+    const allPaths = [...editablePaths, ...protectedPaths]
+    if (allPaths.length === 0) return "#EXTM3U\n"
     const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
-    return `#EXTM3U\nContainer=<${encodedName}>${paths}\n`
+    return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
   }
 
   useEffect(() => {
@@ -407,7 +424,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         setTimeout(() => {
           const parsedItems: { path: string; filename: string }[] = []
           for (const line of content.split("\n").filter(l => l.trim())) {
-            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
+            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
           }
           if (parsedItems.length > 0 && selectedPlaylist) calculatePlaylistDuration(selectedPlaylist.id, parsedItems)
         }, 100)
