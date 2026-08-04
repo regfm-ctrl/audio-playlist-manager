@@ -12,6 +12,9 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, AlertCircle, RefreshCw, Play, Square, Clock, X, AlarmClock, FileText } from "lucide-react"
 
+// Any file inside this folder is protected — hidden from UI and position-preserved on save
+const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
+
 interface PlaylistManagerProps {
   accessToken: string
   onAuthError?: () => void
@@ -412,7 +415,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         const match = line.match(/Container=<([^>]+)>(.+)/)
         if (match) {
           name = decodeURIComponent(match[1].replace(/\+/g, " "))
-          match[2].split("|").forEach((p) => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
+          match[2].split("|").forEach((p) => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
         }
       }
     }
@@ -420,10 +423,31 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = (): string => {
-    if (playlistItems.length === 0) return "#EXTM3U\n"
-    const paths = playlistItems.map((i) => i.path).join("|")
+    // Get original full path list
+    const originalAllPaths: string[] = []
+    for (const line of originalContent.split('\n')) {
+      if (line.startsWith('Container=')) {
+        const match = line.match(/Container=<([^>]+)>(.+)/)
+        if (match) {
+          match[2].split('|').forEach(p => { if (p.trim()) originalAllPaths.push(p.trim()) })
+        }
+      }
+    }
+    const totalOriginal = originalAllPaths.length
+    const midpoint = totalOriginal / 2
+    // Split protected paths into first-half (go at start) and second-half (go at end)
+    const protectedFirst: string[] = []
+    const protectedLast: string[] = []
+    originalAllPaths.forEach((p, i) => {
+      if (!isProtectedPath(p)) return
+      if (i < midpoint) protectedFirst.push(p)
+      else protectedLast.push(p)
+    })
+    const editablePaths = playlistItems.map((i) => i.path)
+    const allPaths = [...protectedFirst, ...editablePaths, ...protectedLast]
+    if (allPaths.length === 0) return "#EXTM3U\n"
     const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
-    return `#EXTM3U\nContainer=<${encodedName}>${paths}\n`
+    return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
   }
 
   useEffect(() => {
@@ -436,7 +460,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         setTimeout(() => {
           const parsedItems: { path: string; filename: string }[] = []
           for (const line of content.split("\n").filter(l => l.trim())) {
-            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
+            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
           }
           if (parsedItems.length > 0 && selectedPlaylist) calculatePlaylistDuration(selectedPlaylist.id, parsedItems)
         }, 100)
@@ -1135,4 +1159,5 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     </ErrorBoundary>
   )
 }
+
 
