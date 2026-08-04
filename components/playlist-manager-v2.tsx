@@ -12,9 +12,9 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, AlertCircle, RefreshCw, Play, Square, Clock, X, AlarmClock, FileText } from "lucide-react"
 
-// ─── Protected path — files in this directory are always preserved and hidden ──
-const PROTECTED_PATH = 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\'
-const isProtectedPath = (path: string) => path.replace(/\\/g, '\\').includes(PROTECTED_PATH)
+// ─── Protected path — files here are always preserved and hidden from UI ────
+const PROTECTED_PATH = 'Traffic System\\Sponsor Intro'
+const isProtectedPath = (path: string) => path.replace(/\\/g, '\\').includes('Traffic System') && path.includes('Sponsor Intro')
 
 interface PlaylistManagerProps {
   accessToken: string
@@ -310,7 +310,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             if (!res.ok) return
             const text = await res.text()
             if (!text.includes(quickCheck)) return
-            if (text.includes(file.localPath) && !isProtectedPath(file.localPath)) found.push(pl.name.replace(/\.m3u8$/i, ''))
+            if (text.includes(file.localPath)) found.push(pl.name.replace(/\.m3u8$/i, ''))
           } catch {}
         }))
         scanned = Math.min(i + BATCH, files.length)
@@ -395,7 +395,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = (): string => {
-    // Re-extract protected paths from original content so they are always preserved
+    // Always re-inject protected paths from original content so they are never lost
     const protectedPaths: string[] = []
     for (const line of originalContent.split('\n')) {
       if (line.startsWith('Container=')) {
@@ -424,7 +424,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         setTimeout(() => {
           const parsedItems: { path: string; filename: string }[] = []
           for (const line of content.split("\n").filter(l => l.trim())) {
-            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
+            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
           }
           if (parsedItems.length > 0 && selectedPlaylist) calculatePlaylistDuration(selectedPlaylist.id, parsedItems)
         }, 100)
@@ -1107,3 +1107,4 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     </ErrorBoundary>
   )
 }
+
