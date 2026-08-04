@@ -594,10 +594,6 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
           <div style={{ padding: '6px 10px' }}>
             <a href="/schedules" style={{ ...S.navItem, textDecoration: 'none' }}><IconSchedule /> Schedules</a>
-            <a href="/campaigns" style={{ ...S.navItem, textDecoration: 'none' }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h2l2-5 4 10 2-5h2"/></svg>
-              Campaigns
-            </a>
             <a href="/admin" style={{ ...S.navItem, textDecoration: 'none' }}><IconAdmin /> Admin</a>
           </div>
 
@@ -643,7 +639,17 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           {/* User */}
           <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: 'white', fontWeight: 500 }}>A</div>
-            <span style={{ color: '#666', fontSize: 14 }}>admin</span>
+            <span style={{ color: '#666', fontSize: 14, flex: 1 }}>admin</span>
+            <button
+              onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login' }}
+              title="Logout"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 0, display: 'flex', alignItems: 'center' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>
+                <path d="M10 11l4-3-4-3"/><line x1="14" y1="8" x2="6" y2="8"/>
+              </svg>
+            </button>
           </div>
         </div>
 
