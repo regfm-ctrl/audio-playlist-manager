@@ -12,12 +12,6 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, AlertCircle, RefreshCw, Play, Square, Clock, X, AlarmClock, FileText } from "lucide-react"
 
-// ─── Protected path — files here are always preserved and hidden from UI ────
-// Any file inside this folder is protected — hidden from UI and position-preserved on save
-// Matches regardless of filename — only the folder path matters
-const PROTECTED_FOLDER = 'Traffic System\\Sponsor Intro & Outros'
-const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
-
 interface PlaylistManagerProps {
   accessToken: string
   onAuthError?: () => void
@@ -75,6 +69,35 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [isPlaylistLoading, setIsPlaylistLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // ─── Resizable panel divider ────────────────────────────────────────────────
+  const [breakPanelHeight, setBreakPanelHeight] = useState(310)
+  const isDraggingDivider = useRef(false)
+  const dragStartY = useRef(0)
+  const dragStartHeight = useRef(310)
+
+  const handleDividerMouseDown = (e: React.MouseEvent) => {
+    isDraggingDivider.current = true
+    dragStartY.current = e.clientY
+    dragStartHeight.current = breakPanelHeight
+    e.preventDefault()
+  }
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingDivider.current) return
+      const delta = dragStartY.current - e.clientY
+      const newHeight = Math.max(120, Math.min(600, dragStartHeight.current + delta))
+      setBreakPanelHeight(newHeight)
+    }
+    const onMouseUp = () => { isDraggingDivider.current = false }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [breakPanelHeight])
 
   // ─── Audio player ────────────────────────────────────────────────────────
   const [playingFileId, setPlayingFileId] = useState<string | null>(null)
@@ -389,7 +412,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         const match = line.match(/Container=<([^>]+)>(.+)/)
         if (match) {
           name = decodeURIComponent(match[1].replace(/\+/g, " "))
-          match[2].split("|").forEach((p) => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
+          match[2].split("|").forEach((p) => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
         }
       }
     }
@@ -397,39 +420,10 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = (): string => {
-    // Get original full path list
-    const originalAllPaths: string[] = []
-    for (const line of originalContent.split('\n')) {
-      if (line.startsWith('Container=')) {
-        const match = line.match(/Container=<([^>]+)>(.+)/)
-        if (match) {
-          match[2].split('|').forEach(p => { if (p.trim()) originalAllPaths.push(p.trim()) })
-        }
-      }
-    }
-
-    const totalOriginal = originalAllPaths.length
-    const midpoint = totalOriginal / 2
-
-    // Split protected paths into "first half" (go at start) and "second half" (go at end)
-    // preserving their relative order within each group
-    const protectedFirst: string[] = []
-    const protectedLast: string[] = []
-    originalAllPaths.forEach((p, i) => {
-      if (!isProtectedPath(p)) return
-      if (i < midpoint) {
-        protectedFirst.push(p)
-      } else {
-        protectedLast.push(p)
-      }
-    })
-
-    const editablePaths = playlistItems.map((i) => i.path)
-    const allPaths = [...protectedFirst, ...editablePaths, ...protectedLast]
-
-    if (allPaths.length === 0) return "#EXTM3U\n"
+    if (playlistItems.length === 0) return "#EXTM3U\n"
+    const paths = playlistItems.map((i) => i.path).join("|")
     const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
-    return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
+    return `#EXTM3U\nContainer=<${encodedName}>${paths}\n`
   }
 
   useEffect(() => {
@@ -581,7 +575,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     addBtn: { width: 66, height: 22, background: '#0071e3', borderRadius: 4, fontSize: 11, color: 'white', border: 'none', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     removeBtn: { width: 66, height: 22, background: '#e8e8ed', borderRadius: 4, fontSize: 11, color: '#444', border: '0.5px solid #ccc', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     // Bottom break content
-    breakPanel: { borderTop: '0.5px solid #b0bac8', background: '#cdd5e0', padding: '8px 20px', flexShrink: 0, height: 310, display: 'flex', flexDirection: 'column' },
+    breakPanel: { background: '#cdd5e0', padding: '8px 20px', flexShrink: 0, display: 'flex', flexDirection: 'column' },
     breakChip: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 12px', background: '#f5f5f7', borderRadius: 5, border: '0.5px solid #e0e0e0', flexShrink: 0 },
     // Dialog overlay
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
@@ -778,7 +772,23 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* ── Break content panel ────────────────────────────────── */}
-          <div style={S.breakPanel}>
+          {/* Draggable divider */}
+          <div
+            onMouseDown={handleDividerMouseDown}
+            style={{
+              height: 6,
+              background: '#b0bac8',
+              cursor: 'ns-resize',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{ width: 40, height: 3, background: '#8a9ab0', borderRadius: 2 }} />
+          </div>
+          <div style={{ ...S.breakPanel, height: breakPanelHeight }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 15, fontWeight: 500, color: '#2a3a4a' }}>
@@ -811,7 +821,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             ) : playlistItems.length === 0 ? (
               <p style={{ fontSize: 15, color: '#aaa' }}>No tracks in this break yet — add some from the list above</p>
             ) : (
-              <div style={{ overflowY: 'auto', height: 252, background: '#cdd5e0', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
+              <div style={{ overflowY: 'auto', height: Math.max(60, breakPanelHeight - 58), background: '#cdd5e0', borderRadius: 8, padding: '4px 6px', boxSizing: 'border-box' as const }}>
                 {playlistItems.map((item, index) => (
                   <div
                     key={index}
