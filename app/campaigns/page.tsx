@@ -97,12 +97,12 @@ export default function CampaignsPage() {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
 
-  // These match the directories in lib/google-drive.ts DEFAULT_AUDIO_DIRECTORIES
+  // Matches DEFAULT_AUDIO_DIRECTORIES in lib/folder-config.ts
   const AUDIO_DIRECTORIES = [
     { name: 'IDs - Test Update', driveId: '1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_', localPath: 'T:\\REGFM RadioBOSS\\IDs\\{filename}' },
     { name: 'CSAs - Audio', driveId: '14Oy00clKujI6ldWv7NW35DybZVBN_MPm', localPath: 'T:\\REGFM RadioBOSS\\CSAs Audio\\{filename}' },
-    { name: 'Promos - Audio', driveId: '1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_', localPath: 'T:\\REGFM RadioBOSS\\Promos\\{filename}' },
-    { name: 'Sponsors - Audio', driveId: '14Oy00clKujI6ldWv7NW35DybZVBN_MPm', localPath: 'T:\\REGFM RadioBOSS\\Sponsors\\{filename}' },
+    { name: 'Promos - Audio', driveId: '1PzkL-eDZVPU-g3D7c5IUY93g14-SV3l6', localPath: 'T:\\REGFM RadioBOSS\\Promos\\{filename}' },
+    { name: 'Sponsors - Audio', driveId: '1B_LOIo2jl_-P-1UrWoRZ4W688_lk0NQC', localPath: 'T:\\REGFM RadioBOSS\\Sponsors\\{filename}' },
   ];
 
   const [pickerDirectory, setPickerDirectory] = useState(0); // selected tab index
