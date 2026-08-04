@@ -67,6 +67,11 @@ export default function CampaignsPage() {
   const [previewCampaign, setPreviewCampaign] = useState<any>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [deleteWithSchedules, setDeleteWithSchedules] = useState(false);
+  const [deletingSchedules, setDeletingSchedules] = useState(false);
+  const [viewSchedulesCampaign, setViewSchedulesCampaign] = useState<Campaign | null>(null);
+  const [campaignSchedules, setCampaignSchedules] = useState<any[]>([]);
+  const [campaignSchedulesLoading, setCampaignSchedulesLoading] = useState(false);
   const [msg, setMsg] = useState('');
 
   // Form state
@@ -250,14 +255,69 @@ export default function CampaignsPage() {
     }
   }
 
-  async function deleteCampaign(id: number) {
-    await fetch('/api/campaigns', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setConfirmDelete(null);
-    loadCampaigns();
+  async function deleteCampaign(id: number, withSchedules: boolean) {
+    setDeletingSchedules(true);
+    try {
+      if (withSchedules) {
+        // Delete all schedules created by this campaign (matched by audio_file_name)
+        const campaign = campaigns.find(c => c.id === id);
+        if (campaign) {
+          const schedRes = await fetch('/api/schedules');
+          if (schedRes.ok) {
+            const allSchedules = await schedRes.json();
+            const toDelete = allSchedules.filter((s: any) => s.audio_file_name === campaign.audio_file_name);
+            for (const s of toDelete) {
+              await fetch('/api/schedules', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: s.id }),
+              });
+            }
+          }
+        }
+      }
+      await fetch('/api/campaigns', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } finally {
+      setDeletingSchedules(false);
+      setConfirmDelete(null);
+      setDeleteWithSchedules(false);
+      loadCampaigns();
+    }
+  }
+
+  async function viewCampaignSchedules(campaign: Campaign) {
+    setViewSchedulesCampaign(campaign);
+    setCampaignSchedulesLoading(true);
+    setCampaignSchedules([]);
+    try {
+      const res = await fetch('/api/schedules');
+      if (res.ok) {
+        const all = await res.json();
+        const matching = all.filter((s: any) => s.audio_file_name === campaign.audio_file_name);
+        setCampaignSchedules(matching);
+      }
+    } finally {
+      setCampaignSchedulesLoading(false);
+    }
+  }
+
+  function weeksRemaining(campaign: Campaign): number | null {
+    if (!campaign.end_date) return null;
+    const now = new Date();
+    const end = new Date(campaign.end_date);
+    const ms = end.getTime() - now.getTime();
+    if (ms <= 0) return 0;
+    return Math.ceil(ms / (7 * 24 * 60 * 60 * 1000));
+  }
+
+  function spotsRemaining(campaign: Campaign): number | null {
+    const weeks = weeksRemaining(campaign);
+    if (weeks === null) return null;
+    return weeks * campaign.spots_per_week;
   }
 
   async function toggleStatus(campaign: Campaign) {
@@ -337,7 +397,7 @@ export default function CampaignsPage() {
                 <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 800 }}>
                   <thead>
                     <tr style={{ background: '#f9f9f9' }}>
-                      {['Sponsor', 'Audio File', 'Spots/Week', 'Distribution', 'Days', 'Times', 'Start', 'End', 'Status', 'Actions'].map(h => (
+                      {['Sponsor', 'Audio File', 'Spots/Week', 'Distribution', 'Days', 'Times', 'Start', 'End', 'Weeks Left', 'Spots Left', 'Status', 'Actions'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, color: '#888', fontWeight: 500, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '0.5px solid #eee' }}>{h.toUpperCase()}</th>
                       ))}
                     </tr>
@@ -361,6 +421,12 @@ export default function CampaignsPage() {
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>{new Date(c.start_date).toLocaleDateString('en-AU')}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>{c.end_date ? new Date(c.end_date).toLocaleDateString('en-AU') : 'Ongoing'}</td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                          {weeksRemaining(c) === null ? <span style={{ color: '#aaa' }}>∞</span> : weeksRemaining(c) === 0 ? <span style={{ color: '#cc0000', fontWeight: 500 }}>Ended</span> : <span style={{ color: '#1a7a35', fontWeight: 500 }}>{weeksRemaining(c)}</span>}
+                        </td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                          {spotsRemaining(c) === null ? <span style={{ color: '#aaa' }}>∞</span> : spotsRemaining(c) === 0 ? <span style={{ color: '#cc0000', fontWeight: 500 }}>0</span> : <span style={{ color: '#0055cc', fontWeight: 500 }}>{spotsRemaining(c)?.toLocaleString()}</span>}
+                        </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: c.status === 'active' ? '#d4f1dc' : '#f0f0f0', color: c.status === 'active' ? '#1a7a35' : '#666' }}>
                             {c.status}
@@ -371,7 +437,8 @@ export default function CampaignsPage() {
                             <button onClick={() => toggleStatus(c)} style={{ fontSize: 12, color: '#0071e3', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                               {c.status === 'active' ? 'Pause' : 'Resume'}
                             </button>
-                            <button onClick={() => setConfirmDelete(c.id)} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
+                            <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
+                            <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(false); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
                           </div>
                         </td>
                       </tr>
@@ -589,12 +656,87 @@ export default function CampaignsPage() {
       {/* Delete confirm */}
       {confirmDelete !== null && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 360 }}>
+          <div style={{ ...S.dialog, maxWidth: 400 }}>
             <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: '0 0 8px' }}>Delete Campaign</h2>
-            <p style={{ fontSize: 14, color: '#aaa', marginBottom: 24 }}>Are you sure? This will not remove any already-created schedules.</p>
+            <p style={{ fontSize: 14, color: '#aaa', marginBottom: 16 }}>Are you sure you want to delete this campaign?</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#2a2a2c', borderRadius: 8, marginBottom: 20, cursor: 'pointer' }}>
+              <input type="checkbox" checked={deleteWithSchedules} onChange={e => setDeleteWithSchedules(e.target.checked)} style={{ accentColor: '#cc0000', width: 16, height: 16 }} />
+              <div>
+                <div style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500 }}>Also delete all schedules for this campaign</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Removes all matching schedule entries from the Schedules page</div>
+              </div>
+            </label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '10px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => deleteCampaign(confirmDelete)} style={{ flex: 1, padding: '10px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Delete</button>
+              <button onClick={() => { setConfirmDelete(null); setDeleteWithSchedules(false); }} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteCampaign(confirmDelete, deleteWithSchedules)} disabled={deletingSchedules}
+                style={{ flex: 1, padding: '11px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: deletingSchedules ? 0.6 : 1 }}>
+                {deletingSchedules ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Campaign Schedules dialog */}
+      {viewSchedulesCampaign && (
+        <div style={S.overlay}>
+          <div style={{ ...S.dialog, maxWidth: 660, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexShrink: 0 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>{viewSchedulesCampaign.sponsor_name} — Schedules</h2>
+                <p style={{ fontSize: 13, color: '#aaa', margin: '3px 0 0' }}>
+                  {viewSchedulesCampaign.audio_file_name.replace(/\.[^/.]+$/, '')} ·{' '}
+                  {campaignSchedulesLoading ? 'Loading...' : `${campaignSchedules.length} schedules`}
+                  {weeksRemaining(viewSchedulesCampaign) !== null && !campaignSchedulesLoading &&
+                    ` · ${weeksRemaining(viewSchedulesCampaign)} weeks remaining · ~${spotsRemaining(viewSchedulesCampaign)?.toLocaleString()} spots left`}
+                </p>
+              </div>
+              <button onClick={() => setViewSchedulesCampaign(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {campaignSchedulesLoading ? (
+                <div style={{ padding: '30px 0', textAlign: 'center' }}>
+                  <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', color: '#0071e3', margin: '0 auto 8px' }} />
+                  <div style={{ fontSize: 13, color: '#888' }}>Loading schedules...</div>
+                </div>
+              ) : campaignSchedules.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#666', fontSize: 14, padding: '30px 0' }}>No schedules found for this campaign.</p>
+              ) : (
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['Break', 'Day', 'Time', 'Next Run', 'Last Run', 'Status'].map(h => (
+                        <th key={h} style={{ padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500, textAlign: 'left', borderBottom: '0.5px solid #4a4a4c', letterSpacing: '0.04em' }}>{h.toUpperCase()}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaignSchedules.map((s, i) => (
+                      <tr key={s.id} style={{ borderBottom: '0.5px solid #3a3a3c', background: i % 2 === 0 ? '#2a2a2c' : '#333335' }}>
+                        <td style={{ padding: '8px 12px', color: '#e0e0e0', whiteSpace: 'nowrap' }}>{s.playlist_name.replace(/\.m3u8$/i, '')}</td>
+                        <td style={{ padding: '8px 12px', color: '#aaa', whiteSpace: 'nowrap' }}>
+                          {s.days_of_week ? DAYS[parseInt(s.days_of_week)] : '—'}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#aaa', whiteSpace: 'nowrap' }}>{s.time_of_day}</td>
+                        <td style={{ padding: '8px 12px', color: '#888', whiteSpace: 'nowrap', fontSize: 11 }}>
+                          {s.next_run_at ? new Date(s.next_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#888', whiteSpace: 'nowrap', fontSize: 11 }}>
+                          {s.last_run_at ? new Date(s.last_run_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Never'}
+                        </td>
+                        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                          <span style={{ padding: '2px 7px', borderRadius: 8, fontSize: 10, fontWeight: 500, background: s.is_active ? '#1a3a25' : '#3a2a2a', color: s.is_active ? '#4caf70' : '#cc5555' }}>
+                            {s.is_active ? 'Active' : 'Paused'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div style={{ marginTop: 14, flexShrink: 0 }}>
+              <button onClick={() => setViewSchedulesCampaign(null)} style={{ width: '100%', padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Close</button>
             </div>
           </div>
         </div>
