@@ -13,8 +13,10 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, AlertCircle, RefreshCw, Play, Square, Clock, X, AlarmClock, FileText } from "lucide-react"
 
 // ─── Protected path — files here are always preserved and hidden from UI ────
-const PROTECTED_PATH = 'Traffic System\\Sponsor Intro'
-const isProtectedPath = (path: string) => path.replace(/\\/g, '\\').includes('Traffic System') && path.includes('Sponsor Intro')
+// Any file inside this folder is protected — hidden from UI and position-preserved on save
+// Matches regardless of filename — only the folder path matters
+const PROTECTED_FOLDER = 'Traffic System\\Sponsor Intro & Outros'
+const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
 
 interface PlaylistManagerProps {
   accessToken: string
@@ -395,8 +397,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = (): string => {
-    // Re-build the full path list preserving original positions of protected files
-    // Step 1: Get original full path list with positions
+    // Get original full path list
     const originalAllPaths: string[] = []
     for (const line of originalContent.split('\n')) {
       if (line.startsWith('Container=')) {
@@ -407,47 +408,28 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       }
     }
 
-    // Step 2: Build a map of protected path -> original index
-    const protectedWithPositions: { path: string; originalIndex: number }[] = []
+    const totalOriginal = originalAllPaths.length
+    const midpoint = totalOriginal / 2
+
+    // Split protected paths into "first half" (go at start) and "second half" (go at end)
+    // preserving their relative order within each group
+    const protectedFirst: string[] = []
+    const protectedLast: string[] = []
     originalAllPaths.forEach((p, i) => {
-      if (isProtectedPath(p)) protectedWithPositions.push({ path: p, originalIndex: i })
+      if (!isProtectedPath(p)) return
+      if (i < midpoint) {
+        protectedFirst.push(p)
+      } else {
+        protectedLast.push(p)
+      }
     })
 
-    // Step 3: Start with editable paths
     const editablePaths = playlistItems.map((i) => i.path)
+    const allPaths = [...protectedFirst, ...editablePaths, ...protectedLast]
 
-    // Step 4: Re-insert protected paths at their original relative positions
-    // If originally at index 0 = before everything, insert at start
-    // If originally at last index = after everything, insert at end
-    // For positions in between, insert proportionally
-    const totalOriginal = originalAllPaths.length
-    const result: string[] = [...editablePaths]
-
-    // Sort protected paths by original index so we insert in order
-    protectedWithPositions.sort((a, b) => a.originalIndex - b.originalIndex)
-
-    let offset = 0
-    for (const { path, originalIndex } of protectedWithPositions) {
-      // If it was at the very start originally, put it at start
-      // If it was at the very end, put it at the end
-      // Otherwise insert proportionally
-      let insertAt: number
-      if (originalIndex === 0) {
-        insertAt = offset
-      } else if (originalIndex >= totalOriginal - 1) {
-        insertAt = result.length
-      } else {
-        // Proportional position within editable paths
-        const ratio = originalIndex / totalOriginal
-        insertAt = Math.round(ratio * editablePaths.length)
-      }
-      result.splice(insertAt + offset, 0, path)
-      offset++
-    }
-
-    if (result.length === 0) return "#EXTM3U\n"
+    if (allPaths.length === 0) return "#EXTM3U\n"
     const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
-    return `#EXTM3U\nContainer=<${encodedName}>${result.join('|')}\n`
+    return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
   }
 
   useEffect(() => {
