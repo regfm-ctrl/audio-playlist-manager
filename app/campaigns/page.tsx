@@ -97,35 +97,50 @@ export default function CampaignsPage() {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
 
+  // These match the directories in lib/google-drive.ts DEFAULT_AUDIO_DIRECTORIES
   const AUDIO_DIRECTORIES = [
-    { name: 'Sponsors', driveId: '14Oy00clKujI6ldWv7NW35DybZVBN_MPm', localPath: 'T:\\REGFM RadioBOSS\\Sponsors\\{filename}' },
-    { name: 'IDs', driveId: '1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_', localPath: 'T:\\REGFM RadioBOSS\\IDs\\{filename}' },
+    { name: 'IDs - Test Update', driveId: '1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_', localPath: 'T:\\REGFM RadioBOSS\\IDs\\{filename}' },
+    { name: 'CSAs - Audio', driveId: '14Oy00clKujI6ldWv7NW35DybZVBN_MPm', localPath: 'T:\\REGFM RadioBOSS\\CSAs Audio\\{filename}' },
+    { name: 'Promos - Audio', driveId: '1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_', localPath: 'T:\\REGFM RadioBOSS\\Promos\\{filename}' },
+    { name: 'Sponsors - Audio', driveId: '14Oy00clKujI6ldWv7NW35DybZVBN_MPm', localPath: 'T:\\REGFM RadioBOSS\\Sponsors\\{filename}' },
   ];
+
+  const [pickerDirectory, setPickerDirectory] = useState(0); // selected tab index
+  const [pickerDirCache, setPickerDirCache] = useState<Record<number, { id: string; name: string; dir: string; localPath: string }[]>>({});
 
   async function openFilePicker() {
     setShowFilePicker(true);
+    setPickerDirectory(0);
+    loadPickerDirectory(0);
+  }
+
+  async function loadPickerDirectory(dirIndex: number) {
+    setPickerDirectory(dirIndex);
+    // Use cache if already loaded
+    if (pickerDirCache[dirIndex]) {
+      setPickerFiles(pickerDirCache[dirIndex]);
+      return;
+    }
     setPickerLoading(true);
     setPickerFiles([]);
     try {
       const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
       const token = tokenKey ? localStorage.getItem(tokenKey) : null;
       if (!token) { setMsg('⚠️ Please connect Google Drive in the main app first'); setShowFilePicker(false); return; }
-      const allFiles: { id: string; name: string; dir: string; localPath: string }[] = [];
-      for (const dir of AUDIO_DIRECTORIES) {
-        const res = await fetch(
-          `https://www.googleapis.com/drive/v3/files?q='${dir.driveId}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          (data.files || []).forEach((f: { id: string; name: string }) => {
-            if (f.name.match(/\.(mp3|wav)$/i)) {
-              allFiles.push({ id: f.id, name: f.name, dir: dir.name, localPath: dir.localPath.replace('{filename}', f.name) });
-            }
-          });
-        }
+      const dir = AUDIO_DIRECTORIES[dirIndex];
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${dir.driveId}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const files = (data.files || [])
+          .filter((f: { id: string; name: string }) => f.name.match(/\.(mp3|wav)$/i))
+          .map((f: { id: string; name: string }) => ({ id: f.id, name: f.name, dir: dir.name, localPath: dir.localPath.replace('{filename}', f.name) }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        setPickerFiles(files);
+        setPickerDirCache(prev => ({ ...prev, [dirIndex]: files }));
       }
-      setPickerFiles(allFiles.sort((a, b) => a.name.localeCompare(b.name)));
     } finally {
       setPickerLoading(false);
     }
@@ -588,10 +603,19 @@ export default function CampaignsPage() {
       {/* File Picker Dialog */}
       {showFilePicker && (
         <div style={{ ...S.overlay, zIndex: 60 }}>
-          <div style={{ ...S.dialog, maxWidth: 500, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...S.dialog, maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>Select Audio File</h2>
               <button onClick={() => setShowFilePicker(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            {/* Folder tabs */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' as const }}>
+              {AUDIO_DIRECTORIES.map((dir, i) => (
+                <button key={i} onClick={() => loadPickerDirectory(i)}
+                  style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none', background: pickerDirectory === i ? '#1d1d1f' : '#4a4a4c', color: pickerDirectory === i ? 'white' : '#aaa', fontWeight: pickerDirectory === i ? 500 : 400 }}>
+                  {dir.name}
+                </button>
+              ))}
             </div>
             <input
               value={pickerSearch}
