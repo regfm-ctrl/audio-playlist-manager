@@ -46,7 +46,7 @@ const S: Record<string, React.CSSProperties> = {
   navItemActive: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', fontSize: 14, textDecoration: 'none' },
   card: { background: 'white', borderRadius: 12, border: '0.5px solid #ddd', overflow: 'hidden', marginBottom: 16 },
   label: { fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 5 },
-  input: { width: '100%', padding: '8px 12px', border: '0.5px solid #ddd', borderRadius: 7, fontSize: 13, boxSizing: 'border-box' as const, outline: 'none' },
+  input: { width: '100%', padding: '8px 12px', border: '0.5px solid #555', borderRadius: 7, fontSize: 13, boxSizing: 'border-box' as const, outline: 'none', background: '#4a4a4c', color: 'white' },
   overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
   dialog: { background: '#3a3a3c', borderRadius: 14, width: '100%', padding: 24 },
 };
@@ -90,6 +90,58 @@ export default function CampaignsPage() {
   });
 
   const [breakSearch, setBreakSearch] = useState('');
+
+  // Audio file picker
+  const [showFilePicker, setShowFilePicker] = useState(false);
+  const [pickerFiles, setPickerFiles] = useState<{ id: string; name: string; dir: string; localPath: string }[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+
+  const AUDIO_DIRECTORIES = [
+    { name: 'Sponsors', driveId: '14Oy00clKujI6ldWv7NW35DybZVBN_MPm', localPath: 'T:\\REGFM RadioBOSS\\Sponsors\\{filename}' },
+    { name: 'IDs', driveId: '1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_', localPath: 'T:\\REGFM RadioBOSS\\IDs\\{filename}' },
+  ];
+
+  async function openFilePicker() {
+    setShowFilePicker(true);
+    setPickerLoading(true);
+    setPickerFiles([]);
+    try {
+      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
+      const token = tokenKey ? localStorage.getItem(tokenKey) : null;
+      if (!token) { setMsg('⚠️ Please connect Google Drive in the main app first'); setShowFilePicker(false); return; }
+      const allFiles: { id: string; name: string; dir: string; localPath: string }[] = [];
+      for (const dir of AUDIO_DIRECTORIES) {
+        const res = await fetch(
+          `https://www.googleapis.com/drive/v3/files?q='${dir.driveId}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          (data.files || []).forEach((f: { id: string; name: string }) => {
+            if (f.name.match(/\.(mp3|wav)$/i)) {
+              allFiles.push({ id: f.id, name: f.name, dir: dir.name, localPath: dir.localPath.replace('{filename}', f.name) });
+            }
+          });
+        }
+      }
+      setPickerFiles(allFiles.sort((a, b) => a.name.localeCompare(b.name)));
+    } finally {
+      setPickerLoading(false);
+    }
+  }
+
+  function selectFile(file: { id: string; name: string; dir: string; localPath: string }) {
+    setForm(f => ({
+      ...f,
+      audio_file_id: file.id,
+      audio_file_name: file.name,
+      audio_directory_name: file.dir,
+      audio_local_path: file.localPath,
+    }));
+    setShowFilePicker(false);
+    setPickerSearch('');
+  }
 
   useEffect(() => { loadCampaigns(); }, []);
 
@@ -335,16 +387,22 @@ export default function CampaignsPage() {
                 <input value={form.sponsor_name} onChange={e => setForm(f => ({ ...f, sponsor_name: e.target.value }))} placeholder="e.g. ACME Hardware" style={S.input} />
               </div>
 
-              {/* Audio file */}
+              {/* Audio file picker */}
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ ...S.label, color: '#ddd' }}>Audio File Name</label>
-                <input value={form.audio_file_name} onChange={e => setForm(f => ({ ...f, audio_file_name: e.target.value }))} placeholder="e.g. ACME - 30sec spot.mp3" style={S.input} />
-                <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Enter the filename as it appears in RadioBOSS. The local path will be used as-is.</p>
-              </div>
-
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ ...S.label, color: '#ddd' }}>Local Path (RadioBOSS)</label>
-                <input value={form.audio_local_path} onChange={e => setForm(f => ({ ...f, audio_local_path: e.target.value }))} placeholder="T:\REGFM RadioBOSS\Sponsors\filename.mp3" style={S.input} />
+                <label style={{ ...S.label, color: '#ddd' }}>Audio File</label>
+                {form.audio_file_name ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0071e322', border: '0.5px solid #0071e344', borderRadius: 7 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: '#4da3ff', fontWeight: 500 }}>{form.audio_file_name.replace(/\.[^/.]+$/, '')}</div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{form.audio_local_path}</div>
+                    </div>
+                    <button onClick={openFilePicker} style={{ padding: '4px 10px', background: '#4a4a4c', border: '0.5px solid #666', borderRadius: 5, color: '#ddd', fontSize: 12, cursor: 'pointer' }}>Change</button>
+                  </div>
+                ) : (
+                  <button onClick={openFilePicker} style={{ width: '100%', padding: '10px 0', background: '#4a4a4c', border: '0.5px dashed #666', borderRadius: 7, color: '#aaa', fontSize: 13, cursor: 'pointer' }}>
+                    📂 Browse Audio Files
+                  </button>
+                )}
               </div>
 
               {/* Spots per week */}
@@ -527,7 +585,52 @@ export default function CampaignsPage() {
         </div>
       )}
 
+      {/* File Picker Dialog */}
+      {showFilePicker && (
+        <div style={{ ...S.overlay, zIndex: 60 }}>
+          <div style={{ ...S.dialog, maxWidth: 500, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>Select Audio File</h2>
+              <button onClick={() => setShowFilePicker(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            <input
+              value={pickerSearch}
+              onChange={e => setPickerSearch(e.target.value)}
+              placeholder="Search files..."
+              style={{ ...S.input, marginBottom: 10 }}
+            />
+            <div style={{ flex: 1, overflowY: 'auto', border: '0.5px solid #555', borderRadius: 8 }}>
+              {pickerLoading ? (
+                <div style={{ padding: '30px 0', textAlign: 'center', color: '#888' }}>
+                  <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+                  <div style={{ fontSize: 13 }}>Loading audio files...</div>
+                </div>
+              ) : pickerFiles.filter(f => f.name.toLowerCase().includes(pickerSearch.toLowerCase())).length === 0 ? (
+                <div style={{ padding: '30px 0', textAlign: 'center', color: '#666', fontSize: 13 }}>No files found</div>
+              ) : (
+                pickerFiles
+                  .filter(f => f.name.toLowerCase().includes(pickerSearch.toLowerCase()))
+                  .map((f, i) => (
+                    <div key={f.id} onClick={() => selectFile(f)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', background: i % 2 === 0 ? '#3a3a3c' : '#2a2a2c', borderBottom: '0.5px solid #4a4a4c' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#0071e322')}
+                      onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? '#3a3a3c' : '#2a2a2c')}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#4da3ff" strokeWidth="1.4"><path d="M2 2h6l3 3v7H2V2z"/><path d="M8 2v3h3"/></svg>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, color: '#e0e0e0' }}>{f.name.replace(/\.[^/.]+$/, '')}</div>
+                        <div style={{ fontSize: 11, color: '#666' }}>{f.dir}</div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
+
