@@ -48,6 +48,11 @@ import type { AudioDirectory } from "./google-drive"
 // Test directories (current active configuration)
 export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
   {
+    name: "Sponsors - Audio",
+    driveId: "1B_LOIo2jl_-P-1UrWoRZ4W688_lk0NQC",
+    localPath: "T:\\REGFM RadioBOSS\\Sponsors\\{audio_filename}",
+  },  
+  {
     name: "IDs - Test Update",
     driveId: "1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_",
     localPath: "T:\\REGFM RadioBOSS\\IDs\\{audio_filename}",
@@ -62,15 +67,27 @@ export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
     driveId: "1PzkL-eDZVPU-g3D7c5IUY93g14-SV3l6",
     localPath: "T:\\REGFM RadioBOSS\\Promos\\{audio_filename}",
   },
-  {
-    name: "Sponsors - Audio",
-    driveId: "1B_LOIo2jl_-P-1UrWoRZ4W688_lk0NQC",
-    localPath: "T:\\REGFM RadioBOSS\\Sponsors\\{audio_filename}",
-  },
 ]
 
 // Test playlist folder (current active configuration)
 export const PLAYLIST_FOLDER_ID = "1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b"
+
+// Sponsor break intro/outro stings — the scheduler auto-wraps these around
+// a break's content when it goes from empty to populated, rotating through
+// every file in each folder so on-air variety comes for free.
+//
+// TODO: fill in the Drive folder IDs below. Open each folder in Google Drive,
+// copy the ID from the URL (the part after /folders/), and paste it in here.
+//   e.g. https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz
+//                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^ this part
+
+export const INTRO_FOLDER_ID = "1gIyIQiuCaynQ9fw4UA2aKc78aPUi5ZRU" // T:\My Drive\Traffic System\Sponsor Intro & Outros\Intros
+export const OUTRO_FOLDER_ID = "14dqV6ujoSubM3VUm7w9rVHI2KrpSUS9N" // T:\My Drive\Traffic System\Sponsor Intro & Outros\Outros
+
+// Local paths RadioBOSS actually uses to resolve these files (must match
+// the mapped network drive path, same pattern as DEFAULT_AUDIO_DIRECTORIES)
+export const INTRO_LOCAL_PATH_PREFIX = "T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Intros\\"
+export const OUTRO_LOCAL_PATH_PREFIX = "T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Outros\\"
 
 
 
