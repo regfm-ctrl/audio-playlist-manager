@@ -32,6 +32,11 @@ const IconSchedule = () => (
     <path d="M8 4.5v3.5l2 1.5"/>
   </svg>
 )
+const IconCampaign = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M2 8h2l2-5 4 10 2-5h2"/>
+  </svg>
+)
 const IconAdmin = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <circle cx="8" cy="5" r="2.5"/>
@@ -691,17 +696,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* Nav */}
-          <div style={{ padding: '10px 8px 8px', background: '#2a2a2c' }}>
+          <div style={{ padding: '10px 8px 8px' }}>
             <span style={{ fontSize: 9, color: '#4a4a4c', letterSpacing: '0.1em', fontWeight: 600, display: 'block', padding: '0 6px', marginBottom: 5 }}>MENU</span>
-            <div style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</div>
+            <a href="/" style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</a>
           </div>
           <div style={{ padding: '0 8px 6px', background: '#2a2a2c' }}>
-            <a href="/schedules" style={{ ...S.navItem, textDecoration: 'none' }}><IconSchedule /> Schedules</a>
-            <a href="/campaigns" style={{ ...S.navItem, textDecoration: 'none' }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h2l2-5 4 10 2-5h2"/></svg>
-              Campaigns
-            </a>
-            <a href="/admin" style={{ ...S.navItem, textDecoration: 'none' }}><IconAdmin /> Admin</a>
+            <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
+            <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
+            <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
           </div>
 
           {/* Breaks list */}
@@ -745,9 +747,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* User */}
-          <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: 'white', fontWeight: 500 }}>A</div>
-            <span style={{ color: '#666', fontSize: 14, flex: 1 }}>admin</span>
+            <span style={{ color: '#777', fontSize: 12, flex: 1 }}>admin</span>
             <button
               onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login' }}
               title="Logout"
