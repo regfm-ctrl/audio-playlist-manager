@@ -76,17 +76,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [googleAuthStatus, setGoogleAuthStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown')
 
   useEffect(() => {
-    // Check if server-side Google token exists
-    fetch('/api/auth/google/status')
-      .then(r => r.json())
-      .then(d => setGoogleAuthStatus(d.connected ? 'connected' : 'disconnected'))
-      .catch(() => setGoogleAuthStatus('unknown'))
-    // Check for google_auth success/error in URL
     const params = new URLSearchParams(window.location.search)
+    // If just redirected back from Google auth, mark as connected immediately
     if (params.get('google_auth') === 'success') {
       setGoogleAuthStatus('connected')
       window.history.replaceState({}, '', '/')
+      return
     }
+    // Check server-side Google token status (no cache)
+    fetch('/api/auth/google/status?t=' + Date.now())
+      .then(r => r.json())
+      .then(d => setGoogleAuthStatus(d.connected ? 'connected' : 'disconnected'))
+      .catch(() => setGoogleAuthStatus('unknown'))
   }, [])
 
   // ─── Resizable panel divider ────────────────────────────────────────────────
@@ -742,7 +743,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             </div>
             {/* Google auth status */}
             {googleAuthStatus === 'disconnected' && (
-              <a href="/api/auth/google" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: '#fff8e8', border: '0.5px solid #f0d080', borderRadius: 7, fontSize: 12, color: '#a06000', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              <a href="/api/auth/google" onClick={(e) => { e.preventDefault(); window.location.href = '/api/auth/google' }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: '#fff8e8', border: '0.5px solid #f0d080', borderRadius: 7, fontSize: 12, color: '#a06000', textDecoration: 'none', whiteSpace: 'nowrap', cursor: 'pointer' }}>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1"/></svg>
                 Connect Google Drive
               </a>

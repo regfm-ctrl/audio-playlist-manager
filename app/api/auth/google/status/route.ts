@@ -3,5 +3,7 @@ import { hasStoredToken } from '@/lib/google-tokens';
 
 export async function GET(req: NextRequest) {
   const connected = await hasStoredToken();
-  return NextResponse.json({ connected });
+  const res = NextResponse.json({ connected });
+  res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  return res;
 }
