@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { getGoogleAccessToken } from '@/lib/client-google-token';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PLAYLIST_FOLDER_ID = process.env.NEXT_PUBLIC_PLAYLIST_FOLDER_ID || '1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b';
@@ -129,9 +130,8 @@ export default function CampaignsPage() {
     setPickerLoading(true);
     setPickerFiles([]);
     try {
-      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
-      const token = tokenKey ? localStorage.getItem(tokenKey) : null;
-      if (!token) { setMsg('⚠️ Please connect Google Drive in the main app first'); setShowFilePicker(false); return; }
+      const token = await getGoogleAccessToken();
+      if (!token) { setMsg('⚠️ Google Drive is not connected — connect it in the main app first'); setShowFilePicker(false); return; }
       const dir = AUDIO_DIRECTORIES[dirIndex];
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files?q='${dir.driveId}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
@@ -175,9 +175,8 @@ export default function CampaignsPage() {
   async function loadPlaylists() {
     setPlaylistsLoading(true);
     try {
-      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
-      const token = tokenKey ? localStorage.getItem(tokenKey) : null;
-      if (!token) { setMsg('⚠️ Please connect Google Drive in the main app first'); return; }
+      const token = await getGoogleAccessToken();
+      if (!token) { setMsg('⚠️ Google Drive is not connected — connect it in the main app first'); return; }
 
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
@@ -208,8 +207,7 @@ export default function CampaignsPage() {
     };
 
     setMsg('Generating preview...');
-    const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
-    const accessToken = tokenKey ? localStorage.getItem(tokenKey) : null;
+    const accessToken = await getGoogleAccessToken();
 
     const res = await fetch('/api/campaigns/generate', {
       method: 'POST',
@@ -242,8 +240,7 @@ export default function CampaignsPage() {
       const campaign = await saveRes.json();
 
       // Then generate schedules — pass preview slots directly so API doesn't recalculate
-      const tokenKey2 = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
-      const accessToken2 = tokenKey2 ? localStorage.getItem(tokenKey2) : null;
+      const accessToken2 = await getGoogleAccessToken();
       const res = await fetch('/api/campaigns/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

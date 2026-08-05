@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { getGoogleAccessToken } from '@/lib/client-google-token';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -66,9 +67,8 @@ export default function SchedulesPage() {
     setRunMsg('');
     setShowForceConfirm(false);
     try {
-      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'));
-      const accessToken = tokenKey ? localStorage.getItem(tokenKey) : null;
-      if (!accessToken) { setRunMsg('⚠️ Please log in to the main app first to connect Google Drive.'); return; }
+      const accessToken = await getGoogleAccessToken();
+      if (!accessToken) { setRunMsg('⚠️ Google Drive is not connected — connect it in the main app first.'); return; }
       const res = await fetch('/api/schedules/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
