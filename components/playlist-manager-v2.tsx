@@ -21,13 +21,13 @@ interface PlaylistManagerProps {
 
 // ─── Sidebar icon components ────────────────────────────────────────────────
 const IconBreaks = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
     <rect x="2" y="3" width="5" height="10" rx="1"/>
     <rect x="9" y="3" width="5" height="10" rx="1"/>
   </svg>
 )
 const IconSchedule = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <circle cx="8" cy="8" r="5.5"/>
     <path d="M8 4.5v3.5l2 1.5"/>
   </svg>
@@ -38,7 +38,7 @@ const IconCampaign = () => (
   </svg>
 )
 const IconAdmin = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <circle cx="8" cy="5" r="2.5"/>
     <path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/>
   </svg>
@@ -695,12 +695,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             />
           </div>
 
-          {/* Nav */}
           <div style={{ padding: '10px 8px 8px' }}>
-            <span style={{ fontSize: 9, color: '#4a4a4c', letterSpacing: '0.1em', fontWeight: 600, display: 'block', padding: '0 6px', marginBottom: 5 }}>MENU</span>
+            <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
             <a href="/" style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</a>
-          </div>
-          <div style={{ padding: '0 8px 6px', background: '#2a2a2c' }}>
             <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
             <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
             <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
