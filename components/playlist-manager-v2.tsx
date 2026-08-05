@@ -457,7 +457,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     setContainerName(name); setPlaylistItems(items)
   }
 
-  const generatePlaylistContent = (): string => {
+  const generatePlaylistContent = async (): Promise<string> => {
     const originalAllPaths: string[] = []
     for (const line of originalContent.split('\n')) {
       if (line.startsWith('Container=')) {
@@ -467,16 +467,34 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     }
     const totalOriginal = originalAllPaths.length
     const midpoint = totalOriginal / 2
-    const protectedFirst: string[] = []
-    const protectedLast: string[] = []
+    let protectedFirst: string[] = []
+    let protectedLast: string[] = []
     originalAllPaths.forEach((p, i) => {
       if (!isProtectedPath(p)) return
       if (i < midpoint) protectedFirst.push(p)
       else protectedLast.push(p)
     })
     const editablePaths = playlistItems.map((i) => i.path)
+
+    // Break is empty of real content — drop any intro/outro too, so
+    // RadioBOSS treats it as genuinely empty (nothing loaded).
+    if (editablePaths.length === 0) return "#EXTM3U\n"
+
+    // Break had no protected content before (i.e. this is the first real
+    // item going into a previously-empty break) — pick a fresh intro/outro
+    // from rotation, same as the automated scheduler does.
+    if (protectedFirst.length === 0 && protectedLast.length === 0) {
+      try {
+        const res = await fetch('/api/stings/next', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+        if (res.ok) {
+          const { introPath, outroPath } = await res.json()
+          protectedFirst = introPath ? [introPath] : []
+          protectedLast = outroPath ? [outroPath] : []
+        }
+      } catch {}
+    }
+
     const allPaths = [...protectedFirst, ...editablePaths, ...protectedLast]
-    if (allPaths.length === 0) return "#EXTM3U\n"
     const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
     return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
   }
@@ -566,7 +584,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     if (!selectedPlaylist) return
     setIsSaving(true); setSaveError(null)
     try {
-      const content = generatePlaylistContent()
+      const content = await generatePlaylistContent()
       await googleDriveService.updateFile(selectedPlaylist.id, content)
       setOriginalContent(content)
       toast({ title: "Saved", description: `${selectedPlaylist.name.replace(/\.m3u8$/i, "")} updated successfully.`, variant: "success" as any })

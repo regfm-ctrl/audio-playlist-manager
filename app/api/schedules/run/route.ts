@@ -3,88 +3,12 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { INTRO_FOLDER_ID, OUTRO_FOLDER_ID, INTRO_LOCAL_PATH_PREFIX, OUTRO_LOCAL_PATH_PREFIX } from '@/lib/folder-config';
+import { isIntroPath, isOutroPath, isProtectedPath, getNextSting, buildPlaylistContent } from '@/lib/stings';
 
 const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
 const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
 const CRON_SECRET = process.env.CRON_SECRET;
-
-// Intro/outro stings — never treated as removable sponsor content, and
-// never edited directly by the scheduler/removal logic below.
-const isIntroPath = (path: string) => path.includes('Sponsor Intro & Outros') && path.includes('\\Intros\\')
-const isOutroPath = (path: string) => path.includes('Sponsor Intro & Outros') && path.includes('\\Outros\\')
-const isProtectedPath = (path: string) => isIntroPath(path) || isOutroPath(path)
 const GMAIL_MCP_URL = 'https://gmailmcp.googleapis.com/mcp/v1';
-
-// ─── Intro/outro rotation ────────────────────────────────────────────────
-// Picks a new intro/outro sting each time a break goes from empty to
-// populated, rotating round-robin through everything in the source Drive
-// folder so consecutive breaks don't repeat until the whole set has aired.
-
-async function ensureRotationTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS sting_rotation (
-      kind TEXT PRIMARY KEY,
-      position INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-}
-
-async function listDriveFiles(folderId: string, accessToken: string): Promise<{ id: string; name: string }[]> {
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false+and+mimeType!='application/vnd.google-apps.folder'&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&orderBy=name`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.files || [];
-  } catch {
-    return [];
-  }
-}
-
-const STING_FOLDERS: Record<'intro' | 'outro', { folderId: string; localPrefix: string }> = {
-  intro: { folderId: INTRO_FOLDER_ID, localPrefix: INTRO_LOCAL_PATH_PREFIX },
-  outro: { folderId: OUTRO_FOLDER_ID, localPrefix: OUTRO_LOCAL_PATH_PREFIX },
-};
-
-// Returns the next sting's local path in rotation, or null if the folder
-// isn't configured or is empty (in which case the break just plays without
-// that sting, rather than failing).
-async function getNextSting(kind: 'intro' | 'outro', accessToken: string): Promise<string | null> {
-  const cfg = STING_FOLDERS[kind];
-  if (!cfg.folderId) return null;
-
-  const files = await listDriveFiles(cfg.folderId, accessToken);
-  if (files.length === 0) return null;
-
-  await ensureRotationTable();
-  const rows = await sql`
-    INSERT INTO sting_rotation (kind, position)
-    VALUES (${kind}, 0)
-    ON CONFLICT (kind) DO UPDATE SET position = sting_rotation.position + 1, updated_at = NOW()
-    RETURNING position
-  `;
-  const position = rows[0].position as number;
-  const file = files[position % files.length];
-  return cfg.localPrefix + file.name;
-}
-
-// Rebuilds a playlist's Container= line from its real (non-sting) content
-// plus whichever intro/outro paths apply. If there's no real content, the
-// file is written fully empty — RadioBOSS does nothing with it, by design.
-function buildPlaylistContent(containerName: string, realPaths: string[], introPath: string | null, outroPath: string | null): string {
-  if (realPaths.length === 0) return `#EXTM3U\n`;
-  const allPaths = [
-    ...(introPath ? [introPath] : []),
-    ...realPaths,
-    ...(outroPath ? [outroPath] : []),
-  ];
-  const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
-  return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`;
-}
 
 async function sendEmailViaMCP(subject: string, body: string) {
   try {
