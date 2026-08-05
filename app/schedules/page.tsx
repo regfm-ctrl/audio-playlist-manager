@@ -121,10 +121,10 @@ export default function SchedulesPage() {
 
   const S: Record<string, React.CSSProperties> = {
     app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
-    sidebar: { width: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
+    sidebar: { width: 260, minWidth: 260, maxWidth: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
     main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
-    navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 14, textDecoration: 'none' },
-    navItemActive: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', fontSize: 14, textDecoration: 'none' },
+    navItem: { display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 8, marginBottom: 2, color: '#777', cursor: 'pointer', fontSize: 13, textDecoration: 'none' as const },
+    navItemActive: { display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', background: '#0071e3', borderRadius: 8, marginBottom: 2, color: 'white', fontSize: 13, textDecoration: 'none' as const },
     badge: { padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 },
     overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 },
     dialog: { background: '#3a3a3c', borderRadius: 14, padding: 24, width: '100%' },
@@ -143,7 +143,7 @@ export default function SchedulesPage() {
           <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
         <div style={{ padding: '12px 10px 6px' }}>
-          <span style={{ fontSize: 11, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>LIBRARY</span>
+          <span style={{ fontSize: 11, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>MENU</span>
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
         </div>
         <div style={{ padding: '4px 10px' }}>
@@ -154,7 +154,7 @@ export default function SchedulesPage() {
         <div style={{ flex: 1 }} />
         <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>A</div>
-          <span style={{ color: '#666', fontSize: 13 }}>admin</span>
+          <span style={{ color: '#777', fontSize: 12 }}>admin</span>
         </div>
       </div>
 

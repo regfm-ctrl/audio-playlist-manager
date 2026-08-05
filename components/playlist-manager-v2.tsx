@@ -612,15 +612,15 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const S: Record<string, React.CSSProperties> = {
     // Layout
     app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
-    sidebar: { width: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
+    sidebar: { width: 260, minWidth: 260, maxWidth: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
     main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
     // Sidebar elements
     sidebarHeader: { padding: '18px 16px 12px', borderBottom: '0.5px solid #3a3a3c' },
     sidebarLogo: { width: 40, height: 40, borderRadius: 10, background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    sidebarSection: { padding: '12px 10px 6px' },
-    sidebarLabel: { fontSize: 15, color: '#555', padding: '0 8px', marginBottom: 4, letterSpacing: '0.05em', display: 'block' },
-    navItemActive: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', cursor: 'pointer', fontSize: 15 },
-    navItem: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 15, textDecoration: 'none' },
+    sidebarSection: { padding: '10px 8px 8px' },
+    sidebarLabel: { fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' },
+    navItemActive: { display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', background: '#0071e3', borderRadius: 8, marginBottom: 2, color: 'white', fontSize: 13, textDecoration: 'none' as const },
+    navItem: { display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 8, marginBottom: 2, color: '#777', cursor: 'pointer', fontSize: 13, textDecoration: 'none' as const },
     // Main toolbar
     toolbar: { padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 },
     searchBox: { flex: 1, background: 'white', borderRadius: 7, border: '0.5px solid #ccc', padding: '5px 10px', fontSize: 15, color: '#333', display: 'flex', alignItems: 'center', gap: 6 },
@@ -658,11 +658,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* Nav */}
-          <div style={S.sidebarSection}>
-            <span style={S.sidebarLabel}>LIBRARY</span>
+          <div style={{ padding: '10px 8px 8px', background: '#2a2a2c' }}>
+            <span style={{ fontSize: 9, color: '#4a4a4c', letterSpacing: '0.1em', fontWeight: 600, display: 'block', padding: '0 6px', marginBottom: 5 }}>MENU</span>
             <div style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</div>
           </div>
-          <div style={{ padding: '6px 10px' }}>
+          <div style={{ padding: '0 8px 6px', background: '#2a2a2c' }}>
             <a href="/schedules" style={{ ...S.navItem, textDecoration: 'none' }}><IconSchedule /> Schedules</a>
             <a href="/campaigns" style={{ ...S.navItem, textDecoration: 'none' }}>
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h2l2-5 4 10 2-5h2"/></svg>
@@ -672,10 +672,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           </div>
 
           {/* Breaks list */}
-          <div style={{ padding: '12px 10px 6px', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginTop: 4 }}>
-            <span style={S.sidebarLabel}>BREAKS <span style={{ color: '#444' }}>({filteredPlaylists.length})</span></span>
+          <div style={{ background: '#212123', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '8px 8px 6px' }}>
+            <span style={{ fontSize: 9, color: '#4a4a4c', letterSpacing: '0.1em', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 6px', marginBottom: 5 }}>
+              <span>BREAKS</span><span>{filteredPlaylists.length}</span></span>
             <div style={{ background: '#2a2a2c', borderRadius: 6, padding: '7px 10px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ color: '#555' }}><IconSearch /></span>
+              <span style={{ color: '#555', flexShrink: 0 }}><IconSearch /></span>
               <input
                 value={playlistSearch}
                 onChange={e => setPlaylistSearch(e.target.value)}
@@ -693,14 +694,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                     marginBottom: 1,
                     borderRadius: 5,
                     cursor: 'pointer',
-                    background: selectedPlaylist?.id === pl.id ? '#1d1d1f' : 'transparent',
-                    borderLeft: selectedPlaylist?.id === pl.id ? '2px solid #0071e3' : '2px solid transparent',
+                    background: selectedPlaylist?.id === pl.id ? '#0071e318' : 'transparent',
+                    borderLeft: selectedPlaylist?.id === pl.id ? '2px solid #0071e3' : '2px solid transparent', borderRadius: 6,
                   }}
                 >
                   <div style={{ color: selectedPlaylist?.id === pl.id ? '#e0e0e0' : '#888', fontSize: 17, fontWeight: selectedPlaylist?.id === pl.id ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {removeFileExtension(pl.name)}
                   </div>
-                  <div style={{ fontSize: 15, color: durationLoading === pl.id ? '#0071e3' : '#555', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <div style={{ fontSize: 15, color: durationLoading === pl.id ? '#0071e3' : '#4a4a4c', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
                     {durationLoading === pl.id ? (
                       <><Loader2 style={{ width: 8, height: 8, animation: 'spin 1s linear infinite' }} /> Calculating...</>
                     ) : playlistDurations[pl.id] ? formatDuration(playlistDurations[pl.id]) : ''}

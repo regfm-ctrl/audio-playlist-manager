@@ -40,10 +40,10 @@ const fmt = (dt: string) => new Date(dt).toLocaleString('en-AU', {
 
 const S: Record<string, React.CSSProperties> = {
   app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
-  sidebar: { width: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
+  sidebar: { width: 260, minWidth: 260, maxWidth: 260, background: '#2a2a2c', borderRight: '0.5px solid #3a3a3c', display: 'flex', flexDirection: 'column', flexShrink: 0 },
   main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#f5f5f7', overflow: 'hidden' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 6, marginBottom: 2, color: '#888', cursor: 'pointer', fontSize: 14, textDecoration: 'none' },
-  navItemActive: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0071e3', borderRadius: 6, marginBottom: 2, color: 'white', fontSize: 14, textDecoration: 'none' },
+  navItem: { display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 8, marginBottom: 2, color: '#777', cursor: 'pointer', fontSize: 13, textDecoration: 'none' as const },
+  navItemActive: { display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', background: '#0071e3', borderRadius: 8, marginBottom: 2, color: 'white', fontSize: 13, textDecoration: 'none' as const },
   card: { background: 'white', borderRadius: 12, border: '0.5px solid #ddd', overflow: 'hidden', marginBottom: 16 },
   label: { fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 5 },
   input: { width: '100%', padding: '8px 12px', border: '0.5px solid #555', borderRadius: 7, fontSize: 13, boxSizing: 'border-box' as const, outline: 'none', background: '#4a4a4c', color: 'white' },
@@ -360,7 +360,7 @@ export default function CampaignsPage() {
           <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
         <div style={{ padding: '10px 8px 4px' }}>
-          <span style={{ fontSize: 10, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>LIBRARY</span>
+          <span style={{ fontSize: 10, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>MENU</span>
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
         </div>
         <div style={{ padding: '4px 8px' }}>
@@ -371,7 +371,7 @@ export default function CampaignsPage() {
         <div style={{ flex: 1 }} />
         <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>A</div>
-          <span style={{ color: '#666', fontSize: 13 }}>admin</span>
+          <span style={{ color: '#777', fontSize: 12 }}>admin</span>
         </div>
       </div>
 
