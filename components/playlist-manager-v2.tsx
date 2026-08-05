@@ -72,6 +72,23 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ─── Google server-side auth status ─────────────────────────────────────────
+  const [googleAuthStatus, setGoogleAuthStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown')
+
+  useEffect(() => {
+    // Check if server-side Google token exists
+    fetch('/api/auth/google/status')
+      .then(r => r.json())
+      .then(d => setGoogleAuthStatus(d.connected ? 'connected' : 'disconnected'))
+      .catch(() => setGoogleAuthStatus('unknown'))
+    // Check for google_auth success/error in URL
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('google_auth') === 'success') {
+      setGoogleAuthStatus('connected')
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
+
   // ─── Resizable panel divider ────────────────────────────────────────────────
   const [breakPanelHeight, setBreakPanelHeight] = useState(310)
   const isDraggingDivider = useRef(false)
@@ -723,6 +740,19 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
                 style={{ background: 'none', border: 'none', outline: 'none', fontSize: 15, color: '#333', width: '100%' }}
               />
             </div>
+            {/* Google auth status */}
+            {googleAuthStatus === 'disconnected' && (
+              <a href="/api/auth/google" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: '#fff8e8', border: '0.5px solid #f0d080', borderRadius: 7, fontSize: 12, color: '#a06000', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1"/></svg>
+                Connect Google Drive
+              </a>
+            )}
+            {googleAuthStatus === 'connected' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: '#e8f5ec', border: '0.5px solid #80d0aa', borderRadius: 7, fontSize: 12, color: '#1a7a35', whiteSpace: 'nowrap' }}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="#1a7a35"><circle cx="5" cy="5" r="5"/><path d="M2.5 5l2 2 3-3" stroke="white" strokeWidth="1.2" fill="none"/></svg>
+                Google Connected
+              </div>
+            )}
             {audioDirectories.map(d => (
               <button
                 key={d.name}

@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
+import { getValidAccessToken } from '@/lib/google-tokens';
 
 const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
 const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
 const CRON_SECRET = process.env.CRON_SECRET;
-const GMAIL_MCP_URL = 'https://gmailmcp.googleapis.com/mcp/v1';
 
-// ─── Protected path — never modify files in this directory ──────────────────
-const PROTECTED_PATH = 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\'
-const isProtectedPath = (path: string) => path.includes(PROTECTED_PATH)
+// Protected path — never modify files in this directory
+const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
+const GMAIL_MCP_URL = 'https://gmailmcp.googleapis.com/mcp/v1';
 
 async function sendEmailViaMCP(subject: string, body: string) {
   try {
@@ -42,43 +42,10 @@ Use the Gmail send tool to send this email now.`
   }
 }
 
-function parsePlaylist(text: string): { containerName: string; editablePaths: string[]; protectedPaths: string[] } {
-  let containerName = ''
-  const editablePaths: string[] = []
-  const protectedPaths: string[] = []
-
-  for (const line of text.split('\n').filter((l: string) => l.trim())) {
-    if (line.startsWith('Container=')) {
-      const match = line.match(/Container=<([^>]+)>(.+)/)
-      if (match) {
-        containerName = decodeURIComponent(match[1].replace(/\+/g, ' '))
-        match[2].split('|').forEach((p: string) => {
-          if (!p.trim()) return
-          if (isProtectedPath(p)) {
-            protectedPaths.push(p.trim())
-          } else {
-            editablePaths.push(p.trim())
-          }
-        })
-      }
-    }
-  }
-  return { containerName, editablePaths, protectedPaths }
-}
-
-function buildPlaylistContent(containerName: string, editablePaths: string[], protectedPaths: string[]): string {
-  const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+')
-  // Always put editable paths first, protected paths last
-  const allPaths = [...editablePaths, ...protectedPaths]
-  return allPaths.length > 0
-    ? `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
-    : `#EXTM3U\n`
-}
-
-async function processSchedules(accessToken: string) {
+async function processSchedules(accessToken: string, forceRun = false) {
   const now = new Date();
 
-  // Find expired schedules before deactivating
+  // Find expired schedules before deactivating them
   const expired = await sql`
     SELECT * FROM schedules
     WHERE is_active = true
@@ -86,17 +53,12 @@ async function processSchedules(accessToken: string) {
     AND expires_at <= ${now.toISOString()}
   `;
 
-  // For each expired schedule, remove the file from ALL playlists (except protected paths)
+  // For each expired schedule, remove the file from ALL playlists that contain it
   for (const schedule of expired) {
     try {
       const pathToRemove = schedule.audio_local_path;
 
-      // Skip if someone accidentally scheduled a protected file
-      if (isProtectedPath(pathToRemove)) {
-        console.log('[scheduler] Skipping protected path expiry:', pathToRemove)
-        continue
-      }
-
+      // 1. List all playlists in the playlist folder
       const listRes = await fetch(
         `https://www.googleapis.com/drive/v3/files?q='${process.env.PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -107,11 +69,13 @@ async function processSchedules(accessToken: string) {
         const listData = await listRes.json();
         playlistFiles = listData.files || [];
       } else {
+        // Fallback: just use the playlist from the schedule record
         playlistFiles = [{ id: schedule.playlist_id, name: schedule.playlist_name }];
       }
 
       let removedFrom: string[] = [];
 
+      // 2. Check each playlist for the file and remove it
       for (const playlist of playlistFiles) {
         try {
           const fileRes = await fetch(
@@ -120,13 +84,31 @@ async function processSchedules(accessToken: string) {
           );
           if (!fileRes.ok) continue;
 
-          const text = await fileRes.text();
-          const { containerName, editablePaths, protectedPaths } = parsePlaylist(text)
+          const playlistContent = await fileRes.text();
+          const lines = playlistContent.split('\n').filter((l: string) => l.trim());
+          let containerName = '';
+          let existingPaths: string[] = [];
 
-          if (!editablePaths.includes(pathToRemove)) continue;
+          for (const line of lines) {
+            if (line.startsWith('#EXTM3U')) continue;
+            if (line.startsWith('Container=')) {
+              const match = line.match(/Container=<([^>]+)>(.+)/);
+              if (match) {
+                containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+                existingPaths = match[2].split('|').filter((p: string) => p.trim());
+              }
+            }
+          }
 
-          const updatedEditablePaths = editablePaths.filter((p: string) => p !== pathToRemove)
-          const newContent = buildPlaylistContent(containerName, updatedEditablePaths, protectedPaths)
+          // Skip if file not in this playlist
+          if (!existingPaths.includes(pathToRemove)) continue;
+
+          // Remove the file
+          const updatedPaths = existingPaths.filter((p: string) => p !== pathToRemove);
+          const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
+          const newContent = updatedPaths.length > 0
+            ? `#EXTM3U\nContainer=<${encodedName}>${updatedPaths.join('|')}\n`
+            : `#EXTM3U\n`;
 
           const saveRes = await fetch(
             `https://www.googleapis.com/upload/drive/v3/files/${playlist.id}?uploadType=media&supportsAllDrives=true`,
@@ -137,7 +119,9 @@ async function processSchedules(accessToken: string) {
             }
           );
 
-          if (saveRes.ok) removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
+          if (saveRes.ok) {
+            removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
+          }
         } catch (innerErr) {
           console.error(`[scheduler] Error checking playlist ${playlist.name}:`, innerErr);
         }
@@ -149,7 +133,14 @@ async function processSchedules(accessToken: string) {
           VALUES (${schedule.id}, ${schedule.audio_file_name}, ${removedFrom.join(', ')}, 'expired', ${'Removed from: ' + removedFrom.join(', ')})
         `;
         await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${removedFrom.join(', ')}`, '/api/schedules/run');
+        console.log(`[scheduler] Removed expired ${schedule.audio_file_name} from: ${removedFrom.join(', ')}`);
+      } else {
+        await sql`
+          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+          VALUES (${schedule.id}, ${schedule.audio_file_name}, 'none', 'expired', 'File not found in any playlists')
+        `;
       }
+
     } catch (err: any) {
       console.error('[scheduler] Error removing expired file:', schedule.id, err);
       await sql`
@@ -159,7 +150,7 @@ async function processSchedules(accessToken: string) {
     }
   }
 
-  // Deactivate expired schedules
+  // Now deactivate all expired schedules
   await sql`
     UPDATE schedules
     SET is_active = false
@@ -168,27 +159,31 @@ async function processSchedules(accessToken: string) {
     AND expires_at <= ${now.toISOString()}
   `;
 
-  // Get all active schedules due to run (not expiry_only)
-  const due = await sql`
-    SELECT * FROM schedules
-    WHERE is_active = true
-    AND next_run_at <= ${now.toISOString()}
-    AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
-    AND schedule_type != 'expiry_only'
-  `;
+  // Get all active schedules due to run (not expired)
+  // forceRun=true ignores next_run_at and runs ALL active schedules immediately
+  const due = forceRun
+    ? await sql`
+        SELECT * FROM schedules
+        WHERE is_active = true
+        AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
+        AND schedule_type != 'expiry_only'
+      `
+    : await sql`
+        SELECT * FROM schedules
+        WHERE is_active = true
+        AND next_run_at <= ${now.toISOString()}
+        AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
+        AND schedule_type != 'expiry_only'
+      `;
 
-  if (due.length === 0 && expired.length === 0) return { processed: 0, results: [] };
+  if (due.length === 0 && !forceRun) return { processed: 0, results: [] };
+  if (due.length === 0) return { processed: 0, results: [], message: 'No active schedules found' };
 
   const results: any[] = [];
 
   for (const schedule of due) {
-    // Skip if somehow a protected path got scheduled
-    if (isProtectedPath(schedule.audio_local_path)) {
-      console.log('[scheduler] Skipping protected path schedule:', schedule.audio_local_path)
-      continue
-    }
-
     try {
+      // 1. Fetch current playlist content from Google Drive
       const fileRes = await fetch(
         `https://www.googleapis.com/drive/v3/files/${schedule.playlist_id}?alt=media`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -196,33 +191,56 @@ async function processSchedules(accessToken: string) {
 
       if (!fileRes.ok) throw new Error(`Failed to fetch playlist: ${fileRes.status}`);
 
-      const text = await fileRes.text();
-      const { containerName, editablePaths, protectedPaths } = parsePlaylist(text)
+      const content = await fileRes.text();
 
+      // 2. Parse existing playlist items
+      const lines = content.split('\n').filter((l: string) => l.trim());
+      let containerName = '';
+      let existingPaths: string[] = [];
+
+      for (const line of lines) {
+        if (line.startsWith('#EXTM3U')) continue;
+        if (line.startsWith('Container=')) {
+          const match = line.match(/Container=<([^>]+)>(.+)/);
+          if (match) {
+            containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+            existingPaths = match[2].split('|').filter((p: string) => p.trim());
+          }
+        }
+      }
+
+      // 3. Build the new file path
       const newPath = schedule.audio_local_path;
 
-      if (editablePaths.includes(newPath)) {
+      // Skip if already in playlist
+      if (existingPaths.includes(newPath)) {
         await sql`
           INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
           VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'skipped', 'Already in playlist')
         `;
         results.push({ schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' });
       } else {
-        // Insert at position (within editable paths only)
+        // 4. Insert at position or append
         const position = schedule.position;
-        if (position >= 0 && position < editablePaths.length) {
-          editablePaths.splice(position, 0, newPath);
+        if (position >= 0 && position < existingPaths.length) {
+          existingPaths.splice(position, 0, newPath);
         } else {
-          editablePaths.push(newPath);
+          existingPaths.push(newPath);
         }
 
-        const newContent = buildPlaylistContent(containerName, editablePaths, protectedPaths)
+        // 5. Generate new playlist content
+        const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
+        const newContent = `#EXTM3U\nContainer=<${encodedName}>${existingPaths.join('|')}\n`;
 
+        // 6. Save back to Google Drive
         const saveRes = await fetch(
           `https://www.googleapis.com/upload/drive/v3/files/${schedule.playlist_id}?uploadType=media&supportsAllDrives=true`,
           {
             method: 'PATCH',
-            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'text/plain' },
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'text/plain',
+            },
             body: newContent,
           }
         );
@@ -233,11 +251,13 @@ async function processSchedules(accessToken: string) {
           INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
           VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'success', 'Added to playlist')
         `;
+
         await logActivity(0, 'scheduler', `SCHEDULED_ADD: ${schedule.audio_file_name} → ${schedule.playlist_name}`, '/api/schedules/run');
+
         results.push({ schedule: schedule.audio_file_name, playlist: schedule.playlist_name, status: 'success' });
       }
 
-      // Update next_run_at or deactivate if one-time
+      // 7. Update next_run_at or deactivate if one-time
       if (schedule.schedule_type === 'once') {
         await sql`UPDATE schedules SET is_active = false, last_run_at = ${now.toISOString()} WHERE id = ${schedule.id}`;
       } else {
@@ -310,11 +330,12 @@ function calculateNextRun(
   return tomorrow.toISOString();
 }
 
-// POST — manual trigger
+// POST — manual "Run Now" trigger (requires login)
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
   const user = token ? await verifyToken(token) : null;
 
+  // Also allow cron secret
   const authHeader = req.headers.get('authorization');
   const isCron = authHeader === `Bearer ${CRON_SECRET}`;
 
@@ -322,21 +343,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { accessToken } = await req.json().catch(() => ({ accessToken: null }));
+  const body = await req.json().catch(() => ({}));
+  const { forceRun = false } = body;
+  let { accessToken } = body;
 
+  // If no token provided by browser, try to get stored server-side token
   if (!accessToken) {
-    return NextResponse.json({ error: 'Google Drive access token required' }, { status: 400 });
+    console.log('[schedules/run] No browser token provided, trying stored token...');
+    accessToken = await getValidAccessToken();
   }
 
-  const result = await processSchedules(accessToken);
+  if (!accessToken) {
+    return NextResponse.json({
+      error: 'Google Drive not connected. Please connect Google Drive by clicking the Connect button in the main app.',
+      needsGoogleAuth: true,
+    }, { status: 400 });
+  }
+
+  const result = await processSchedules(accessToken, forceRun);
   return NextResponse.json(result);
 }
 
-// GET — cron endpoint
+// GET — cron endpoint (Vercel calls this)
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return NextResponse.json({ message: 'Use POST with accessToken' });
+
+  // For cron, we need the stored Google token — fetch from DB if you store it
+  // For now return instructions
+  return NextResponse.json({ message: 'Use POST with accessToken for now' });
 }
