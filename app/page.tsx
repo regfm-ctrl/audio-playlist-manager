@@ -1,100 +1,111 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { GoogleAuth } from "@/components/google-auth"
 import { PlaylistManager } from "@/components/playlist-manager-v2"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { SetupGuide } from "@/components/setup-guide"
-import { googleDriveService, PLAYLIST_FOLDER_ID } from "@/lib/google-drive"
+import { PLAYLIST_FOLDER_ID } from "@/lib/google-drive"
+
+// Re-check / refresh the server-held Google token this often, well inside
+// the ~1hr Google access-token lifetime so the UI is never caught out.
+const TOKEN_REFRESH_INTERVAL_MS = 20 * 60 * 1000 // 20 minutes
 
 export default function HomePage() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [showSetupGuide, setShowSetupGuide] = useState(false)
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Check for existing authentication on page load
+  // Ask the server for a currently-valid access token. The server refreshes
+  // it using the stored refresh token if needed, so this call is silent —
+  // no popups, no re-auth, no dependence on the browser's Google session.
+  const fetchServerToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/auth/google/token?t=' + Date.now())
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.accessToken ?? null
+    } catch (error) {
+      console.error("[v0] Failed to fetch server-refreshed Google token:", error)
+      return null
+    }
+  }, [])
+
+  const refreshAccessToken = useCallback(async (): Promise<string | null> => {
+    const token = await fetchServerToken()
+    setAccessToken(token)
+    return token
+  }, [fetchServerToken])
+
+  // Check auth on load, then keep silently refreshing in the background.
   useEffect(() => {
-    const checkExistingAuth = () => {
-      try {
-        console.log("[v0] Checking for existing authentication...")
-        const sessionInfo = googleDriveService.getSessionInfo()
-        console.log("[v0] Session info:", sessionInfo)
-        
-        const storedToken = googleDriveService.loadTokenFromStorage()
-        if (storedToken) {
-          console.log("[v0] Found existing token, auto-authenticating")
-          setAccessToken(storedToken)
-        } else {
-          console.log("[v0] No existing token found")
-        }
-      } catch (error) {
-        console.error("[v0] Error checking existing auth:", error)
-      } finally {
+    let cancelled = false
+
+    const init = async () => {
+      const token = await fetchServerToken()
+      if (!cancelled) {
+        setAccessToken(token)
         setIsCheckingAuth(false)
       }
     }
+    init()
 
-    checkExistingAuth()
-  }, [])
+    refreshTimer.current = setInterval(() => {
+      fetchServerToken().then((token) => {
+        if (token) setAccessToken(token)
+      })
+    }, TOKEN_REFRESH_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      if (refreshTimer.current) clearInterval(refreshTimer.current)
+    }
+  }, [fetchServerToken])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('google_auth') === 'success') {
+      window.history.replaceState({}, '', '/')
+      refreshAccessToken()
+    }
+  }, [refreshAccessToken])
 
   useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.error("[v0] Unhandled promise rejection:", event.reason)
-
-      // Prevent the default browser behavior (logging to console)
       event.preventDefault()
-
-      // Show user-friendly error message
-      const errorMessage =
-        event.reason instanceof Error
-          ? event.reason.message
-          : typeof event.reason === "string"
-            ? event.reason
-            : "An unexpected error occurred"
-
-      console.error("[v0] Promise rejection details:", {
-        reason: event.reason,
-        promise: event.promise,
-        stack: event.reason?.stack,
-      })
-
-      // You could also show a toast notification here
-      // For now, we'll just ensure it's properly logged
     }
 
     const handleError = (event: ErrorEvent) => {
       console.error("[v0] Global error:", event.error || event.message)
     }
 
-    // Add global error handlers
     window.addEventListener("unhandledrejection", handleUnhandledRejection)
     window.addEventListener("error", handleError)
 
-    // Cleanup
     return () => {
       window.removeEventListener("unhandledrejection", handleUnhandledRejection)
       window.removeEventListener("error", handleError)
     }
   }, [])
 
-  const handleAuthenticated = (token: string) => {
-    console.log("[v0] Authentication successful, setting access token")
-    setAccessToken(token)
-  }
-
-  const handleAuthError = () => {
-    console.log("[v0] Authentication error detected, clearing token and showing auth screen")
-    setAccessToken(null)
-    // Clear authentication state in the service
-    googleDriveService.clearAuthentication()
-  }
+  // Called by PlaylistManager when a Drive request comes back unauthorized.
+  // Try a silent server-side refresh first — only fall back to the "connect"
+  // screen if the server genuinely has no valid token (e.g. refresh token
+  // was revoked).
+  const handleAuthError = useCallback(async () => {
+    console.log("[v0] Drive auth error reported, attempting silent server refresh...")
+    const token = await refreshAccessToken()
+    if (!token) {
+      console.log("[v0] Silent refresh failed, showing connect screen")
+    }
+  }, [refreshAccessToken])
 
   const handleConfigureDirectories = () => {
     setShowSetupGuide(false)
-    // This will be handled by the PlaylistManager component
   }
 
-  // Check if we need to show setup guide
   const needsSetup = !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || !PLAYLIST_FOLDER_ID
 
   return (
@@ -109,7 +120,7 @@ export default function HomePage() {
       ) : needsSetup || showSetupGuide ? (
         <SetupGuide onConfigureDirectories={handleConfigureDirectories} />
       ) : !accessToken ? (
-        <GoogleAuth onAuthenticated={handleAuthenticated} />
+        <GoogleAuth />
       ) : (
         <PlaylistManager accessToken={accessToken} onAuthError={handleAuthError} />
       )}

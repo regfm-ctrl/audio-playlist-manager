@@ -286,8 +286,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     if (!removeAllFile) return
     setRemoveAllLoading(true); setRemoveAllMsg(''); setRemoveAllProgress({ scanned: 0, total: 0, phase: 'scanning' })
     try {
-      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
-      const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
+      const token = accessToken
       if (!token) { setRemoveAllMsg('❌ Google Drive not connected'); return }
       const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`, { headers: { Authorization: `Bearer ${token}` } })
       if (!listRes.ok) { setRemoveAllMsg('❌ Failed to list playlists'); return }
@@ -342,8 +341,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   async function findFileInPlaylists(file: { name: string; localPath: string }) {
     setInPlaylistsFile(file); setInPlaylistsList([]); setInPlaylistsLoading(true); setInPlaylistsProgress({ scanned: 0, total: 0 })
     try {
-      const tokenKey = Object.keys(localStorage).find(k => k.includes('access_token') || k.includes('google'))
-      const token = tokenKey ? localStorage.getItem(tokenKey) : accessToken
+      const token = accessToken
       if (!token) { setInPlaylistsLoading(false); return }
       const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`, { headers: { Authorization: `Bearer ${token}` } })
       if (!listRes.ok) { setInPlaylistsLoading(false); return }
@@ -376,34 +374,9 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
   useEffect(() => { loadInitialData() }, [accessToken])
 
-  useEffect(() => {
-    if (!accessToken) return
-
-    const silentRefresh = async () => {
-      try {
-        // Check if token is close to expiry (within 10 minutes)
-        const expStr = localStorage.getItem('google_access_token_expires_at')
-        const exp = expStr ? parseInt(expStr, 10) : 0
-        const now = Date.now()
-        const tenMinutes = 10 * 60 * 1000
-
-        if (!exp || (exp - now) < tenMinutes) {
-          console.log('[auth] Google token expiring soon, silently refreshing...')
-          // Request a new token silently (no popup if user is still logged into Google)
-          await googleDriveService.signIn()
-          console.log('[auth] Silent token refresh successful')
-        }
-      } catch (err) {
-        console.warn('[auth] Silent token refresh failed:', err)
-        // Don't show error — popup will appear naturally when token is needed
-      }
-    }
-
-    // Check immediately then every 5 minutes
-    silentRefresh()
-    const interval = setInterval(silentRefresh, 5 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [accessToken])
+  // Token freshness is handled server-side now (see app/page.tsx, which
+  // polls /api/auth/google/token and refreshes accessToken via props), so
+  // there's no client-side silent-refresh loop needed here anymore.
 
   const loadInitialData = async () => {
     setIsLoading(true); setError(null)
