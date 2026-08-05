@@ -98,17 +98,15 @@ export default function AdminPage() {
         <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #3a3a3c' }}>
           <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
-        <div style={{ padding: '10px 8px 4px' }}>
+        <div style={{ padding: '10px 8px 8px' }}>
           <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
-        </div>
-        <div style={{ padding: '4px 8px' }}>
           <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/admin" style={S.navItemActive}><IconAdmin /> Admin</a>
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ padding: '10px 14px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>
             {currentUser?.username?.[0]?.toUpperCase() ?? 'A'}
           </div>

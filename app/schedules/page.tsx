@@ -142,7 +142,7 @@ export default function SchedulesPage() {
         <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #3a3a3c' }}>
           <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
-        <div style={{ padding: '10px 8px 8px', background: '#2a2a2c' }}>
+        <div style={{ padding: '10px 8px 8px' }}>
           <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
           <a href="/schedules" style={S.navItemActive}><IconSchedule /> Schedules</a>
@@ -152,7 +152,12 @@ export default function SchedulesPage() {
         <div style={{ flex: 1 }} />
         <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>A</div>
-          <span style={{ color: '#777', fontSize: 12 }}>admin</span>
+          <span style={{ color: '#777', fontSize: 12, flex: 1 }}>admin</span>
+          <button onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login' }} title="Logout" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 0, display: 'flex', alignItems: 'center' }}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/><path d="M10 11l4-3-4-3"/><line x1="14" y1="8" x2="6" y2="8"/>
+            </svg>
+          </button>
         </div>
       </div>
 
