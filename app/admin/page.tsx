@@ -99,7 +99,7 @@ export default function AdminPage() {
           <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
         <div style={{ padding: '10px 8px 4px' }}>
-          <span style={{ fontSize: 10, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>MENU</span>
+          <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
         </div>
         <div style={{ padding: '4px 8px' }}>

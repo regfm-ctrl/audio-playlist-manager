@@ -405,9 +405,26 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     try {
       if (!PLAYLIST_FOLDER_ID) { setError("Playlist folder not configured."); return }
       googleDriveService.setAccessToken(accessToken)
+      // Check sessionStorage cache for playlists
+      let m3u8Files: GoogleDriveFile[] = []
+      try {
+        const cached = sessionStorage.getItem('playlistFiles')
+        if (cached) {
+          const { files, timestamp } = JSON.parse(cached)
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
+            m3u8Files = files
+            setPlaylists(m3u8Files)
+            setIsLoading(false)
+            return
+          }
+        }
+      } catch {}
       const playlistFiles = await googleDriveService.listFiles(PLAYLIST_FOLDER_ID)
-      const m3u8Files = playlistFiles.filter((file) => file.name.endsWith(".m3u8"))
+      m3u8Files = playlistFiles.filter((file) => file.name.endsWith(".m3u8"))
       setPlaylists(m3u8Files)
+      try {
+        sessionStorage.setItem('playlistFiles', JSON.stringify({ files: m3u8Files, timestamp: Date.now() }))
+      } catch {}
       try { const cached = sessionStorage.getItem('playlistDurations'); if (cached) setPlaylistDurations(JSON.parse(cached)) } catch {}
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to load playlists"
@@ -512,10 +529,26 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
   const loadDirectoryFiles = async (directory: AudioDirectory) => {
     if (!directory.driveId) return
+    // Check sessionStorage cache first
+    try {
+      const cached = sessionStorage.getItem(`dirFiles_${directory.name}`)
+      if (cached) {
+        const { files, timestamp } = JSON.parse(cached)
+        // Use cache if less than 10 minutes old
+        if (Date.now() - timestamp < 10 * 60 * 1000) {
+          setDirectoryFiles((prev) => ({ ...prev, [directory.name]: files }))
+          return
+        }
+      }
+    } catch {}
     setDirLoading((prev) => ({ ...prev, [directory.name]: true }))
     try {
       const files = await googleDriveService.listFiles(directory.driveId)
       setDirectoryFiles((prev) => ({ ...prev, [directory.name]: files }))
+      // Save to sessionStorage cache
+      try {
+        sessionStorage.setItem(`dirFiles_${directory.name}`, JSON.stringify({ files, timestamp: Date.now() }))
+      } catch {}
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : ""
       if (errorMessage.includes("Authentication expired") || errorMessage.includes("Not authenticated")) { if (onAuthError) onAuthError() }

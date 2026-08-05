@@ -142,11 +142,9 @@ export default function SchedulesPage() {
         <div style={{ padding: '12px 14px 10px', borderBottom: '0.5px solid #3a3a3c' }}>
           <img src="/regfm-logo.png" alt="REGFM" style={{ width: '100%', height: 'auto', borderRadius: 6, display: 'block' }} />
         </div>
-        <div style={{ padding: '12px 10px 6px' }}>
-          <span style={{ fontSize: 11, color: '#555', padding: '0 8px', marginBottom: 6, letterSpacing: '0.05em', display: 'block' }}>MENU</span>
+        <div style={{ padding: '10px 8px 8px', background: '#2a2a2c' }}>
+          <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
-        </div>
-        <div style={{ padding: '4px 10px' }}>
           <a href="/schedules" style={S.navItemActive}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
