@@ -14,9 +14,14 @@ type Campaign = {
   sponsor_name: string;
   business_category: string | null;
   audio_file_name: string;
+  audio_file_id: string | null;
+  audio_directory_name: string | null;
+  audio_local_path: string;
   spots_per_week: number;
   distribution_type: string;
+  per_day_counts: string | Record<number, number> | null;
   allowed_days: string | null;
+  allowed_breaks: string | null;
   time_from: string | null;
   time_to: string | null;
   position: number;
@@ -68,6 +73,7 @@ export default function CampaignsPage() {
   const [showForm, setShowForm] = useState(false);
   const [preview, setPreview] = useState<PreviewSlot[] | null>(null);
   const [previewCampaign, setPreviewCampaign] = useState<any>(null);
+  const [previewDiff, setPreviewDiff] = useState<{ added: string[]; removed: string[]; unchanged: string[]; audioChanged: boolean } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [deleteWithSchedules, setDeleteWithSchedules] = useState(false);
@@ -76,9 +82,10 @@ export default function CampaignsPage() {
   const [campaignSchedules, setCampaignSchedules] = useState<any[]>([]);
   const [campaignSchedulesLoading, setCampaignSchedulesLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
 
   // Form state
-  const [form, setForm] = useState({
+  const defaultForm = {
     sponsor_name: '',
     business_category: '',
     audio_file_name: '',
@@ -96,7 +103,8 @@ export default function CampaignsPage() {
     start_date: new Date().toISOString().split('T')[0],
     end_date: '',
     use_specific_breaks: false,
-  });
+  };
+  const [form, setForm] = useState(defaultForm);
 
   const [breakSearch, setBreakSearch] = useState('');
 
@@ -202,6 +210,7 @@ export default function CampaignsPage() {
 
     const campaign = {
       ...form,
+      id: editingCampaignId ?? undefined,
       allowed_days: form.allowed_days.join(','),
       allowed_breaks: form.use_specific_breaks && form.allowed_breaks.length > 0
         ? form.allowed_breaks.join(',')
@@ -215,7 +224,7 @@ export default function CampaignsPage() {
     const res = await fetch('/api/campaigns/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ campaign, playlists, accessToken, confirm: false }),
+      body: JSON.stringify({ campaign, playlists, accessToken, confirm: false, isEdit: !!editingCampaignId }),
     });
 
     const data = await res.json();
@@ -227,6 +236,7 @@ export default function CampaignsPage() {
 
     setPreviewCampaign(campaign);
     setPreview(data.preview);
+    setPreviewDiff(data.diff ?? null);
     if (data.skippedDueToConflict && data.skippedDueToConflict.length > 0) {
       setMsg(`⚠️ ${data.skippedDueToConflict.length} break(s) skipped — already occupied by another "${campaign.business_category}" campaign with no free break in the same hour: ${data.skippedDueToConflict.join(', ')}`);
     } else {
@@ -238,34 +248,52 @@ export default function CampaignsPage() {
     if (!previewCampaign || !preview) return;
     setConfirming(true);
     try {
-      // First save the campaign
-      const saveRes = await fetch('/api/campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(previewCampaign),
-      });
-      const campaign = await saveRes.json();
+      const isEdit = !!editingCampaignId;
+      let campaignId = editingCampaignId;
 
-      // Then generate schedules — pass preview slots directly so API doesn't recalculate
+      if (isEdit) {
+        // Update the existing campaign record in place
+        await fetch('/api/campaigns', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...previewCampaign, id: editingCampaignId }),
+        });
+      } else {
+        // Create a new campaign record
+        const saveRes = await fetch('/api/campaigns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(previewCampaign),
+        });
+        const created = await saveRes.json();
+        campaignId = created.id;
+      }
+
+      // Then reconcile schedules — pass preview slots directly so API doesn't recalculate
       const accessToken2 = await getGoogleAccessToken();
       const res = await fetch('/api/campaigns/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          campaign: { ...previewCampaign, id: campaign.id },
+          campaign: { ...previewCampaign, id: campaignId },
           previewSlots: preview, // send the already-calculated slots directly
           playlists,
           accessToken: accessToken2,
-          confirm: true
+          confirm: true,
+          isEdit,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         const errNote = data.errors?.length > 0 ? ` (${data.errors.length} failed)` : '';
-        setMsg(`✅ Campaign created! ${data.created} of ${data.total} schedules added${errNote}.`);
+        setMsg(isEdit
+          ? `✅ Campaign updated! ${data.created} added, ${data.removed} removed, ${data.refreshed} unchanged${errNote}.`
+          : `✅ Campaign created! ${data.created} of ${data.total} schedules added${errNote}.`);
         setPreview(null);
         setPreviewCampaign(null);
+        setPreviewDiff(null);
         setShowForm(false);
+        setEditingCampaignId(null);
         loadCampaigns();
       } else {
         const errDetail = data.errors?.length > 0 ? `\n${data.errors.slice(0,3).join('\n')}` : '';
@@ -277,31 +305,49 @@ export default function CampaignsPage() {
     }
   }
 
+  function editCampaign(campaign: Campaign) {
+    let perDayCounts = { 0: 0, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 0 } as Record<number, number>;
+    if (campaign.per_day_counts) {
+      try {
+        const parsed = typeof campaign.per_day_counts === 'string' ? JSON.parse(campaign.per_day_counts) : campaign.per_day_counts;
+        perDayCounts = parsed;
+      } catch {}
+    }
+    const allowedBreaks = campaign.allowed_breaks ? campaign.allowed_breaks.split(',') : [];
+
+    setForm({
+      sponsor_name: campaign.sponsor_name,
+      business_category: campaign.business_category || '',
+      audio_file_name: campaign.audio_file_name,
+      audio_file_id: campaign.audio_file_id || '',
+      audio_directory_name: campaign.audio_directory_name || '',
+      audio_local_path: campaign.audio_local_path,
+      spots_per_week: campaign.spots_per_week,
+      distribution_type: campaign.distribution_type,
+      per_day_counts: perDayCounts,
+      allowed_days: campaign.allowed_days ? campaign.allowed_days.split(',').map(Number) : [1, 2, 3, 4, 5],
+      time_from: campaign.time_from || '06:00',
+      time_to: campaign.time_to || '18:00',
+      allowed_breaks: allowedBreaks,
+      position: campaign.position,
+      start_date: campaign.start_date.split('T')[0],
+      end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
+      use_specific_breaks: allowedBreaks.length > 0,
+    });
+    setEditingCampaignId(campaign.id);
+    setShowForm(true);
+    setMsg('');
+    loadPlaylists();
+  }
+
   async function deleteCampaign(id: number, withSchedules: boolean) {
     setDeletingSchedules(true);
     try {
-      if (withSchedules) {
-        // Delete all schedules created by this campaign (matched by audio_file_name)
-        const campaign = campaigns.find(c => c.id === id);
-        if (campaign) {
-          const schedRes = await fetch('/api/schedules');
-          if (schedRes.ok) {
-            const allSchedules = await schedRes.json();
-            const toDelete = allSchedules.filter((s: any) => s.audio_file_name === campaign.audio_file_name);
-            for (const s of toDelete) {
-              await fetch('/api/schedules', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: s.id }),
-              });
-            }
-          }
-        }
-      }
+      const accessToken = withSchedules ? await getGoogleAccessToken() : null;
       await fetch('/api/campaigns', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, withSchedules, accessToken }),
       });
     } finally {
       setDeletingSchedules(false);
@@ -391,7 +437,7 @@ export default function CampaignsPage() {
             <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Schedule sponsor audio across multiple breaks automatically</p>
           </div>
           <button
-            onClick={() => { setShowForm(true); setMsg(''); loadPlaylists(); }}
+            onClick={() => { setForm(defaultForm); setEditingCampaignId(null); setShowForm(true); setMsg(''); loadPlaylists(); }}
             style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
           >
             + New Campaign
@@ -465,6 +511,7 @@ export default function CampaignsPage() {
                             <button onClick={() => toggleStatus(c)} style={{ fontSize: 12, color: '#0071e3', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                               {c.status === 'active' ? 'Pause' : 'Resume'}
                             </button>
+                            <button onClick={() => editCampaign(c)} style={{ fontSize: 12, color: '#a06000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit</button>
                             <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
                             <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(false); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
                           </div>
@@ -479,13 +526,13 @@ export default function CampaignsPage() {
         </div>
       </div>
 
-      {/* New Campaign Form */}
+      {/* Campaign Form */}
       {showForm && (
         <div style={S.overlay}>
           <div style={{ ...S.dialog, maxWidth: 700, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 500, color: 'white', margin: 0 }}>New Campaign</h2>
-              <button onClick={() => { setShowForm(false); setPreview(null); setMsg(''); }} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <h2 style={{ fontSize: 18, fontWeight: 500, color: 'white', margin: 0 }}>{editingCampaignId ? 'Edit Campaign' : 'New Campaign'}</h2>
+              <button onClick={() => { setShowForm(false); setPreview(null); setPreviewDiff(null); setEditingCampaignId(null); setMsg(''); }} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
 
             {msg && <p style={{ fontSize: 13, color: '#e0e0e0', marginBottom: 12, background: '#2a2a2c', padding: '8px 12px', borderRadius: 6 }}>{msg}</p>}
@@ -661,14 +708,40 @@ export default function CampaignsPage() {
           <div style={{ ...S.dialog, maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 500, color: 'white', margin: 0 }}>Schedule Preview</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 500, color: 'white', margin: 0 }}>{editingCampaignId ? 'Review Changes' : 'Schedule Preview'}</h2>
                 <p style={{ fontSize: 13, color: '#aaa', margin: '3px 0 0' }}>{previewCampaign?.sponsor_name} — {preview.length} spots this week</p>
               </div>
-              <button onClick={() => setPreview(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <button onClick={() => { setPreview(null); setPreviewDiff(null); }} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
 
             {msg && (
               <p style={{ fontSize: 12, color: '#e0c060', marginBottom: 16, background: '#4a3a1a', padding: '8px 12px', borderRadius: 6 }}>{msg}</p>
+            )}
+
+            {previewDiff && (
+              <div style={{ marginBottom: 16, background: '#2a2a2c', borderRadius: 8, padding: 12 }}>
+                {previewDiff.audioChanged && (
+                  <p style={{ fontSize: 12, color: '#e0c060', margin: '0 0 8px' }}>🔄 Audio file changed — every break will get the new file swapped in.</p>
+                )}
+                {previewDiff.added.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>+ Added ({previewDiff.added.length})</p>
+                    {previewDiff.added.map((n, i) => <p key={i} style={{ fontSize: 12, color: '#ccc', margin: '2px 0' }}>{n.replace(/\.m3u8$/i, '')}</p>)}
+                  </div>
+                )}
+                {previewDiff.removed.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, color: '#f87171', fontWeight: 600, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>− Removed ({previewDiff.removed.length})</p>
+                    {previewDiff.removed.map((n, i) => <p key={i} style={{ fontSize: 12, color: '#ccc', margin: '2px 0' }}>{n}</p>)}
+                  </div>
+                )}
+                {previewDiff.unchanged.length > 0 && (
+                  <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{previewDiff.unchanged.length} break(s) unchanged</p>
+                )}
+                {previewDiff.added.length === 0 && previewDiff.removed.length === 0 && (
+                  <p style={{ fontSize: 12, color: '#888', margin: 0 }}>No placement changes — only campaign details were updated.</p>
+                )}
+              </div>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20, maxHeight: 400, overflowY: 'auto' }}>
@@ -689,12 +762,12 @@ export default function CampaignsPage() {
             </p>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setPreview(null)} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+              <button onClick={() => { setPreview(null); setPreviewDiff(null); }} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
                 ← Edit
               </button>
               <button onClick={confirmSchedule} disabled={confirming}
                 style={{ flex: 1, padding: '11px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: confirming ? 0.6 : 1 }}>
-                {confirming ? 'Creating...' : '✓ Confirm & Schedule'}
+                {confirming ? (editingCampaignId ? 'Updating...' : 'Creating...') : (editingCampaignId ? '✓ Confirm & Update' : '✓ Confirm & Schedule')}
               </button>
             </div>
           </div>

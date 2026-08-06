@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
+import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
   await ensureCampaignCategoryColumns();
 
   const body = await req.json();
-  const { campaign, previewSlots, accessToken, confirm = false } = body;
+  const { campaign, previewSlots, accessToken, confirm = false, isEdit = false } = body;
 
   const {
     audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
@@ -105,14 +106,107 @@ export async function POST(req: NextRequest) {
     position, start_date, end_date,
   } = campaign;
 
-  // ── If confirming with pre-calculated slots, insert directly ──────────────
+  // ── If confirming with pre-calculated slots ────────────────────────────────
   if (confirm && previewSlots && previewSlots.length > 0) {
     const endDate = end_date ? new Date(end_date) : null
     const weeklyEndDate = endDate ? endDate.toISOString() : null
     const isToday = new Date(start_date).toDateString() === new Date().toDateString()
     let created = 0
+    let removed = 0
+    let refreshed = 0
     const errors: string[] = []
 
+    const desiredPlaylistIds = new Set(previewSlots.map((s: any) => s.id))
+
+    // Editing an existing campaign: reconcile against what's already
+    // placed, rather than blindly inserting everything again.
+    if (isEdit && campaign.id) {
+      const existingSchedules = await sql`
+        SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
+      `
+      const currentPlaylistIds = new Set(existingSchedules.map((s: any) => s.playlist_id))
+
+      for (const sched of existingSchedules) {
+        const stillWanted = desiredPlaylistIds.has(sched.playlist_id)
+        if (!stillWanted) {
+          // No longer needed — actually strip it out of the playlist, not
+          // just the database row
+          try {
+            await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
+            await sql`DELETE FROM schedules WHERE id = ${sched.id}`
+            removed++
+          } catch (err: any) {
+            errors.push(`Remove ${sched.playlist_name}: ${err.message ?? String(err)}`)
+          }
+        } else if (sched.audio_local_path !== audio_local_path) {
+          // Same break, but the audio file changed — swap it in place
+          try {
+            await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
+            await addPathToPlaylist(sched.playlist_id, audio_local_path, position ?? -1, accessToken)
+            await sql`
+              UPDATE schedules SET
+                audio_file_id = ${audio_file_id ?? ''}, audio_file_name = ${audio_file_name},
+                audio_directory_name = ${audio_directory_name ?? ''}, audio_local_path = ${audio_local_path},
+                position = ${position ?? -1}, expires_at = ${weeklyEndDate}
+              WHERE id = ${sched.id}
+            `
+            refreshed++
+          } catch (err: any) {
+            errors.push(`Update ${sched.playlist_name}: ${err.message ?? String(err)}`)
+          }
+        } else {
+          // Unchanged placement — just refresh metadata (dates/position),
+          // no Drive operation needed since the audio is already there
+          try {
+            await sql`
+              UPDATE schedules SET position = ${position ?? -1}, expires_at = ${weeklyEndDate}
+              WHERE id = ${sched.id}
+            `
+            refreshed++
+          } catch (err: any) {
+            errors.push(`Refresh ${sched.playlist_name}: ${err.message ?? String(err)}`)
+          }
+        }
+      }
+
+      // Add any genuinely new breaks
+      for (const slot of previewSlots) {
+        if (currentPlaylistIds.has(slot.id)) continue
+        try {
+          const hour = parseBreakHour(slot.name) ?? 9
+          const timeOfDay = `${String(hour).padStart(2, '0')}:00`
+          const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
+          const nextRun = isToday ? new Date().toISOString() : slot.scheduledFor
+
+          await addPathToPlaylist(slot.id, audio_local_path, position ?? -1, accessToken)
+          await sql`
+            INSERT INTO schedules (
+              audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+              playlist_id, playlist_name, position,
+              schedule_type, days_of_week, specific_dates, time_of_day,
+              next_run_at, expires_at, created_by, campaign_id
+            ) VALUES (
+              ${audio_file_id ?? ''}, ${audio_file_name}, ${audio_directory_name ?? ''}, ${audio_local_path},
+              ${slot.id}, ${slot.name}, ${position ?? -1},
+              'recurring', ${dayOfWeek}, null, ${timeOfDay},
+              ${nextRun}, ${weeklyEndDate}, ${user.username}, ${campaign.id}
+            )
+          `
+          created++
+        } catch (err: any) {
+          errors.push(`Add ${slot.name}: ${err.message ?? String(err)}`)
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        created, removed, refreshed,
+        errors,
+        message: `Updated: ${created} added, ${removed} removed, ${refreshed} unchanged/refreshed${errors.length ? `, ${errors.length} failed` : ''}`
+      })
+    }
+
+    // ── Brand new campaign — insert everything fresh ──────────────────────
     for (const slot of previewSlots) {
       try {
         const hour = parseBreakHour(slot.name) ?? 9
@@ -274,5 +368,37 @@ export async function POST(req: NextRequest) {
   }).filter(slot => !endDate || new Date(slot.scheduledFor) <= endDate)
     .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
 
-  return NextResponse.json({ preview: slotsWithDates, total: slotsWithDates.length, skippedDueToConflict })
+  // For edits, work out what's actually changing vs what's already placed
+  // so the preview can show it clearly before anything is touched.
+  let diff: { added: string[]; removed: string[]; unchanged: string[]; audioChanged: boolean } | null = null
+  if (isEdit && campaign.id) {
+    const existingSchedules = await sql`
+      SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
+    `
+    const currentByPlaylistId = new Map(existingSchedules.map((s: any) => [s.playlist_id, s]))
+    const desiredIds = new Set(slotsWithDates.map(s => s.id))
+
+    const added: string[] = []
+    const unchanged: string[] = []
+    let audioChanged = false
+
+    for (const slot of slotsWithDates) {
+      const existing = currentByPlaylistId.get(slot.id) as any
+      if (!existing) {
+        added.push(slot.name)
+      } else if (existing.audio_local_path !== audio_local_path) {
+        added.push(`${slot.name} (audio update)`)
+        audioChanged = true
+      } else {
+        unchanged.push(slot.name)
+      }
+    }
+    const removed = (existingSchedules as any[])
+      .filter(s => !desiredIds.has(s.playlist_id))
+      .map(s => s.playlist_name.replace(/\.m3u8$/i, ''))
+
+    diff = { added, removed, unchanged, audioChanged }
+  }
+
+  return NextResponse.json({ preview: slotsWithDates, total: slotsWithDates.length, skippedDueToConflict, diff })
 }

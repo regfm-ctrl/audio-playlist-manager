@@ -3,7 +3,7 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { isIntroPath, isOutroPath, isProtectedPath, getNextSting, buildPlaylistContent } from '@/lib/stings';
+import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 
 const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
 const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
@@ -76,50 +76,8 @@ async function processSchedules(accessToken: string, forceRun = false) {
       // 2. Check each playlist for the file and remove it
       for (const playlist of playlistFiles) {
         try {
-          const fileRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${playlist.id}?alt=media`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          if (!fileRes.ok) continue;
-
-          const playlistContent = await fileRes.text();
-          const lines = playlistContent.split('\n').filter((l: string) => l.trim());
-          let containerName = '';
-          let existingPaths: string[] = [];
-
-          for (const line of lines) {
-            if (line.startsWith('#EXTM3U')) continue;
-            if (line.startsWith('Container=')) {
-              const match = line.match(/Container=<([^>]+)>(.+)/);
-              if (match) {
-                containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-                existingPaths = match[2].split('|').filter((p: string) => p.trim());
-              }
-            }
-          }
-
-          // Skip if file not in this playlist
-          if (!existingPaths.includes(pathToRemove)) continue;
-
-          // Remove the file. If that was the last real (non-sting) item,
-          // drop the intro/outro too so the break goes fully empty.
-          const introPath = existingPaths.find(isIntroPath) || null;
-          const outroPath = existingPaths.find(isOutroPath) || null;
-          const updatedReal = existingPaths.filter((p: string) => p !== pathToRemove && !isProtectedPath(p));
-          const newContent = buildPlaylistContent(containerName, updatedReal, introPath, outroPath);
-
-          const saveRes = await fetch(
-            `https://www.googleapis.com/upload/drive/v3/files/${playlist.id}?uploadType=media&supportsAllDrives=true`,
-            {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'text/plain' },
-              body: newContent,
-            }
-          );
-
-          if (saveRes.ok) {
-            removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
-          }
+          const removed = await removePathFromPlaylist(playlist.id, pathToRemove, accessToken);
+          if (removed) removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
         } catch (innerErr) {
           console.error(`[scheduler] Error checking playlist ${playlist.name}:`, innerErr);
         }
@@ -182,32 +140,11 @@ async function processSchedules(accessToken: string, forceRun = false) {
   for (const schedule of due) {
     try {
       // 1. Fetch current playlist content from Google Drive
-      const fileRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${schedule.playlist_id}?alt=media`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      const state = await fetchPlaylistState(schedule.playlist_id, accessToken);
+      if (!state) throw new Error(`Failed to fetch playlist: ${schedule.playlist_id}`);
+      const { existingPaths } = state;
 
-      if (!fileRes.ok) throw new Error(`Failed to fetch playlist: ${fileRes.status}`);
-
-      const content = await fileRes.text();
-
-      // 2. Parse existing playlist items
-      const lines = content.split('\n').filter((l: string) => l.trim());
-      let containerName = '';
-      let existingPaths: string[] = [];
-
-      for (const line of lines) {
-        if (line.startsWith('#EXTM3U')) continue;
-        if (line.startsWith('Container=')) {
-          const match = line.match(/Container=<([^>]+)>(.+)/);
-          if (match) {
-            containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-            existingPaths = match[2].split('|').filter((p: string) => p.trim());
-          }
-        }
-      }
-
-      // 3. Build the new file path
+      // 2. Build the new file path
       const newPath = schedule.audio_local_path;
 
       // Skip if already in playlist
@@ -218,44 +155,9 @@ async function processSchedules(accessToken: string, forceRun = false) {
         `;
         results.push({ schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' });
       } else {
-        // 4. Work out real (non-sting) content and whether this break was
-        // empty before this add — if so, pick a new intro/outro in rotation.
-        const realPaths = existingPaths.filter((p) => !isProtectedPath(p));
-        const wasEmpty = realPaths.length === 0;
-
-        let introPath = existingPaths.find(isIntroPath) || null;
-        let outroPath = existingPaths.find(isOutroPath) || null;
-        if (wasEmpty) {
-          introPath = await getNextSting('intro', accessToken);
-          outroPath = await getNextSting('outro', accessToken);
-        }
-
-        // Insert at position or append (position is relative to the real
-        // content only, so it's unaffected by where the intro/outro sit)
-        const position = schedule.position;
-        if (position >= 0 && position < realPaths.length) {
-          realPaths.splice(position, 0, newPath);
-        } else {
-          realPaths.push(newPath);
-        }
-
-        // 5. Generate new playlist content
-        const newContent = buildPlaylistContent(containerName, realPaths, introPath, outroPath);
-
-        // 6. Save back to Google Drive
-        const saveRes = await fetch(
-          `https://www.googleapis.com/upload/drive/v3/files/${schedule.playlist_id}?uploadType=media&supportsAllDrives=true`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'text/plain',
-            },
-            body: newContent,
-          }
-        );
-
-        if (!saveRes.ok) throw new Error(`Failed to save playlist: ${saveRes.status}`);
+        // 3. Add it (handles intro/outro wrapping automatically)
+        const outcome = await addPathToPlaylist(schedule.playlist_id, newPath, schedule.position, accessToken);
+        if (outcome !== 'added') throw new Error(`Failed to save playlist: ${outcome}`);
 
         await sql`
           INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
