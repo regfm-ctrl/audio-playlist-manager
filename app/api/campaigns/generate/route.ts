@@ -206,13 +206,21 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Brand new campaign — insert everything fresh ──────────────────────
+    // ── Brand new campaign — write to Drive immediately + insert schedules ──
     for (const slot of previewSlots) {
       try {
         const hour = parseBreakHour(slot.name) ?? 9
         const timeOfDay = `${String(hour).padStart(2, '0')}:00`
         const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
         const nextRun = isToday ? new Date().toISOString() : slot.scheduledFor
+
+        // Apply to Drive right away, same as an edit does. If this fails
+        // (e.g. a transient Drive error) the schedule row is still created
+        // with next_run_at due, so the normal scheduler run will retry it.
+        const outcome = await addPathToPlaylist(slot.id, audio_local_path, position ?? -1, accessToken)
+        if (outcome === 'failed') {
+          errors.push(`${slot.name}: failed to write to Drive, will retry on next scheduler run`)
+        }
 
         await sql`
           INSERT INTO schedules (
