@@ -4,10 +4,36 @@ import { getValidAccessToken } from '@/lib/google-tokens';
 import { storeContainerName } from '@/lib/playlist-names';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
+// Give this route as much time as the plan allows — with a lot of break
+// files, even parallel batches can take a little while.
+export const maxDuration = 60;
+
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
   if (!token) return null;
   return verifyToken(token);
+}
+
+async function scanOne(pl: { id: string; name: string }, accessToken: string) {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${pl.id}?alt=media`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) return { name: pl.name, error: 'fetch failed' as const };
+    const content = await res.text();
+    const match = content.match(/Container=<([^>]+)>(.*)/);
+    if (match) {
+      const containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+      if (containerName) {
+        await storeContainerName(pl.id, containerName);
+        return { name: pl.name, containerName };
+      }
+    }
+    return { name: pl.name, containerName: null };
+  } catch (err: any) {
+    return { name: pl.name, error: err.message ?? String(err) };
+  }
 }
 
 // Run this once (safe to re-run any time) to capture the display name
@@ -30,33 +56,22 @@ export async function GET(req: NextRequest) {
   const listData = await listRes.json();
   const playlists = (listData.files || []).filter((f: any) => f.name.endsWith('.m3u8'));
 
-  let scanned = 0;
-  let captured = 0;
+  const BATCH_SIZE = 20;
   const captures: string[] = [];
   const errors: string[] = [];
+  let captured = 0;
 
-  for (const pl of playlists) {
-    scanned++;
-    try {
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${pl.id}?alt=media`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      if (!res.ok) { errors.push(`${pl.name}: fetch failed`); continue; }
-      const content = await res.text();
-      const match = content.match(/Container=<([^>]+)>(.*)/);
-      if (match) {
-        const containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-        if (containerName) {
-          await storeContainerName(pl.id, containerName);
-          captured++;
-          captures.push(`${pl.name}: "${containerName}"`);
-        }
+  for (let i = 0; i < playlists.length; i += BATCH_SIZE) {
+    const batch = playlists.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map((pl: any) => scanOne(pl, accessToken)));
+    for (const r of results) {
+      if ('error' in r && r.error) { errors.push(`${r.name}: ${r.error}`); continue; }
+      if ('containerName' in r && r.containerName) {
+        captured++;
+        captures.push(`${r.name}: "${r.containerName}"`);
       }
-    } catch (err: any) {
-      errors.push(`${pl.name}: ${err.message ?? String(err)}`);
     }
   }
 
-  return NextResponse.json({ scanned, captured, captures, errors });
+  return NextResponse.json({ scanned: playlists.length, captured, captures, errors });
 }
