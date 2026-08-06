@@ -95,7 +95,6 @@ export async function POST(req: NextRequest) {
   if (confirm && previewSlots && previewSlots.length > 0) {
     const endDate = end_date ? new Date(end_date) : null
     const weeklyEndDate = endDate ? endDate.toISOString() : null
-    const isToday = new Date(start_date).toDateString() === new Date().toDateString()
     let created = 0
     let removed = 0
     let refreshed = 0
@@ -179,7 +178,7 @@ export async function POST(req: NextRequest) {
           const hour = parseBreakHour(slot.name) ?? 9
           const timeOfDay = `${String(hour).padStart(2, '0')}:00`
           const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
-          const nextRun = isToday ? new Date().toISOString() : slot.scheduledFor
+          const nextRun = slot.scheduledFor
 
           await addPathToPlaylist(slot.id, audio_local_path, position ?? -1, accessToken)
           await sql`
@@ -219,7 +218,7 @@ export async function POST(req: NextRequest) {
         const hour = parseBreakHour(slot.name) ?? 9
         const timeOfDay = `${String(hour).padStart(2, '0')}:00`
         const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
-        const nextRun = isToday ? new Date().toISOString() : slot.scheduledFor
+        const nextRun = slot.scheduledFor
 
         // Apply to Drive right away, same as an edit does. If this fails
         // (e.g. a transient Drive error) the schedule row is still created
