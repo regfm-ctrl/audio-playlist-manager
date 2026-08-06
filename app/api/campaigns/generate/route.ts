@@ -6,6 +6,8 @@ import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
+export const maxDuration = 60;
+
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
   if (!token) return null;
@@ -99,6 +101,19 @@ export async function POST(req: NextRequest) {
     let refreshed = 0
     const errors: string[] = []
 
+    // Drive writes are the slow part (each is a fetch + a save). Process
+    // in parallel batches rather than one slot at a time, or a campaign
+    // with more than a handful of spots takes far too long to confirm.
+    const BATCH_SIZE = 15
+    async function processInBatches<T, R>(items: T[], worker: (item: T) => Promise<R>): Promise<R[]> {
+      const results: R[] = []
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE)
+        results.push(...await Promise.all(batch.map(worker)))
+      }
+      return results
+    }
+
     const desiredPlaylistIds = new Set(previewSlots.map((s: any) => s.id))
 
     // Editing an existing campaign: reconcile against what's already
@@ -109,7 +124,7 @@ export async function POST(req: NextRequest) {
       `
       const currentPlaylistIds = new Set(existingSchedules.map((s: any) => s.playlist_id))
 
-      for (const sched of existingSchedules) {
+      const reconcileResults = await processInBatches(existingSchedules, async (sched: any) => {
         const stillWanted = desiredPlaylistIds.has(sched.playlist_id)
         if (!stillWanted) {
           // No longer needed — actually strip it out of the playlist, not
@@ -117,9 +132,9 @@ export async function POST(req: NextRequest) {
           try {
             await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
             await sql`DELETE FROM schedules WHERE id = ${sched.id}`
-            removed++
+            return { type: 'removed' as const }
           } catch (err: any) {
-            errors.push(`Remove ${sched.playlist_name}: ${err.message ?? String(err)}`)
+            return { type: 'error' as const, message: `Remove ${sched.playlist_name}: ${err.message ?? String(err)}` }
           }
         } else if (sched.audio_local_path !== audio_local_path) {
           // Same break, but the audio file changed — swap it in place
@@ -133,9 +148,9 @@ export async function POST(req: NextRequest) {
                 position = ${position ?? -1}, expires_at = ${weeklyEndDate}
               WHERE id = ${sched.id}
             `
-            refreshed++
+            return { type: 'refreshed' as const }
           } catch (err: any) {
-            errors.push(`Update ${sched.playlist_name}: ${err.message ?? String(err)}`)
+            return { type: 'error' as const, message: `Update ${sched.playlist_name}: ${err.message ?? String(err)}` }
           }
         } else {
           // Unchanged placement — just refresh metadata (dates/position),
@@ -145,16 +160,21 @@ export async function POST(req: NextRequest) {
               UPDATE schedules SET position = ${position ?? -1}, expires_at = ${weeklyEndDate}
               WHERE id = ${sched.id}
             `
-            refreshed++
+            return { type: 'refreshed' as const }
           } catch (err: any) {
-            errors.push(`Refresh ${sched.playlist_name}: ${err.message ?? String(err)}`)
+            return { type: 'error' as const, message: `Refresh ${sched.playlist_name}: ${err.message ?? String(err)}` }
           }
         }
+      })
+      for (const r of reconcileResults) {
+        if (r.type === 'removed') removed++
+        else if (r.type === 'refreshed') refreshed++
+        else errors.push(r.message)
       }
 
       // Add any genuinely new breaks
-      for (const slot of previewSlots) {
-        if (currentPlaylistIds.has(slot.id)) continue
+      const newSlots = previewSlots.filter((slot: any) => !currentPlaylistIds.has(slot.id))
+      const addResults = await processInBatches(newSlots, async (slot: any) => {
         try {
           const hour = parseBreakHour(slot.name) ?? 9
           const timeOfDay = `${String(hour).padStart(2, '0')}:00`
@@ -175,10 +195,14 @@ export async function POST(req: NextRequest) {
               ${nextRun}, ${weeklyEndDate}, ${user.username}, ${campaign.id}
             )
           `
-          created++
+          return { ok: true as const }
         } catch (err: any) {
-          errors.push(`Add ${slot.name}: ${err.message ?? String(err)}`)
+          return { ok: false as const, message: `Add ${slot.name}: ${err.message ?? String(err)}` }
         }
+      })
+      for (const r of addResults) {
+        if (r.ok) created++
+        else errors.push(r.message)
       }
 
       return NextResponse.json({
@@ -190,7 +214,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Brand new campaign — write to Drive immediately + insert schedules ──
-    for (const slot of previewSlots) {
+    const createResults = await processInBatches(previewSlots, async (slot: any) => {
       try {
         const hour = parseBreakHour(slot.name) ?? 9
         const timeOfDay = `${String(hour).padStart(2, '0')}:00`
@@ -201,9 +225,9 @@ export async function POST(req: NextRequest) {
         // (e.g. a transient Drive error) the schedule row is still created
         // with next_run_at due, so the normal scheduler run will retry it.
         const outcome = await addPathToPlaylist(slot.id, audio_local_path, position ?? -1, accessToken)
-        if (outcome === 'failed') {
-          errors.push(`${slot.name}: failed to write to Drive, will retry on next scheduler run`)
-        }
+        const driveError = outcome === 'failed'
+          ? `${slot.name}: failed to write to Drive, will retry on next scheduler run`
+          : null
 
         await sql`
           INSERT INTO schedules (
@@ -229,11 +253,15 @@ export async function POST(req: NextRequest) {
             ${campaign.id ?? null}
           )
         `
-        created++
+        return { ok: true as const, driveError }
       } catch (err: any) {
         console.error('[campaigns/generate] Insert error:', err)
-        errors.push(`${slot.name}: ${err.message ?? String(err)}`)
+        return { ok: false as const, message: `${slot.name}: ${err.message ?? String(err)}` }
       }
+    })
+    for (const r of createResults) {
+      if (r.ok) { created++; if (r.driveError) errors.push(r.driveError) }
+      else errors.push(r.message)
     }
 
     if (campaign.id) {

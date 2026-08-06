@@ -25,7 +25,11 @@ async function listDriveFiles(folderId: string, accessToken: string): Promise<{ 
     );
     if (!res.ok) return [];
     const data = await res.json();
-    return data.files || [];
+    const files: { id: string; name: string }[] = data.files || [];
+    // Only real audio files — RadioBOSS drops .rbdata (its own waveform/
+    // metadata cache) alongside audio in the same folder, and it should
+    // never be picked as a sting.
+    return files.filter(f => /\.(mp3|wav)$/i.test(f.name));
   } catch {
     return [];
   }
