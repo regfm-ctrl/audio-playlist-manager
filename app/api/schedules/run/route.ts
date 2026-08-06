@@ -5,6 +5,9 @@ import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
+import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
+
+export const maxDuration = 60;
 
 const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
 const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
@@ -274,6 +277,16 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await processSchedules(accessToken, forceRun);
+
+  // Weekly random-reshuffle check — cheap no-op unless it's a new
+  // Melbourne week and a campaign is actually due
+  try {
+    const reshuffle = await reshuffleDueCampaigns();
+    if (reshuffle.processed > 0) (result as any).weeklyReshuffle = reshuffle;
+  } catch (err) {
+    console.error('[schedules/run] Weekly reshuffle check failed:', err);
+  }
+
   return NextResponse.json(result);
 }
 
@@ -284,7 +297,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // For cron, we need the stored Google token — fetch from DB if you store it
-  // For now return instructions
-  return NextResponse.json({ message: 'Use POST with accessToken for now' });
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) {
+    return NextResponse.json({
+      error: 'Google Drive not connected. Please connect Google Drive by clicking the Connect button in the main app.',
+      needsGoogleAuth: true,
+    }, { status: 400 });
+  }
+
+  const result = await processSchedules(accessToken, false);
+
+  try {
+    const reshuffle = await reshuffleDueCampaigns();
+    if (reshuffle.processed > 0) (result as any).weeklyReshuffle = reshuffle;
+  } catch (err) {
+    console.error('[schedules/run] Weekly reshuffle check failed:', err);
+  }
+
+  return NextResponse.json(result);
 }

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date, booking_reference, booking_details,
+    position, start_date, end_date, booking_reference, booking_details, randomize_weekly,
   } = await req.json();
 
   const rows = await sql`
@@ -40,12 +40,12 @@ export async function POST(req: NextRequest) {
       sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
       spots_per_week, distribution_type, per_day_counts,
       allowed_days, time_from, time_to, allowed_breaks,
-      position, start_date, end_date, created_by, booking_reference, booking_details
+      position, start_date, end_date, created_by, booking_reference, booking_details, randomize_weekly
     ) VALUES (
       ${sponsor_name}, ${business_category || null}, ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
       ${spots_per_week}, ${distribution_type}, ${per_day_counts ? JSON.stringify(per_day_counts) : null},
       ${allowed_days ?? null}, ${time_from ?? null}, ${time_to ?? null}, ${allowed_breaks ?? null},
-      ${position ?? -1}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}
+      ${position ?? -1}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}, ${!!randomize_weekly}
     ) RETURNING *
   `;
   return NextResponse.json(rows[0]);
@@ -72,8 +72,16 @@ export async function PATCH(req: NextRequest) {
     sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date, booking_reference, booking_details,
+    position, start_date, end_date, booking_reference, booking_details, randomize_weekly,
   } = body;
+
+  // If randomize_weekly is being turned on for the first time, seed
+  // last_reshuffled_at to now so the first automatic reshuffle happens on
+  // the next Melbourne Monday, not immediately overwriting what was just
+  // configured moments ago via this very edit.
+  const existing = await sql`SELECT randomize_weekly FROM campaigns WHERE id = ${id}`;
+  const wasRandomizing = existing[0]?.randomize_weekly;
+  const justEnabled = randomize_weekly && !wasRandomizing;
 
   const rows = await sql`
     UPDATE campaigns SET
@@ -94,10 +102,14 @@ export async function PATCH(req: NextRequest) {
       start_date = ${start_date},
       end_date = ${end_date ?? null},
       booking_reference = ${booking_reference || null},
-      booking_details = ${booking_details || null}
+      booking_details = ${booking_details || null},
+      randomize_weekly = ${!!randomize_weekly}
     WHERE id = ${id}
     RETURNING *
   `;
+  if (justEnabled) {
+    await sql`UPDATE campaigns SET last_reshuffled_at = NOW() WHERE id = ${id}`;
+  }
   return NextResponse.json(rows[0] ?? { ok: true });
 }
 

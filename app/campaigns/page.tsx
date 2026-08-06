@@ -15,6 +15,7 @@ type Campaign = {
   business_category: string | null;
   booking_reference: string | null;
   booking_details: string | null;
+  randomize_weekly: boolean;
   audio_file_name: string;
   audio_file_id: string | null;
   audio_directory_name: string | null;
@@ -107,6 +108,7 @@ export default function CampaignsPage() {
     start_date: new Date().toISOString().split('T')[0],
     end_date: '',
     use_specific_breaks: false,
+    randomize_weekly: false,
   };
   const [form, setForm] = useState(defaultForm);
 
@@ -339,6 +341,7 @@ export default function CampaignsPage() {
       start_date: campaign.start_date.split('T')[0],
       end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
       use_specific_breaks: allowedBreaks.length > 0,
+      randomize_weekly: !!campaign.randomize_weekly,
     });
     setEditingCampaignId(campaign.id);
     setShowForm(true);
@@ -492,6 +495,9 @@ export default function CampaignsPage() {
                           <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: c.distribution_type === 'even' ? '#e8f0fb' : c.distribution_type === 'random' ? '#fff8e8' : '#e4f5ee', color: c.distribution_type === 'even' ? '#0055cc' : c.distribution_type === 'random' ? '#a06000' : '#0a6e46' }}>
                             {c.distribution_type}
                           </span>
+                          {c.randomize_weekly && (
+                            <span title="Reshuffles every Monday" style={{ marginLeft: 4, padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: '#f0e8fb', color: '#6b21a8' }}>🔀 weekly</span>
+                          )}
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>
                           {c.allowed_days ? c.allowed_days.split(',').map(d => DAYS[parseInt(d)]).join(', ') : 'All'}
@@ -622,6 +628,19 @@ export default function CampaignsPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Randomize weekly */}
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: 8, background: '#2a2a2c', borderRadius: 8, padding: '10px 12px' }}>
+                <input type="checkbox" id="randomize_weekly" checked={form.randomize_weekly}
+                  onChange={e => setForm(f => ({ ...f, randomize_weekly: e.target.checked }))}
+                  style={{ marginTop: 3, accentColor: '#0071e3' }} />
+                <label htmlFor="randomize_weekly" style={{ fontSize: 13, color: '#ddd', cursor: 'pointer' }}>
+                  Randomize weekly
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                    Every Monday, automatically pick a fresh set of breaks (same days/spots/time range), avoiding last week's exact times where possible — so the same ad isn't always heard at the same time each week.
+                  </div>
+                </label>
               </div>
 
               {/* Per day counts */}
