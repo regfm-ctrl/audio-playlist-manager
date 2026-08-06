@@ -81,6 +81,7 @@ export default function CampaignsPage() {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [deleteWithSchedules, setDeleteWithSchedules] = useState(false);
   const [deletingSchedules, setDeletingSchedules] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
   const [viewSchedulesCampaign, setViewSchedulesCampaign] = useState<Campaign | null>(null);
   const [campaignSchedules, setCampaignSchedules] = useState<any[]>([]);
   const [campaignSchedulesLoading, setCampaignSchedulesLoading] = useState(false);
@@ -181,6 +182,18 @@ export default function CampaignsPage() {
   }
 
   useEffect(() => { loadCampaigns(); }, []);
+
+  // Deletion has no real progress signal from the server mid-request, so
+  // ease toward 90% while it's running (never claiming completion until
+  // it actually finishes) — gives visible motion instead of a static wait.
+  useEffect(() => {
+    if (!deletingSchedules) { setDeleteProgress(0); return; }
+    setDeleteProgress(8);
+    const interval = setInterval(() => {
+      setDeleteProgress(p => p < 90 ? p + (90 - p) * 0.08 : p);
+    }, 250);
+    return () => clearInterval(interval);
+  }, [deletingSchedules]);
 
   async function loadCampaigns() {
     setLoading(true);
@@ -358,6 +371,8 @@ export default function CampaignsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, withSchedules, accessToken }),
       });
+      setDeleteProgress(100);
+      await new Promise(r => setTimeout(r, 250)); // let the bar visibly reach the end
     } finally {
       setDeletingSchedules(false);
       setConfirmDelete(null);
@@ -823,6 +838,16 @@ export default function CampaignsPage() {
                 <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Removes all matching schedule entries from the Schedules page</div>
               </div>
             </label>
+            {deletingSchedules && deleteWithSchedules && (
+              <div style={{ marginBottom: 16, marginTop: -8 }}>
+                <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
+                  Removing audio from every break — this can take 15-30 seconds for larger campaigns.
+                </p>
+                <div style={{ width: '100%', height: 6, background: '#3a3a3c', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: `${deleteProgress}%`, height: '100%', background: '#cc0000', borderRadius: 3, transition: 'width 0.25s ease-out' }} />
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setConfirmDelete(null); setDeleteWithSchedules(false); }} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => deleteCampaign(confirmDelete, deleteWithSchedules)} disabled={deletingSchedules}
