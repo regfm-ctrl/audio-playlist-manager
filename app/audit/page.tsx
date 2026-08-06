@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
 
 type PhantomItem = { playlistId: string; playlistName: string; path: string; fileName: string };
 type ReconcileResult = { scanned: number; added: string[]; phantoms: PhantomItem[]; errors: string[] };
+type ReconcilePage = { totalPlaylists: number; pageScanned: number; nextOffset: number | null; added: string[]; phantoms: PhantomItem[]; errors: string[] };
+
+const PAGE_SIZE = 30;
 
 export default function AuditPage() {
   const [result, setResult] = useState<ReconcileResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
 
@@ -16,10 +19,28 @@ export default function AuditPage() {
     setLoading(true);
     setResult(null);
     setRemoved(new Set());
+    setProgress(null);
+
+    const accumulated: ReconcileResult = { scanned: 0, added: [], phantoms: [], errors: [] };
     try {
-      const res = await fetch('/api/audit/reconcile');
-      const data = await res.json();
-      setResult(data);
+      let offset = 0;
+      while (true) {
+        const res = await fetch(`/api/audit/reconcile?offset=${offset}&limit=${PAGE_SIZE}`);
+        if (!res.ok) {
+          accumulated.errors.push(`Page at offset ${offset} failed: ${res.status}`);
+          break;
+        }
+        const page: ReconcilePage = await res.json();
+        accumulated.scanned += page.pageScanned;
+        accumulated.added.push(...page.added);
+        accumulated.phantoms.push(...page.phantoms);
+        accumulated.errors.push(...page.errors);
+        setProgress({ done: accumulated.scanned, total: page.totalPlaylists });
+        setResult({ ...accumulated }); // show results incrementally as pages complete
+
+        if (page.nextOffset === null) break;
+        offset = page.nextOffset;
+      }
     } finally {
       setLoading(false);
     }
@@ -81,15 +102,19 @@ export default function AuditPage() {
           </div>
           <button onClick={runAudit} disabled={loading}
             style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Running audit...' : 'Run Audit'}
+            {loading ? (progress ? `Scanning... ${progress.done}/${progress.total}` : 'Starting...') : 'Run Audit'}
           </button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {loading && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 60, gap: 12 }}>
-              <Loader2 className="animate-spin" size={24} color="#888" />
-              <p style={{ fontSize: 13, color: '#888' }}>Scanning every playlist — this can take a little while for a large folder.</p>
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>
+                {progress ? `Scanning playlist ${progress.done} of ${progress.total}...` : 'Starting scan...'} This can take several minutes for a large folder — results below fill in as it goes.
+              </p>
+              <div style={{ width: '100%', height: 6, background: '#e5e5e5', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ width: progress ? `${(progress.done / progress.total) * 100}%` : '3%', height: '100%', background: '#0071e3', borderRadius: 3, transition: 'width 0.3s ease-out' }} />
+              </div>
             </div>
           )}
 
@@ -97,7 +122,7 @@ export default function AuditPage() {
             <p style={{ color: '#888', textAlign: 'center', padding: 40, fontSize: 13 }}>Run an audit to check whether the playlist files match what's scheduled.</p>
           )}
 
-          {!loading && result && (
+          {result && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 800 }}>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1, background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16 }}>

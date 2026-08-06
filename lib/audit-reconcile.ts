@@ -10,20 +10,32 @@ export type PhantomItem = {
   fileName: string;
 };
 
-export type ReconcileResult = {
-  scanned: number;
+export type ReconcilePage = {
+  totalPlaylists: number;
+  pageScanned: number;
+  nextOffset: number | null; // null means done
   added: string[];
   phantoms: PhantomItem[];
   errors: string[];
 };
 
-// Compares every active schedule (what the database expects to be placed)
-// against the real content of every playlist file. Missing items (expected
-// but not present) get added automatically — that's purely additive and
-// safe. Phantom items (present but not expected by any active schedule)
-// are only reported, never removed automatically, since they may be
-// legitimate manual additions made outside the scheduling system.
-export async function runReconcileAudit(accessToken: string): Promise<ReconcileResult> {
+// Processes one page of playlists (from `offset`, up to `limit`), comparing
+// what the database expects against what's actually in each file. Missing
+// items get added automatically (safe, purely additive). Phantom items are
+// only reported, never removed automatically, since they may be legitimate
+// manual additions made outside the scheduling system.
+//
+// Paginated rather than doing the whole folder in one call — Google's API
+// throttles bursts of concurrent requests from one token regardless of how
+// parallel the client fires them, so a full scan of a large folder can take
+// several minutes in total. A single request would risk timing out well
+// before that; calling this repeatedly with an increasing offset keeps each
+// individual request small and fast regardless of total folder size.
+export async function runReconcileAuditPage(
+  accessToken: string,
+  offset: number,
+  limit: number
+): Promise<ReconcilePage> {
   const schedules = await sql`
     SELECT playlist_id, playlist_name, audio_local_path, audio_file_name
     FROM schedules WHERE is_active = true
@@ -40,7 +52,8 @@ export async function runReconcileAudit(accessToken: string): Promise<ReconcileR
   );
   if (!listRes.ok) throw new Error('Failed to list playlists');
   const listData = await listRes.json();
-  const playlists = (listData.files || []).filter((f: any) => f.name.endsWith('.m3u8'));
+  const allPlaylists = (listData.files || []).filter((f: any) => f.name.endsWith('.m3u8'));
+  const playlists = allPlaylists.slice(offset, offset + limit);
 
   const added: string[] = [];
   const phantoms: PhantomItem[] = [];
@@ -81,5 +94,6 @@ export async function runReconcileAudit(accessToken: string): Promise<ReconcileR
     }));
   }
 
-  return { scanned: playlists.length, added, phantoms, errors };
+  const nextOffset = offset + limit < allPlaylists.length ? offset + limit : null;
+  return { totalPlaylists: allPlaylists.length, pageScanned: playlists.length, nextOffset, added, phantoms, errors };
 }
