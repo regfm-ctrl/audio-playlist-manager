@@ -10,8 +10,7 @@ function formatTime(hour: number, minute: number): string {
   const period = hour >= 12 ? 'pm' : 'am';
   let displayHour = hour % 12;
   if (displayHour === 0) displayHour = 12;
-  if (minute === 0) return `${displayHour}${period}`;
-  return `${displayHour}.${String(minute).padStart(2, '0')}${period}`;
+  return `${displayHour}:${String(minute).padStart(2, '0')}${period}`;
 }
 
 function formatDMY(date: Date): string {
