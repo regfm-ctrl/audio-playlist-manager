@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date,
+    position, start_date, end_date, booking_reference, booking_details,
   } = await req.json();
 
   const rows = await sql`
@@ -40,12 +40,12 @@ export async function POST(req: NextRequest) {
       sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
       spots_per_week, distribution_type, per_day_counts,
       allowed_days, time_from, time_to, allowed_breaks,
-      position, start_date, end_date, created_by
+      position, start_date, end_date, created_by, booking_reference, booking_details
     ) VALUES (
       ${sponsor_name}, ${business_category || null}, ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
       ${spots_per_week}, ${distribution_type}, ${per_day_counts ? JSON.stringify(per_day_counts) : null},
       ${allowed_days ?? null}, ${time_from ?? null}, ${time_to ?? null}, ${allowed_breaks ?? null},
-      ${position ?? -1}, ${start_date}, ${end_date ?? null}, ${user.username}
+      ${position ?? -1}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}
     ) RETURNING *
   `;
   return NextResponse.json(rows[0]);
@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest) {
     sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date,
+    position, start_date, end_date, booking_reference, booking_details,
   } = body;
 
   const rows = await sql`
@@ -92,7 +92,9 @@ export async function PATCH(req: NextRequest) {
       allowed_breaks = ${allowed_breaks ?? null},
       position = ${position ?? -1},
       start_date = ${start_date},
-      end_date = ${end_date ?? null}
+      end_date = ${end_date ?? null},
+      booking_reference = ${booking_reference || null},
+      booking_details = ${booking_details || null}
     WHERE id = ${id}
     RETURNING *
   `;

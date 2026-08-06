@@ -13,6 +13,8 @@ type Campaign = {
   id: number;
   sponsor_name: string;
   business_category: string | null;
+  booking_reference: string | null;
+  booking_details: string | null;
   audio_file_name: string;
   audio_file_id: string | null;
   audio_directory_name: string | null;
@@ -88,6 +90,8 @@ export default function CampaignsPage() {
   const defaultForm = {
     sponsor_name: '',
     business_category: '',
+    booking_reference: '',
+    booking_details: '',
     audio_file_name: '',
     audio_file_id: '',
     audio_directory_name: '',
@@ -318,6 +322,8 @@ export default function CampaignsPage() {
     setForm({
       sponsor_name: campaign.sponsor_name,
       business_category: campaign.business_category || '',
+      booking_reference: campaign.booking_reference || '',
+      booking_details: campaign.booking_details || '',
       audio_file_name: campaign.audio_file_name,
       audio_file_id: campaign.audio_file_id || '',
       audio_directory_name: campaign.audio_directory_name || '',
@@ -512,6 +518,7 @@ export default function CampaignsPage() {
                               {c.status === 'active' ? 'Pause' : 'Resume'}
                             </button>
                             <button onClick={() => editCampaign(c)} style={{ fontSize: 12, color: '#a06000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit</button>
+                            <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Broadcast Schedule</a>
                             <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
                             <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(false); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
                           </div>
@@ -558,6 +565,16 @@ export default function CampaignsPage() {
                 <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                   Optional — campaigns sharing a category will never be scheduled into the same break.
                 </p>
+              </div>
+
+              {/* Booking reference / details — shown on the Broadcast Schedule PDF */}
+              <div>
+                <label style={{ ...S.label, color: '#ddd' }}>Booking Reference</label>
+                <input value={form.booking_reference} onChange={e => setForm(f => ({ ...f, booking_reference: e.target.value }))} placeholder="e.g. S526" style={S.input} />
+              </div>
+              <div>
+                <label style={{ ...S.label, color: '#ddd' }}>Booking Details</label>
+                <input value={form.booking_details} onChange={e => setForm(f => ({ ...f, booking_details: e.target.value }))} placeholder="e.g. 10 x 30 second spots per week" style={S.input} />
               </div>
 
               {/* Audio file picker */}
