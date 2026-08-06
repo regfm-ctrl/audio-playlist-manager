@@ -314,28 +314,62 @@ export async function POST(req: NextRequest) {
     campaign.business_category, campaign.id, start_date, end_date
   )
 
+  // Existing active placements for this campaign (edit mode only). These
+  // are kept exactly where they are if still valid — the distribution
+  // algorithm only runs to fill the *gap* between what's already placed
+  // and the new target count, instead of recalculating everything from
+  // scratch (which previously reshuffled the whole set whenever
+  // spots_per_week changed, since the step size depends on the count).
+  let existingSchedules: any[] = []
+  if (isEdit && campaign.id) {
+    existingSchedules = await sql`SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true`
+  }
+  const existingIds = new Set(existingSchedules.map((s: any) => s.playlist_id))
+
+  const anchorPool = matching
+    .filter(pl => existingIds.has(pl.id) && !excludedPlaylistIds.has(pl.id))
+    .map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
+    .sort((a, b) => (a.day - b.day) || ((parseBreakHour(a.name) ?? 0) - (parseBreakHour(b.name) ?? 0)))
+
+  const anchorIds = new Set(anchorPool.map(a => a.id))
+  const remainingPool = matching.filter(pl => !anchorIds.has(pl.id))
+
+  function pickEven(pool: { id: string; name: string }[], count: number): { id: string; name: string }[] {
+    if (count <= 0 || pool.length === 0) return []
+    const step = Math.max(1, Math.floor(pool.length / count))
+    const picked: typeof pool = []
+    for (let i = 0; i < count && i * step < pool.length; i++) picked.push(pool[i * step])
+    return picked
+  }
+
+  function pickRandom(pool: { id: string; name: string }[], count: number): { id: string; name: string }[] {
+    if (count <= 0 || pool.length === 0) return []
+    const shuffled = [...pool].sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, Math.min(count, shuffled.length))
+  }
+
   let selectedSlots: { id: string; name: string; day: number; scheduledFor: string }[] = []
 
-  if (distribution_type === 'even') {
-    const step = Math.max(1, Math.floor(matching.length / spots_per_week))
-    for (let i = 0; i < spots_per_week && i * step < matching.length; i++) {
-      const pl = matching[i * step]
-      selectedSlots.push({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' })
-    }
-  } else if (distribution_type === 'random') {
-    const shuffled = [...matching].sort(() => Math.random() - 0.5)
-    selectedSlots = shuffled.slice(0, Math.min(spots_per_week, shuffled.length))
-      .map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
-  } else if (distribution_type === 'per_day') {
+  if (distribution_type === 'per_day') {
     const counts = per_day_counts || {}
     for (const [dayStr, count] of Object.entries(counts)) {
       const dayNum = parseInt(dayStr)
-      const dayBreaks = matching.filter(pl => parseBreakDay(pl.name) === dayNum)
-      const step = Math.max(1, Math.floor(dayBreaks.length / (count as number)))
-      for (let i = 0; i < (count as number) && i * step < dayBreaks.length; i++) {
-        selectedSlots.push({ ...dayBreaks[i * step], day: dayNum, scheduledFor: '' })
-      }
+      const target = count as number
+      const dayAnchors = anchorPool.filter(a => a.day === dayNum).slice(0, target)
+      selectedSlots.push(...dayAnchors)
+      const needed = Math.max(0, target - dayAnchors.length)
+      const dayRemainingPool = remainingPool.filter(pl => parseBreakDay(pl.name) === dayNum)
+      const picked = pickEven(dayRemainingPool, needed).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
+      selectedSlots.push(...picked)
     }
+  } else {
+    const target = spots_per_week
+    const keptAnchors = anchorPool.slice(0, target)
+    selectedSlots.push(...keptAnchors)
+    const needed = Math.max(0, target - keptAnchors.length)
+    const picker = distribution_type === 'random' ? pickRandom : pickEven
+    const picked = picker(remainingPool, needed).map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
+    selectedSlots.push(...picked)
   }
 
   // Resolve category conflicts: swap for another break in the same hour
@@ -372,9 +406,6 @@ export async function POST(req: NextRequest) {
   // so the preview can show it clearly before anything is touched.
   let diff: { added: string[]; removed: string[]; unchanged: string[]; audioChanged: boolean } | null = null
   if (isEdit && campaign.id) {
-    const existingSchedules = await sql`
-      SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
-    `
     const currentByPlaylistId = new Map(existingSchedules.map((s: any) => [s.playlist_id, s]))
     const desiredIds = new Set(slotsWithDates.map(s => s.id))
 
