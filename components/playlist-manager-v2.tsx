@@ -306,7 +306,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             if (!text.includes(quickCheck)) return
             let containerName = ''; let paths: string[] = []
             for (const line of text.split('\n').filter((l: string) => l.trim())) {
-              if (line.startsWith('Container=')) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) { containerName = decodeURIComponent(match[1].replace(/\+/g, ' ')); paths = match[2].split('|').filter((p: string) => p.trim()) } }
+              if (line.startsWith('Container=')) { const match = line.match(/Container=<([^>]+)>(.*)/); if (match) { containerName = decodeURIComponent(match[1].replace(/\+/g, ' ')); paths = match[2].split('|').filter((p: string) => p.trim()) } }
             }
             if (!paths.includes(pathToRemove)) return
             toUpdate.push({ id: pl.id, name: pl.name, containerName, updatedPaths: paths.filter((p: string) => p !== pathToRemove) })
@@ -440,14 +440,14 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     return filtered.sort(sortPlaylistsByDayTime)
   }, [playlists, playlistSearch])
 
-  const parsePlaylistContent = (content: string) => {
+  const parsePlaylistContent = (content: string, playlistId?: string) => {
     const lines = content.split("\n").filter((l) => l.trim())
     const items: { path: string; filename: string }[] = []
     let name = ""
     for (const line of lines) {
       if (line.startsWith("#EXTM3U")) continue
       if (line.startsWith("Container=")) {
-        const match = line.match(/Container=<([^>]+)>(.+)/)
+        const match = line.match(/Container=<([^>]+)>(.*)/)
         if (match) {
           name = decodeURIComponent(match[1].replace(/\+/g, " "))
           match[2].split("|").forEach((p) => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
@@ -455,13 +455,27 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       }
     }
     setContainerName(name); setPlaylistItems(items)
+
+    // Keep the server-side name memory in sync: if this file has a name,
+    // register it (in case it changed); if it's bare, recall whatever was
+    // last known so re-adding content later doesn't lose the label.
+    if (playlistId) {
+      if (name) {
+        fetch('/api/playlists/container-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: playlistId, containerName: name }) }).catch(() => {})
+      } else {
+        fetch(`/api/playlists/container-name?id=${encodeURIComponent(playlistId)}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => { if (data?.containerName) setContainerName(data.containerName) })
+          .catch(() => {})
+      }
+    }
   }
 
   const generatePlaylistContent = async (): Promise<string> => {
     const originalAllPaths: string[] = []
     for (const line of originalContent.split('\n')) {
       if (line.startsWith('Container=')) {
-        const match = line.match(/Container=<([^>]+)>(.+)/)
+        const match = line.match(/Container=<([^>]+)>(.*)/)
         if (match) match[2].split('|').forEach(p => { if (p.trim()) originalAllPaths.push(p.trim()) })
       }
     }
@@ -477,7 +491,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     const editablePaths = playlistItems.map((i) => i.path)
 
     // Break is empty of real content — drop any intro/outro too, so
-    // RadioBOSS treats it as genuinely empty (nothing loaded).
+    // RadioBOSS treats it as genuinely empty (nothing loaded). The file
+    // must have NO Container= line at all for RadioBOSS to actually skip
+    // it — the name is remembered server-side instead (see
+    // parsePlaylistContent) and reapplied automatically next time this
+    // break gets real content again.
     if (editablePaths.length === 0) return "#EXTM3U\n"
 
     // Break had no protected content before (i.e. this is the first real
@@ -505,11 +523,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       try {
         setIsPlaylistLoading(true)
         const content = await googleDriveService.getFileContent(selectedPlaylist.id)
-        setOriginalContent(content); parsePlaylistContent(content)
+        setOriginalContent(content); parsePlaylistContent(content, selectedPlaylist.id)
         setTimeout(() => {
           const parsedItems: { path: string; filename: string }[] = []
           for (const line of content.split("\n").filter(l => l.trim())) {
-            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.+)/); if (match) match[2].split("|").forEach(p => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
+            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.*)/); if (match) match[2].split("|").forEach(p => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
           }
           if (parsedItems.length > 0 && selectedPlaylist) calculatePlaylistDuration(selectedPlaylist.id, parsedItems)
         }, 100)
@@ -595,7 +613,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     } finally { setIsSaving(false) }
   }
 
-  const resetPlaylist = () => parsePlaylistContent(originalContent)
+  const resetPlaylist = () => parsePlaylistContent(originalContent, selectedPlaylist?.id)
 
   // ─── Drag and drop ───────────────────────────────────────────────────────
   const [dragState, setDragState] = useState({ isDragging: false, draggedIndex: null as number | null, hoveredDropZone: null as number | null })

@@ -1,4 +1,5 @@
 import { isIntroPath, isOutroPath, isProtectedPath, getNextSting, buildPlaylistContent } from '@/lib/stings';
+import { getStoredContainerName, storeContainerName } from '@/lib/playlist-names';
 
 export async function fetchPlaylistState(playlistId: string, accessToken: string): Promise<{ containerName: string; existingPaths: string[] } | null> {
   const res = await fetch(
@@ -13,13 +14,26 @@ export async function fetchPlaylistState(playlistId: string, accessToken: string
   for (const line of lines) {
     if (line.startsWith('#EXTM3U')) continue;
     if (line.startsWith('Container=')) {
-      const match = line.match(/Container=<([^>]+)>(.+)/);
+      const match = line.match(/Container=<([^>]+)>(.*)/);
       if (match) {
         containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
         existingPaths = match[2].split('|').filter((p) => p.trim());
       }
     }
   }
+
+  if (containerName) {
+    // Opportunistically remember this name so it survives even after the
+    // file goes fully bare (see buildPlaylistContent — an empty break must
+    // have no Container= line at all, or RadioBOSS treats it as populated).
+    await storeContainerName(playlistId, containerName);
+  } else {
+    // File has no Container= line right now (genuinely bare) — recall
+    // whatever name was last known for this break.
+    const remembered = await getStoredContainerName(playlistId);
+    if (remembered) containerName = remembered;
+  }
+
   return { containerName, existingPaths };
 }
 

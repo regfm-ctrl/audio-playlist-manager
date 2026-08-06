@@ -62,6 +62,12 @@ export async function getNextSting(kind: 'intro' | 'outro', accessToken: string)
 // plus whichever intro/outro paths apply. If there's no real content, the
 // file is written fully empty — RadioBOSS does nothing with it, by design.
 export function buildPlaylistContent(containerName: string, realPaths: string[], introPath: string | null, outroPath: string | null): string {
+  // A break with zero real content must have NO Container= line at all —
+  // RadioBOSS treats a Container= line (even with zero tracks after it)
+  // as "there's a file here" and loads it, which defeats the point of an
+  // empty break being skipped entirely. The name itself is remembered
+  // separately (lib/playlist-names.ts) and reapplied the next time this
+  // break gets real content again.
   if (realPaths.length === 0) return `#EXTM3U\n`;
   const allPaths = [
     ...(introPath ? [introPath] : []),
