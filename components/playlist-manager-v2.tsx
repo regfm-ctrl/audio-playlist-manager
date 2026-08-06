@@ -46,6 +46,12 @@ const IconOverview = () => (
     <line x1="10.5" y1="2.5" x2="10.5" y2="4.5"/>
   </svg>
 )
+const IconAudit = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M8 2l5.5 2.5v4c0 3.5-2.3 5.9-5.5 7-3.2-1.1-5.5-3.5-5.5-7v-4z"/>
+    <path d="M6 8l1.5 1.5L10.5 6.5"/>
+  </svg>
+)
 const IconAdmin = () => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <circle cx="8" cy="5" r="2.5"/>
@@ -718,6 +724,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
             <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
             <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
+            <a href="/audit" style={S.navItem}><IconAudit /> Audit</a>
             <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
           </div>
 
