@@ -6,7 +6,6 @@ import { getValidAccessToken } from '@/lib/google-tokens';
 import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
-import { melbourneWallTimeToUTC } from '@/lib/break-time';
 
 export const maxDuration = 60;
 
@@ -230,32 +229,21 @@ function calculateNextRun(
   fromDate: Date = new Date()
 ): string {
   const [hours, minutes] = timeOfDay.split(':').map(Number);
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Australia/Melbourne',
-    year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
-  });
-  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
   if (scheduleType === 'recurring' && daysOfWeek) {
     const days = daysOfWeek.split(',').map(Number);
     for (let i = 1; i <= 7; i++) {
-      const candidate = new Date(fromDate.getTime() + i * 24 * 60 * 60 * 1000);
-      const parts: Record<string, string> = {};
-      for (const p of dtf.formatToParts(candidate)) parts[p.type] = p.value;
-      const weekday = weekdayMap[parts.weekday];
-      if (days.includes(weekday)) {
-        const scheduledUTC = melbourneWallTimeToUTC(parseInt(parts.year), parseInt(parts.month), parseInt(parts.day), hours, minutes);
-        return scheduledUTC.toISOString();
-      }
+      const d = new Date(fromDate);
+      d.setDate(fromDate.getDate() + i);
+      d.setHours(hours, minutes, 0, 0);
+      if (days.includes(d.getDay())) return d.toISOString();
     }
   }
 
-  // Fallback: tomorrow at the given Melbourne time
-  const tomorrow = new Date(fromDate.getTime() + 24 * 60 * 60 * 1000);
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(tomorrow)) parts[p.type] = p.value;
-  const scheduledUTC = melbourneWallTimeToUTC(parseInt(parts.year), parseInt(parts.month), parseInt(parts.day), hours, minutes);
-  return scheduledUTC.toISOString();
+  const tomorrow = new Date(fromDate);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(hours, minutes, 0, 0);
+  return tomorrow.toISOString();
 }
 
 // POST — manual "Run Now" trigger (requires login)
