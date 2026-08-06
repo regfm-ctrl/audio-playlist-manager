@@ -18,6 +18,16 @@ function parseBreakHour(name: string): number | null {
   return parseInt(match[1])
 }
 
+// Minutes since midnight — used wherever breaks need to be told apart by
+// their real time, not just their hour, so distinct-minute blocks within
+// the same hour (e.g. 6.00, 6.12, 6.24) are treated as genuinely different
+// slots rather than duplicates of each other.
+function parseBreakMinuteOfDay(name: string): number | null {
+  const match = name.match(/(\d{2})[\.\:](\d{2})/)
+  if (!match) return null
+  return parseInt(match[1]) * 60 + parseInt(match[2])
+}
+
 function parseBreakDay(name: string): number | null {
   const dayMap: Record<string, number> = {
     sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
@@ -334,26 +344,85 @@ export async function POST(req: NextRequest) {
   }
   const existingIds = new Set(existingSchedules.map((s: any) => s.playlist_id))
 
-  const anchorPool = matching
+  let anchorPool = matching
     .filter(pl => existingIds.has(pl.id) && !excludedPlaylistIds.has(pl.id))
     .map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
     .sort((a, b) => (a.day - b.day) || ((parseBreakHour(a.name) ?? 0) - (parseBreakHour(b.name) ?? 0)))
 
+  // When there are more anchors than the new target, drop duplicate-time
+  // ones first (keep at most one anchor per distinct day+time) before
+  // falling back to trimming by chronological order. Otherwise two spots
+  // that happen to land at the exact same time (different blocks with the
+  // same minute) can both survive a trim while a genuinely different time
+  // gets dropped.
+  function dedupeByTimeFirst<T extends { day: number; name: string }>(items: T[]): T[] {
+    const seen = new Set<string>()
+    const unique: T[] = []
+    const dupes: T[] = []
+    for (const item of items) {
+      const key = `${item.day}-${parseBreakMinuteOfDay(item.name)}`
+      if (!seen.has(key)) { seen.add(key); unique.push(item) } else { dupes.push(item) }
+    }
+    return [...unique, ...dupes]
+  }
+  anchorPool = dedupeByTimeFirst(anchorPool)
+
   const anchorIds = new Set(anchorPool.map(a => a.id))
   const remainingPool = matching.filter(pl => !anchorIds.has(pl.id))
 
-  function pickEven(pool: { id: string; name: string }[], count: number): { id: string; name: string }[] {
+  // Spreads picks across distinct day+time combinations first (the actual
+  // intent of "even"/"random" distribution), only reusing an exact time —
+  // with a different block — if there aren't enough distinct times to hit
+  // the target count.
+  function spreadAcrossHours(pool: { id: string; name: string }[], count: number, shuffle: boolean): { id: string; name: string }[] {
     if (count <= 0 || pool.length === 0) return []
-    const step = Math.max(1, Math.floor(pool.length / count))
-    const picked: typeof pool = []
-    for (let i = 0; i < count && i * step < pool.length; i++) picked.push(pool[i * step])
-    return picked
-  }
+    const groups = new Map<string, { id: string; name: string }[]>()
+    for (const pl of pool) {
+      const day = parseBreakDay(pl.name) ?? 0
+      const minuteOfDay = parseBreakMinuteOfDay(pl.name) ?? 0
+      const key = `${day}-${minuteOfDay}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(pl)
+    }
+    let groupKeys = Array.from(groups.keys())
+    groupKeys = shuffle
+      ? groupKeys.sort(() => Math.random() - 0.5)
+      : groupKeys.sort((a, b) => {
+          const [dayA, minA] = a.split('-').map(Number)
+          const [dayB, minB] = b.split('-').map(Number)
+          return (dayA - dayB) || (minA - minB)
+        })
 
-  function pickRandom(pool: { id: string; name: string }[], count: number): { id: string; name: string }[] {
-    if (count <= 0 || pool.length === 0) return []
-    const shuffled = [...pool].sort(() => Math.random() - 0.5)
-    return shuffled.slice(0, Math.min(count, shuffled.length))
+    const picked: { id: string; name: string }[] = []
+    const pickedIds = new Set<string>()
+
+    // Phase 1: one pick per distinct hour, stepped evenly across the list
+    // of distinct hours (or shuffled, for random)
+    const step = Math.max(1, Math.floor(groupKeys.length / count))
+    for (let i = 0; i < count && i * step < groupKeys.length; i++) {
+      const candidates = groups.get(groupKeys[i * step])!
+      const pick = candidates[0]
+      picked.push(pick)
+      pickedIds.add(pick.id)
+    }
+
+    // Phase 2: not enough distinct hours to reach count — reuse hours,
+    // preferring a different block within that hour over an exact repeat
+    while (picked.length < count) {
+      let added = false
+      for (const key of groupKeys) {
+        const candidate = groups.get(key)!.find(c => !pickedIds.has(c.id))
+        if (candidate) {
+          picked.push(candidate)
+          pickedIds.add(candidate.id)
+          added = true
+          if (picked.length >= count) break
+        }
+      }
+      if (!added) break // pool fully exhausted
+    }
+
+    return picked
   }
 
   let selectedSlots: { id: string; name: string; day: number; scheduledFor: string }[] = []
@@ -367,7 +436,7 @@ export async function POST(req: NextRequest) {
       selectedSlots.push(...dayAnchors)
       const needed = Math.max(0, target - dayAnchors.length)
       const dayRemainingPool = remainingPool.filter(pl => parseBreakDay(pl.name) === dayNum)
-      const picked = pickEven(dayRemainingPool, needed).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
+      const picked = spreadAcrossHours(dayRemainingPool, needed, false).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
       selectedSlots.push(...picked)
     }
   } else {
@@ -375,8 +444,8 @@ export async function POST(req: NextRequest) {
     const keptAnchors = anchorPool.slice(0, target)
     selectedSlots.push(...keptAnchors)
     const needed = Math.max(0, target - keptAnchors.length)
-    const picker = distribution_type === 'random' ? pickRandom : pickEven
-    const picked = picker(remainingPool, needed).map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
+    const picked = spreadAcrossHours(remainingPool, needed, distribution_type === 'random')
+      .map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
     selectedSlots.push(...picked)
   }
 
