@@ -436,7 +436,7 @@ export async function POST(req: NextRequest) {
       selectedSlots.push(...dayAnchors)
       const needed = Math.max(0, target - dayAnchors.length)
       const dayRemainingPool = remainingPool.filter(pl => parseBreakDay(pl.name) === dayNum)
-      const picked = spreadAcrossHours(dayRemainingPool, needed, false).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
+      const picked = spreadAcrossHours(dayRemainingPool, needed, true).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
       selectedSlots.push(...picked)
     }
   } else {
