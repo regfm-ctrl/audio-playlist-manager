@@ -150,6 +150,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="Schedule_${safeName}.pdf"`,
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
     },
   });
 }
