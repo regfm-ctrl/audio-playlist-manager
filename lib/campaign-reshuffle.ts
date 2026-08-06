@@ -122,16 +122,20 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string): Promise
   const playlists = (listData.files || []).filter((f: any) => f.name.endsWith('.m3u8'));
 
   const allowedDayNums = campaign.allowed_days ? campaign.allowed_days.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6];
-  const timeFromHour = campaign.time_from ? parseInt(campaign.time_from.split(':')[0]) : 0;
-  const toHour = campaign.time_to ? parseInt(campaign.time_to.split(':')[0]) : 23;
+  // Compare full minute-of-day, not just the hour — otherwise a break at
+  // 10:15pm passes an "until 10pm" cutoff since it's still hour "22".
+  const [timeFromH, timeFromM] = campaign.time_from ? campaign.time_from.split(':').map(Number) : [0, 0];
+  const [timeToH, timeToM] = campaign.time_to ? campaign.time_to.split(':').map(Number) : [23, 59];
+  const timeFromMinutes = timeFromH * 60 + (timeFromM || 0);
+  const timeToMinutes = timeToH * 60 + (timeToM || 0);
   const allowedBreakIds = campaign.allowed_breaks ? campaign.allowed_breaks.split(',') : null;
 
   const matching = playlists.filter((pl: any) => {
     if (allowedBreakIds && !allowedBreakIds.includes(pl.id)) return false;
     const day = parseBreakDay(pl.name);
     if (day !== null && !allowedDayNums.includes(day)) return false;
-    const hour = parseBreakHour(pl.name);
-    if (hour !== null && (hour < timeFromHour || hour > toHour)) return false;
+    const minuteOfDay = parseBreakMinuteOfDay(pl.name);
+    if (minuteOfDay !== null && (minuteOfDay < timeFromMinutes || minuteOfDay > timeToMinutes)) return false;
     return true;
   });
 
