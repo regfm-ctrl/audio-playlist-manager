@@ -43,3 +43,30 @@ export function parseBreakMinuteOfDay(name: string): number | null {
   const t = parseBreakTime(name);
   return t ? t.hour * 60 + t.minute : null;
 }
+
+// Converts a Melbourne wall-clock date+time (what a break's name actually
+// means — "6pm" means 6pm in Melbourne, not 6pm UTC) into the correct UTC
+// instant, automatically handling AEST/AEDT. Needed because server
+// functions run in UTC, so naively using Date.setHours() sets the hour in
+// UTC and silently shifts every scheduled time by 10-11 hours.
+export function melbourneWallTimeToUTC(year: number, month: number, day: number, hour: number, minute: number): Date {
+  // First pass: treat the wall-clock values as if they were already UTC,
+  // then find Melbourne's actual UTC offset near that instant and correct
+  // for it. A single pass is sufficient except exactly on a DST-transition
+  // day, which is an acceptable edge case here.
+  const guessUTC = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Australia/Melbourne',
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(guessUTC)) parts[p.type] = p.value;
+  const melbourneAsUTC = Date.UTC(
+    parseInt(parts.year), parseInt(parts.month) - 1, parseInt(parts.day),
+    parts.hour === '24' ? 0 : parseInt(parts.hour), parseInt(parts.minute), parseInt(parts.second)
+  );
+  const offsetMinutes = (melbourneAsUTC - guessUTC.getTime()) / 60000;
+  return new Date(guessUTC.getTime() - offsetMinutes * 60000);
+}

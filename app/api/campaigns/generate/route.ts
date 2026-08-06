@@ -3,7 +3,7 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
-import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay } from '@/lib/break-time';
+import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
@@ -446,10 +446,12 @@ export async function POST(req: NextRequest) {
 
   const slotsWithDates = selectedSlots.map(slot => {
     const d = new Date(startDate)
-    while (d.getDay() !== slot.day) { d.setDate(d.getDate() + 1) }
-    const hour = parseBreakHour(slot.name) ?? 9
-    d.setHours(hour, 0, 0, 0)
-    return { ...slot, scheduledFor: d.toISOString() }
+    while (d.getUTCDay() !== slot.day) { d.setUTCDate(d.getUTCDate() + 1) }
+    const time = parseBreakTime(slot.name)
+    const hour = time?.hour ?? 9
+    const minute = time?.minute ?? 0
+    const scheduledUTC = melbourneWallTimeToUTC(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), hour, minute)
+    return { ...slot, scheduledFor: scheduledUTC.toISOString() }
   }).filter(slot => !endDate || new Date(slot.scheduledFor) <= endDate)
     .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
 
