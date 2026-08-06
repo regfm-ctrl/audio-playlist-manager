@@ -11,6 +11,7 @@ const PLAYLIST_FOLDER_ID = process.env.NEXT_PUBLIC_PLAYLIST_FOLDER_ID || '1sPxn5
 type Campaign = {
   id: number;
   sponsor_name: string;
+  business_category: string | null;
   audio_file_name: string;
   spots_per_week: number;
   distribution_type: string;
@@ -78,6 +79,7 @@ export default function CampaignsPage() {
   // Form state
   const [form, setForm] = useState({
     sponsor_name: '',
+    business_category: '',
     audio_file_name: '',
     audio_file_id: '',
     audio_directory_name: '',
@@ -224,7 +226,11 @@ export default function CampaignsPage() {
 
     setPreviewCampaign(campaign);
     setPreview(data.preview);
-    setMsg('');
+    if (data.skippedDueToConflict && data.skippedDueToConflict.length > 0) {
+      setMsg(`⚠️ ${data.skippedDueToConflict.length} break(s) skipped — already occupied by another "${campaign.business_category}" campaign with no free break in the same hour: ${data.skippedDueToConflict.join(', ')}`);
+    } else {
+      setMsg('');
+    }
   }
 
   async function confirmSchedule() {
@@ -423,7 +429,10 @@ export default function CampaignsPage() {
                   <tbody>
                     {campaigns.map(c => (
                       <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
-                        <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>{c.sponsor_name}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                          {c.sponsor_name}
+                          {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
+                        </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>{c.audio_file_name.replace(/\.[^/.]+$/, '')}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{c.spots_per_week}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
@@ -485,6 +494,26 @@ export default function CampaignsPage() {
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ ...S.label, color: '#ddd' }}>Sponsor Name</label>
                 <input value={form.sponsor_name} onChange={e => setForm(f => ({ ...f, sponsor_name: e.target.value }))} placeholder="e.g. ACME Hardware" style={S.input} />
+              </div>
+
+              {/* Business category */}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ ...S.label, color: '#ddd' }}>Business Category</label>
+                <input
+                  value={form.business_category}
+                  onChange={e => setForm(f => ({ ...f, business_category: e.target.value }))}
+                  placeholder="e.g. Car Dealership"
+                  list="business-category-options"
+                  style={S.input}
+                />
+                <datalist id="business-category-options">
+                  {Array.from(new Set(campaigns.map(c => c.business_category).filter((c): c is string => !!c && c.trim().length > 0)))
+                    .sort()
+                    .map(cat => <option key={cat} value={cat} />)}
+                </datalist>
+                <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                  Optional — campaigns sharing a category will never be scheduled into the same break.
+                </p>
               </div>
 
               {/* Audio file picker */}
@@ -640,6 +669,10 @@ export default function CampaignsPage() {
               </div>
               <button onClick={() => setPreview(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
+
+            {msg && (
+              <p style={{ fontSize: 12, color: '#e0c060', marginBottom: 16, background: '#4a3a1a', padding: '8px 12px', borderRadius: 6 }}>{msg}</p>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20, maxHeight: 400, overflowY: 'auto' }}>
               {preview.map((slot, i) => (

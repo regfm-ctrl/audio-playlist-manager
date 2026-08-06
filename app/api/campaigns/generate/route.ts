@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
@@ -28,9 +29,71 @@ function parseBreakDay(name: string): number | null {
   return null
 }
 
+// Finds which playlists are off-limits for this campaign because a
+// different campaign in the same business category overlaps its date
+// range and already has a recurring schedule sitting in that playlist.
+async function getCategoryExcludedPlaylistIds(
+  businessCategory: string | null | undefined,
+  campaignId: number | undefined,
+  startDate: string,
+  endDate: string | null | undefined
+): Promise<Set<string>> {
+  const excluded = new Set<string>()
+  if (!businessCategory || !businessCategory.trim()) return excluded
+
+  const sameCategory = await sql`
+    SELECT id, start_date, end_date FROM campaigns
+    WHERE LOWER(business_category) = LOWER(${businessCategory})
+      AND id IS DISTINCT FROM ${campaignId ?? -1}
+  `
+
+  const newStart = new Date(startDate).getTime()
+  const newEnd = endDate ? new Date(endDate).getTime() : Infinity
+
+  const conflictingCampaignIds = sameCategory
+    .filter((c: any) => {
+      const cStart = new Date(c.start_date).getTime()
+      const cEnd = c.end_date ? new Date(c.end_date).getTime() : Infinity
+      return cStart <= newEnd && cEnd >= newStart
+    })
+    .map((c: any) => c.id)
+
+  if (conflictingCampaignIds.length === 0) return excluded
+
+  const conflictSet = new Set(conflictingCampaignIds)
+  const scheduleRows = await sql`SELECT playlist_id, campaign_id FROM schedules WHERE campaign_id IS NOT NULL`
+  for (const row of scheduleRows as any[]) {
+    if (conflictSet.has(row.campaign_id)) excluded.add(row.playlist_id)
+  }
+  return excluded
+}
+
+// If a chosen break is excluded (category conflict), tries another break
+// in the same day+hour group before giving up on that slot entirely.
+function resolveSlotConflict(
+  pl: { id: string; name: string },
+  pool: { id: string; name: string }[],
+  excluded: Set<string>,
+  chosen: Set<string>
+): { id: string; name: string } | null {
+  if (!excluded.has(pl.id) && !chosen.has(pl.id)) return pl
+  const day = parseBreakDay(pl.name)
+  const hour = parseBreakHour(pl.name)
+  const alt = pool.find(p =>
+    p.id !== pl.id &&
+    parseBreakDay(p.name) === day &&
+    parseBreakHour(p.name) === hour &&
+    !excluded.has(p.id) &&
+    !chosen.has(p.id)
+  )
+  return alt || null
+}
+
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  await ensureCampaignCategoryColumns();
 
   const body = await req.json();
   const { campaign, previewSlots, accessToken, confirm = false } = body;
@@ -62,7 +125,7 @@ export async function POST(req: NextRequest) {
             audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
             playlist_id, playlist_name, position,
             schedule_type, days_of_week, specific_dates, time_of_day,
-            next_run_at, expires_at, created_by
+            next_run_at, expires_at, created_by, campaign_id
           ) VALUES (
             ${audio_file_id ?? ''},
             ${audio_file_name},
@@ -77,7 +140,8 @@ export async function POST(req: NextRequest) {
             ${timeOfDay},
             ${nextRun},
             ${weeklyEndDate},
-            ${user.username}
+            ${user.username},
+            ${campaign.id ?? null}
           )
         `
         created++
@@ -150,6 +214,12 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
+  // Which breaks already have a same-category campaign in them, for the
+  // full duration this campaign would run
+  const excludedPlaylistIds = await getCategoryExcludedPlaylistIds(
+    campaign.business_category, campaign.id, start_date, end_date
+  )
+
   let selectedSlots: { id: string; name: string; day: number; scheduledFor: string }[] = []
 
   if (distribution_type === 'even') {
@@ -174,6 +244,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Resolve category conflicts: swap for another break in the same hour
+  // where possible, otherwise drop the slot and note why.
+  const skippedDueToConflict: string[] = []
+  if (excludedPlaylistIds.size > 0) {
+    const chosenIds = new Set<string>()
+    const resolved: typeof selectedSlots = []
+    for (const slot of selectedSlots) {
+      const alt = resolveSlotConflict(slot, matching, excludedPlaylistIds, chosenIds)
+      if (alt) {
+        chosenIds.add(alt.id)
+        resolved.push({ ...slot, id: alt.id, name: alt.name, day: parseBreakDay(alt.name) ?? slot.day })
+      } else {
+        skippedDueToConflict.push(slot.name)
+      }
+    }
+    selectedSlots = resolved
+  }
+
   const startDate = new Date(start_date)
   const endDate = end_date ? new Date(end_date) : null
 
@@ -186,6 +274,5 @@ export async function POST(req: NextRequest) {
   }).filter(slot => !endDate || new Date(slot.scheduledFor) <= endDate)
     .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
 
-  return NextResponse.json({ preview: slotsWithDates, total: slotsWithDates.length })
+  return NextResponse.json({ preview: slotsWithDates, total: slotsWithDates.length, skippedDueToConflict })
 }
-
