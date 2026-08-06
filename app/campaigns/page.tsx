@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { getGoogleAccessToken } from '@/lib/client-google-token';
+import { BUSINESS_CATEGORIES } from '@/lib/business-categories';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PLAYLIST_FOLDER_ID = process.env.NEXT_PUBLIC_PLAYLIST_FOLDER_ID || '1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b';
@@ -499,18 +500,14 @@ export default function CampaignsPage() {
               {/* Business category */}
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ ...S.label, color: '#ddd' }}>Business Category</label>
-                <input
+                <select
                   value={form.business_category}
                   onChange={e => setForm(f => ({ ...f, business_category: e.target.value }))}
-                  placeholder="e.g. Car Dealership"
-                  list="business-category-options"
                   style={S.input}
-                />
-                <datalist id="business-category-options">
-                  {Array.from(new Set(campaigns.map(c => c.business_category).filter((c): c is string => !!c && c.trim().length > 0)))
-                    .sort()
-                    .map(cat => <option key={cat} value={cat} />)}
-                </datalist>
+                >
+                  <option value="">— None —</option>
+                  {BUSINESS_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
                 <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                   Optional — campaigns sharing a category will never be scheduled into the same break.
                 </p>
