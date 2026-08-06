@@ -116,6 +116,8 @@ export async function PATCH(req: NextRequest) {
 // DELETE — remove campaign, optionally also removing its schedules and
 // actually stripping the sponsor's audio out of every playlist it's in
 // (not just deleting the database rows)
+export const maxDuration = 60;
+
 export async function DELETE(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -137,15 +139,22 @@ export async function DELETE(req: NextRequest) {
 
       if (schedulesToClean.length > 0) {
         const accessToken = providedToken || await getValidAccessToken();
-        for (const sched of schedulesToClean) {
-          try {
-            if (accessToken) {
-              await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
+
+        // Same as campaign confirm — Drive writes are the slow part, so
+        // process in parallel batches rather than one break at a time.
+        const BATCH_SIZE = 15;
+        for (let i = 0; i < schedulesToClean.length; i += BATCH_SIZE) {
+          const batch = schedulesToClean.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(async (sched: any) => {
+            try {
+              if (accessToken) {
+                await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
+              }
+              await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
+            } catch (err) {
+              console.error('[campaigns] Failed to clean up schedule during delete:', sched.playlist_name, err);
             }
-            await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
-          } catch (err) {
-            console.error('[campaigns] Failed to clean up schedule during delete:', sched.playlist_name, err);
-          }
+          }));
         }
       }
     }
