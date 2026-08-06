@@ -23,6 +23,7 @@ const IconBreaks = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="c
 const IconSchedule = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v3.5l2 1.5"/></svg>;
 const IconAdmin = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>;
 const IconCampaign = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h2l2-5 4 10 2-5h2"/></svg>;
+const IconOverview = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5.5" y1="2.5" x2="5.5" y2="4.5"/><line x1="10.5" y1="2.5" x2="10.5" y2="4.5"/></svg>;
 
 export default function AdminPage() {
   const router = useRouter();
@@ -103,6 +104,7 @@ export default function AdminPage() {
           <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
           <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
+          <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
           <a href="/admin" style={S.navItemActive}><IconAdmin /> Admin</a>
         </div>
         <div style={{ flex: 1 }} />
