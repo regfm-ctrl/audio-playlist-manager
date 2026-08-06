@@ -4,14 +4,13 @@ import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
+import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
   if (!token) return null;
   return verifyToken(token);
 }
-
-const PLAYLIST_FOLDER_ID = process.env.PLAYLIST_FOLDER_ID || '1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b';
 
 
 // Finds which playlists are off-limits for this campaign because a

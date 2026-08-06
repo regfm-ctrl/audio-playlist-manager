@@ -70,7 +70,7 @@ export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
 ]
 
 // Test playlist folder (current active configuration)
-export const PLAYLIST_FOLDER_ID = "1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b"
+export const PLAYLIST_FOLDER_ID = "1HzK12zBmHK_H-OhinBZFLQasnp2x185u"
 
 // Sponsor break intro/outro stings — the scheduler auto-wraps these around
 // a break's content when it goes from empty to populated, rotating through

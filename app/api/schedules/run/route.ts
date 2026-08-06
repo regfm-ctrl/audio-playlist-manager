@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
 const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
@@ -58,7 +59,7 @@ async function processSchedules(accessToken: string, forceRun = false) {
 
       // 1. List all playlists in the playlist folder
       const listRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${process.env.PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+        `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 

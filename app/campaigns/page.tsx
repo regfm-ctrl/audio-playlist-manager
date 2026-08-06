@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { getGoogleAccessToken } from '@/lib/client-google-token';
 import { BUSINESS_CATEGORIES } from '@/lib/business-categories';
+import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const PLAYLIST_FOLDER_ID = process.env.NEXT_PUBLIC_PLAYLIST_FOLDER_ID || '1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b';
 
 type Campaign = {
   id: number;
