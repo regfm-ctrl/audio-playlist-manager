@@ -2,20 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { parseBreakDay, parseBreakTime } from '@/lib/break-time';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-function parseBreakDayAndTime(name: string): { day: number | null; hour: number | null; minute: number } {
-  const lower = name.toLowerCase();
-  let day: number | null = null;
-  for (let i = 0; i < DAY_NAMES.length; i++) {
-    if (lower.startsWith(DAY_NAMES[i].toLowerCase())) { day = i; break; }
-  }
-  const match = name.match(/(\d{2})[\.\:](\d{2})/);
-  const hour = match ? parseInt(match[1]) : null;
-  const minute = match ? parseInt(match[2]) : 0;
-  return { day, hour, minute };
-}
 
 function formatTime(hour: number, minute: number): string {
   const period = hour >= 12 ? 'pm' : 'am';
@@ -62,7 +51,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // the DB's hour-rounded time_of_day) by day of week
   const byDay: Record<number, { hour: number; minute: number }[]> = {};
   for (const s of schedules as any[]) {
-    const { day, hour, minute } = parseBreakDayAndTime(s.playlist_name);
+    const day = parseBreakDay(s.playlist_name);
+    const t = parseBreakTime(s.playlist_name);
+    const hour = t?.hour ?? null;
+    const minute = t?.minute ?? 0;
     if (day === null || hour === null) continue;
     if (!byDay[day]) byDay[day] = [];
     byDay[day].push({ hour, minute });

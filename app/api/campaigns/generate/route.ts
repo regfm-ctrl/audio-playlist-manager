@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay } from '@/lib/break-time';
 
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
@@ -12,33 +13,6 @@ async function getUser(req: NextRequest) {
 
 const PLAYLIST_FOLDER_ID = process.env.PLAYLIST_FOLDER_ID || '1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b';
 
-function parseBreakHour(name: string): number | null {
-  const match = name.match(/(\d{2})[\.\:](\d{2})/)
-  if (!match) return null
-  return parseInt(match[1])
-}
-
-// Minutes since midnight — used wherever breaks need to be told apart by
-// their real time, not just their hour, so distinct-minute blocks within
-// the same hour (e.g. 6.00, 6.12, 6.24) are treated as genuinely different
-// slots rather than duplicates of each other.
-function parseBreakMinuteOfDay(name: string): number | null {
-  const match = name.match(/(\d{2})[\.\:](\d{2})/)
-  if (!match) return null
-  return parseInt(match[1]) * 60 + parseInt(match[2])
-}
-
-function parseBreakDay(name: string): number | null {
-  const dayMap: Record<string, number> = {
-    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
-    thursday: 4, friday: 5, saturday: 6
-  }
-  const lower = name.toLowerCase()
-  for (const [day, num] of Object.entries(dayMap)) {
-    if (lower.startsWith(day)) return num
-  }
-  return null
-}
 
 // Finds which playlists are off-limits for this campaign because a
 // different campaign in the same business category overlaps its date

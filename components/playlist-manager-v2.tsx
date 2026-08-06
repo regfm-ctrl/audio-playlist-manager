@@ -11,6 +11,7 @@ import {
 import { ErrorBoundary } from "@/components/error-boundary"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, AlertCircle, RefreshCw, Play, Square, Clock, X, AlarmClock, FileText } from "lucide-react"
+import { parseBreakMinuteOfDay } from "@/lib/break-time"
 
 const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
 
@@ -420,8 +421,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       return idx === -1 ? 99 : idx
     }
     const getTime = (name: string) => {
-      const match = name.match(/(\d{2})[\.\:](\d{2})/)
-      return match ? parseInt(match[1]) * 60 + parseInt(match[2]) : 0
+      return parseBreakMinuteOfDay(name) ?? 0
     }
     const getBlock = (name: string) => {
       const match = name.match(/Block\s*(\d+)/i)
