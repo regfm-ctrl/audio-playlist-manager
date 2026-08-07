@@ -7,6 +7,7 @@
 // category here does NOT update existing campaigns already saved with the
 // old name — it only changes what's offered in the dropdown going forward.
 export const BUSINESS_CATEGORIES: string[] = [
+  "Boats & Marine",
   "Car Dealership",
   "Furniture Manufacturer",
   "Real Estate Agency",
