@@ -30,6 +30,7 @@ export const BUSINESS_CATEGORIES: string[] = [
   "Retirement",
   "Retail",
   "Trade Services",
+  "Tyre Services",
   "Travel",
   "REGFM - Community Service Announcement",
   "REGFM - Station Promo",
