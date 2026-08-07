@@ -20,7 +20,7 @@ export const BUSINESS_CATEGORIES: string[] = [
   "Hardware Store",
   "Health Services",
   "Heating",
-  "Home Interior
+  "Home Interior,
   "Insurance",
   "Jewellery",
   "Legal Services",
