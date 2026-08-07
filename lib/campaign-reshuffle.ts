@@ -148,35 +148,46 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string): Promise
   // Full reshuffle: clear everything currently placed, then place the
   // freshly picked set. This is deliberately different from an edit
   // (which preserves unchanged breaks) — the whole point here is change.
-  for (const sched of existingSchedules as any[]) {
-    try { await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken); } catch {}
-    await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
+  // Batched in parallel, same pattern as the rest of the app.
+  const BATCH_SIZE = 15;
+  for (let i = 0; i < existingSchedules.length; i += BATCH_SIZE) {
+    const batch = (existingSchedules as any[]).slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (sched: any) => {
+      try { await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken); } catch {}
+      await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
+    }));
   }
 
   const weeklyEndDate = campaign.end_date ? new Date(campaign.end_date).toISOString() : null;
   const now = new Date();
   let placed = 0;
-  for (const slot of picked) {
-    const day = parseBreakDay(slot.name) ?? 0;
-    const hour = parseBreakHour(slot.name) ?? 9;
-    const timeOfDay = `${String(hour).padStart(2, '0')}:00`;
-    try {
-      await addPathToPlaylist(slot.id, campaign.audio_local_path, campaign.position ?? -1, accessToken);
-      await sql`
-        INSERT INTO schedules (
-          audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
-          playlist_id, playlist_name, position,
-          schedule_type, days_of_week, specific_dates, time_of_day,
-          next_run_at, expires_at, created_by, campaign_id
-        ) VALUES (
-          ${campaign.audio_file_id ?? ''}, ${campaign.audio_file_name}, ${campaign.audio_directory_name ?? ''}, ${campaign.audio_local_path},
-          ${slot.id}, ${slot.name}, ${campaign.position ?? -1},
-          'recurring', ${String(day)}, null, ${timeOfDay},
-          ${now.toISOString()}, ${weeklyEndDate}, 'weekly-reshuffle', ${campaign.id}
-        )
-      `;
-      placed++;
-    } catch {}
+  for (let i = 0; i < picked.length; i += BATCH_SIZE) {
+    const batch = picked.slice(i, i + BATCH_SIZE);
+    const outcomes = await Promise.all(batch.map(async (slot) => {
+      const day = parseBreakDay(slot.name) ?? 0;
+      const hour = parseBreakHour(slot.name) ?? 9;
+      const timeOfDay = `${String(hour).padStart(2, '0')}:00`;
+      try {
+        await addPathToPlaylist(slot.id, campaign.audio_local_path, campaign.position ?? -1, accessToken);
+        await sql`
+          INSERT INTO schedules (
+            audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+            playlist_id, playlist_name, position,
+            schedule_type, days_of_week, specific_dates, time_of_day,
+            next_run_at, expires_at, created_by, campaign_id
+          ) VALUES (
+            ${campaign.audio_file_id ?? ''}, ${campaign.audio_file_name}, ${campaign.audio_directory_name ?? ''}, ${campaign.audio_local_path},
+            ${slot.id}, ${slot.name}, ${campaign.position ?? -1},
+            'recurring', ${String(day)}, null, ${timeOfDay},
+            ${now.toISOString()}, ${weeklyEndDate}, 'weekly-reshuffle', ${campaign.id}
+          )
+        `;
+        return true;
+      } catch {
+        return false;
+      }
+    }));
+    placed += outcomes.filter(Boolean).length;
   }
 
   await sql`UPDATE campaigns SET last_reshuffled_at = NOW() WHERE id = ${campaign.id}`;
@@ -193,13 +204,27 @@ export async function reshuffleDueCampaigns(): Promise<{ processed: number; deta
   const accessToken = await getValidAccessToken();
   if (!accessToken) return { processed: 0, details: ['Weekly reshuffle skipped: Google Drive not connected'] };
 
+  // Every campaign with weekly randomization enabled becomes due on the
+  // same Monday, all at once — this grows directly with campaign count, so
+  // it's capped and batched too (smaller batch than elsewhere, since each
+  // campaign itself triggers a burst of Drive calls internally). Anything
+  // beyond the cap simply waits for the next hourly run, same as the
+  // due/expired schedule caps.
+  const CAMPAIGN_CAP = 20;
+  const dueThisRun = due.slice(0, CAMPAIGN_CAP);
+
   const details: string[] = [];
-  for (const campaign of due) {
-    try {
-      details.push(await reshuffleOneCampaign(campaign, accessToken));
-    } catch (err: any) {
-      details.push(`${campaign.sponsor_name}: reshuffle failed — ${err.message ?? String(err)}`);
-    }
+  const CAMPAIGN_BATCH_SIZE = 4;
+  for (let i = 0; i < dueThisRun.length; i += CAMPAIGN_BATCH_SIZE) {
+    const batch = dueThisRun.slice(i, i + CAMPAIGN_BATCH_SIZE);
+    const batchDetails = await Promise.all(batch.map(async (campaign) => {
+      try {
+        return await reshuffleOneCampaign(campaign, accessToken);
+      } catch (err: any) {
+        return `${campaign.sponsor_name}: reshuffle failed — ${err.message ?? String(err)}`;
+      }
+    }));
+    details.push(...batchDetails);
   }
-  return { processed: due.length, details };
+  return { processed: dueThisRun.length, details };
 }
