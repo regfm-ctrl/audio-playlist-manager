@@ -5,6 +5,7 @@ import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
+import { getPlaylistLoad } from '@/lib/playlist-load';
 
 export const maxDuration = 60;
 
@@ -336,6 +337,12 @@ export async function POST(req: NextRequest) {
     campaign.business_category, campaign.id, start_date, end_date
   )
 
+  // How many sponsors are currently in each break, across all campaigns —
+  // used to prefer emptier breaks so campaigns spread across real capacity
+  // instead of every campaign independently converging on the same popular
+  // times.
+  const loadByPlaylist = await getPlaylistLoad()
+
   // Existing active placements for this campaign (edit mode only). These
   // are kept exactly where they are if still valid — the distribution
   // algorithm only runs to fill the *gap* between what's already placed
@@ -378,7 +385,7 @@ export async function POST(req: NextRequest) {
   // intent of "even"/"random" distribution), only reusing an exact time —
   // with a different block — if there aren't enough distinct times to hit
   // the target count.
-  function spreadAcrossHours(pool: { id: string; name: string }[], count: number, shuffle: boolean): { id: string; name: string }[] {
+  function spreadAcrossHours(pool: { id: string; name: string }[], count: number, shuffle: boolean, loadByPlaylist: Map<string, number>): { id: string; name: string }[] {
     if (count <= 0 || pool.length === 0) return []
     const groups = new Map<string, { id: string; name: string }[]>()
     for (const pl of pool) {
@@ -388,40 +395,52 @@ export async function POST(req: NextRequest) {
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(pl)
     }
-    let groupKeys = Array.from(groups.keys())
-    groupKeys = shuffle
-      ? groupKeys.sort(() => Math.random() - 0.5)
-      : groupKeys.sort((a, b) => {
-          const [dayA, minA] = a.split('-').map(Number)
-          const [dayB, minB] = b.split('-').map(Number)
-          return (dayA - dayB) || (minA - minB)
-        })
+
+    // Each group's effective load is the load of its least-loaded block —
+    // the one that would actually get picked from that time slot.
+    const groupLoad = new Map<string, number>()
+    for (const [key, blocks] of groups) {
+      groupLoad.set(key, Math.min(...blocks.map(b => loadByPlaylist.get(b.id) ?? 0)))
+    }
+
+    // Least-loaded times first — this is what actually spreads campaigns
+    // across the week's real capacity instead of every campaign
+    // independently converging on the same popular hours. Ties broken by
+    // shuffle (random distribution) or chronological order (even).
+    let groupKeys = Array.from(groups.keys()).sort((a, b) => {
+      const loadDiff = groupLoad.get(a)! - groupLoad.get(b)!
+      if (loadDiff !== 0) return loadDiff
+      if (shuffle) return Math.random() - 0.5
+      const [dayA, minA] = a.split('-').map(Number)
+      const [dayB, minB] = b.split('-').map(Number)
+      return (dayA - dayB) || (minA - minB)
+    })
+
+    const pickLeastLoaded = (candidates: { id: string; name: string }[]) =>
+      candidates.slice().sort((a, b) => (loadByPlaylist.get(a.id) ?? 0) - (loadByPlaylist.get(b.id) ?? 0))[0]
 
     const picked: { id: string; name: string }[] = []
     const pickedIds = new Set<string>()
 
-    // Phase 1: one pick per distinct hour, stepped evenly across the list
-    // of distinct hours (or shuffled, for random)
-    const step = Math.max(1, Math.floor(groupKeys.length / count))
-    for (let i = 0; i < count && i * step < groupKeys.length; i++) {
-      const candidates = groups.get(groupKeys[i * step])!
-      const pick = candidates[0]
+    // Phase 1: the `count` least-loaded distinct times, one block each
+    for (let i = 0; i < count && i < groupKeys.length; i++) {
+      const pick = pickLeastLoaded(groups.get(groupKeys[i])!)
       picked.push(pick)
       pickedIds.add(pick.id)
     }
 
-    // Phase 2: not enough distinct hours to reach count — reuse hours,
-    // preferring a different block within that hour over an exact repeat
+    // Phase 2: not enough distinct times to reach count — reuse times,
+    // still preferring the least-loaded remaining block each pass
     while (picked.length < count) {
       let added = false
       for (const key of groupKeys) {
-        const candidate = groups.get(key)!.find(c => !pickedIds.has(c.id))
-        if (candidate) {
-          picked.push(candidate)
-          pickedIds.add(candidate.id)
-          added = true
-          if (picked.length >= count) break
-        }
+        const remaining = groups.get(key)!.filter(c => !pickedIds.has(c.id))
+        if (remaining.length === 0) continue
+        const candidate = pickLeastLoaded(remaining)
+        picked.push(candidate)
+        pickedIds.add(candidate.id)
+        added = true
+        if (picked.length >= count) break
       }
       if (!added) break // pool fully exhausted
     }
@@ -440,7 +459,7 @@ export async function POST(req: NextRequest) {
       selectedSlots.push(...dayAnchors)
       const needed = Math.max(0, target - dayAnchors.length)
       const dayRemainingPool = remainingPool.filter(pl => parseBreakDay(pl.name) === dayNum)
-      const picked = spreadAcrossHours(dayRemainingPool, needed, true).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
+      const picked = spreadAcrossHours(dayRemainingPool, needed, true, loadByPlaylist).map(pl => ({ ...pl, day: dayNum, scheduledFor: '' }))
       selectedSlots.push(...picked)
     }
   } else {
@@ -448,7 +467,7 @@ export async function POST(req: NextRequest) {
     const keptAnchors = anchorPool.slice(0, target)
     selectedSlots.push(...keptAnchors)
     const needed = Math.max(0, target - keptAnchors.length)
-    const picked = spreadAcrossHours(remainingPool, needed, distribution_type === 'random')
+    const picked = spreadAcrossHours(remainingPool, needed, distribution_type === 'random', loadByPlaylist)
       .map(pl => ({ ...pl, day: parseBreakDay(pl.name) ?? 0, scheduledFor: '' }))
     selectedSlots.push(...picked)
   }

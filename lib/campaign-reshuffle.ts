@@ -1,4 +1,5 @@
 import { sql } from '@/lib/db';
+import { getPlaylistLoad } from '@/lib/playlist-load';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
@@ -67,7 +68,8 @@ async function getCategoryExcludedPlaylistIds(
 function pickRandomAvoiding(
   pool: { id: string; name: string }[],
   count: number,
-  avoidKeys: Set<string>
+  avoidKeys: Set<string>,
+  loadByPlaylist: Map<string, number>
 ): { id: string; name: string }[] {
   if (count <= 0 || pool.length === 0) return [];
   const groups = new Map<string, { id: string; name: string }[]>();
@@ -78,34 +80,48 @@ function pickRandomAvoiding(
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(pl);
   }
-  const shuffledKeys = Array.from(groups.keys()).sort(() => Math.random() - 0.5);
-  const preferred = shuffledKeys.filter(k => !avoidKeys.has(k));
-  const fallback = shuffledKeys.filter(k => avoidKeys.has(k));
+
+  const groupLoad = new Map<string, number>();
+  for (const [key, blocks] of groups) {
+    groupLoad.set(key, Math.min(...blocks.map(b => loadByPlaylist.get(b.id) ?? 0)));
+  }
+  // Least-loaded first (spreads across real capacity), with avoiding last
+  // week's exact time still taking priority over load, and a random
+  // tiebreaker so equally-loaded options still vary week to week.
+  const byLoadThenRandom = (a: string, b: string) => (groupLoad.get(a)! - groupLoad.get(b)!) || (Math.random() - 0.5);
+  const allKeys = Array.from(groups.keys());
+  const preferred = allKeys.filter(k => !avoidKeys.has(k)).sort(byLoadThenRandom);
+  const fallback = allKeys.filter(k => avoidKeys.has(k)).sort(byLoadThenRandom);
   const orderedKeys = [...preferred, ...fallback];
+
+  const pickLeastLoaded = (candidates: { id: string; name: string }[]) =>
+    candidates.slice().sort((a, b) => (loadByPlaylist.get(a.id) ?? 0) - (loadByPlaylist.get(b.id) ?? 0))[0];
 
   const picked: { id: string; name: string }[] = [];
   const pickedIds = new Set<string>();
   for (const key of orderedKeys) {
     if (picked.length >= count) break;
-    const candidate = groups.get(key)!.find(c => !pickedIds.has(c.id));
-    if (candidate) { picked.push(candidate); pickedIds.add(candidate.id); }
+    const remaining = groups.get(key)!.filter(c => !pickedIds.has(c.id));
+    if (remaining.length === 0) continue;
+    const candidate = pickLeastLoaded(remaining);
+    picked.push(candidate); pickedIds.add(candidate.id);
   }
   // Still short (very constrained pool) — reuse groups for extra blocks
   while (picked.length < count) {
     let added = false;
     for (const key of orderedKeys) {
-      const candidate = groups.get(key)!.find(c => !pickedIds.has(c.id));
-      if (candidate) {
-        picked.push(candidate); pickedIds.add(candidate.id); added = true;
-        if (picked.length >= count) break;
-      }
+      const remaining = groups.get(key)!.filter(c => !pickedIds.has(c.id));
+      if (remaining.length === 0) continue;
+      const candidate = pickLeastLoaded(remaining);
+      picked.push(candidate); pickedIds.add(candidate.id); added = true;
+      if (picked.length >= count) break;
     }
     if (!added) break;
   }
   return picked;
 }
 
-async function reshuffleOneCampaign(campaign: any, accessToken: string): Promise<string> {
+async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
   const existingSchedules = await sql`
     SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
   `;
@@ -143,7 +159,7 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string): Promise
     campaign.business_category, campaign.id, campaign.start_date, campaign.end_date
   );
   const pool = matching.filter((pl: any) => !excludedPlaylistIds.has(pl.id));
-  const picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys);
+  const picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys, loadByPlaylist);
 
   // Full reshuffle: clear everything currently placed, then place the
   // freshly picked set. This is deliberately different from an edit
@@ -204,6 +220,8 @@ export async function reshuffleDueCampaigns(): Promise<{ processed: number; deta
   const accessToken = await getValidAccessToken();
   if (!accessToken) return { processed: 0, details: ['Weekly reshuffle skipped: Google Drive not connected'] };
 
+  const loadByPlaylist = await getPlaylistLoad();
+
   // Every campaign with weekly randomization enabled becomes due on the
   // same Monday, all at once — this grows directly with campaign count, so
   // it's capped and batched too (smaller batch than elsewhere, since each
@@ -219,7 +237,7 @@ export async function reshuffleDueCampaigns(): Promise<{ processed: number; deta
     const batch = dueThisRun.slice(i, i + CAMPAIGN_BATCH_SIZE);
     const batchDetails = await Promise.all(batch.map(async (campaign) => {
       try {
-        return await reshuffleOneCampaign(campaign, accessToken);
+        return await reshuffleOneCampaign(campaign, accessToken, loadByPlaylist);
       } catch (err: any) {
         return `${campaign.sponsor_name}: reshuffle failed — ${err.message ?? String(err)}`;
       }
