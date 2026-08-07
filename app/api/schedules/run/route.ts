@@ -4,7 +4,6 @@ import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
-import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
 import { melbourneWallTimeToUTC } from '@/lib/break-time';
 
@@ -56,59 +55,37 @@ async function processSchedules(accessToken: string, forceRun = false) {
     AND expires_at <= ${now.toISOString()}
   `;
 
-  // For each expired schedule, remove the file from ALL playlists that contain it
-  for (const schedule of expired) {
-    try {
-      const pathToRemove = schedule.audio_local_path;
-
-      // 1. List all playlists in the playlist folder
-      const listRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      let playlistFiles: { id: string; name: string }[] = [];
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        playlistFiles = listData.files || [];
-      } else {
-        // Fallback: just use the playlist from the schedule record
-        playlistFiles = [{ id: schedule.playlist_id, name: schedule.playlist_name }];
-      }
-
-      let removedFrom: string[] = [];
-
-      // 2. Check each playlist for the file and remove it
-      for (const playlist of playlistFiles) {
-        try {
-          const removed = await removePathFromPlaylist(playlist.id, pathToRemove, accessToken);
-          if (removed) removedFrom.push(playlist.name.replace(/\.m3u8$/i, ''));
-        } catch (innerErr) {
-          console.error(`[scheduler] Error checking playlist ${playlist.name}:`, innerErr);
+  // For each expired schedule, remove the file directly from its own known
+  // playlist. Previously this re-listed and searched every playlist in the
+  // folder for every single expired schedule — with hundreds of playlists,
+  // that's hundreds of wasted lookups per expiry and was the cause of the
+  // scheduler timing out once the folder grew large.
+  const BATCH_SIZE = 15;
+  for (let i = 0; i < expired.length; i += BATCH_SIZE) {
+    const batch = expired.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (schedule: any) => {
+      try {
+        const removed = await removePathFromPlaylist(schedule.playlist_id, schedule.audio_local_path, accessToken);
+        if (removed) {
+          await sql`
+            INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', ${'Removed from: ' + schedule.playlist_name})
+          `;
+          await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${schedule.playlist_name}`, '/api/schedules/run');
+        } else {
+          await sql`
+            INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', 'File not found in playlist')
+          `;
         }
-      }
-
-      if (removedFrom.length > 0) {
+      } catch (err: any) {
+        console.error('[scheduler] Error removing expired file:', schedule.id, err);
         await sql`
           INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${removedFrom.join(', ')}, 'expired', ${'Removed from: ' + removedFrom.join(', ')})
-        `;
-        await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${removedFrom.join(', ')}`, '/api/schedules/run');
-        console.log(`[scheduler] Removed expired ${schedule.audio_file_name} from: ${removedFrom.join(', ')}`);
-      } else {
-        await sql`
-          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, 'none', 'expired', 'File not found in any playlists')
+          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expire_error', ${err.message})
         `;
       }
-
-    } catch (err: any) {
-      console.error('[scheduler] Error removing expired file:', schedule.id, err);
-      await sql`
-        INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-        VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expire_error', ${err.message})
-      `;
-    }
+    }));
   }
 
   // Now deactivate all expired schedules
@@ -142,54 +119,65 @@ async function processSchedules(accessToken: string, forceRun = false) {
 
   const results: any[] = [];
 
-  for (const schedule of due) {
-    try {
-      // 1. Fetch current playlist content from Google Drive
-      const state = await fetchPlaylistState(schedule.playlist_id, accessToken);
-      if (!state) throw new Error(`Failed to fetch playlist: ${schedule.playlist_id}`);
-      const { existingPaths } = state;
+  // Batched in parallel, same pattern as everywhere else — sequential
+  // processing here was the other half of what made this time out once
+  // the schedule count grew into the hundreds (this matters even more once
+  // Force Run All is used, since that processes every active schedule
+  // regardless of due status).
+  for (let i = 0; i < due.length; i += BATCH_SIZE) {
+    const batch = due.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async (schedule: any) => {
+      try {
+        // 1. Fetch current playlist content from Google Drive
+        const state = await fetchPlaylistState(schedule.playlist_id, accessToken);
+        if (!state) throw new Error(`Failed to fetch playlist: ${schedule.playlist_id}`);
+        const { existingPaths } = state;
 
-      // 2. Build the new file path
-      const newPath = schedule.audio_local_path;
+        // 2. Build the new file path
+        const newPath = schedule.audio_local_path;
+        let result: any;
 
-      // Skip if already in playlist
-      if (existingPaths.includes(newPath)) {
+        // Skip if already in playlist
+        if (existingPaths.includes(newPath)) {
+          await sql`
+            INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'skipped', 'Already in playlist')
+          `;
+          result = { schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' };
+        } else {
+          // 3. Add it (handles intro/outro wrapping automatically)
+          const outcome = await addPathToPlaylist(schedule.playlist_id, newPath, schedule.position, accessToken);
+          if (outcome !== 'added') throw new Error(`Failed to save playlist: ${outcome}`);
+
+          await sql`
+            INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'success', 'Added to playlist')
+          `;
+
+          await logActivity(0, 'scheduler', `SCHEDULED_ADD: ${schedule.audio_file_name} → ${schedule.playlist_name}`, '/api/schedules/run');
+
+          result = { schedule: schedule.audio_file_name, playlist: schedule.playlist_name, status: 'success' };
+        }
+
+        // 7. Update next_run_at or deactivate if one-time
+        if (schedule.schedule_type === 'once') {
+          await sql`UPDATE schedules SET is_active = false, last_run_at = ${now.toISOString()} WHERE id = ${schedule.id}`;
+        } else {
+          const next = calculateNextRun(schedule.schedule_type, schedule.days_of_week, schedule.specific_dates, schedule.time_of_day, now);
+          await sql`UPDATE schedules SET last_run_at = ${now.toISOString()}, next_run_at = ${next} WHERE id = ${schedule.id}`;
+        }
+
+        return result;
+      } catch (err: any) {
+        console.error('[scheduler] Error processing schedule:', schedule.id, err);
         await sql`
           INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'skipped', 'Already in playlist')
+          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'error', ${err.message})
         `;
-        results.push({ schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' });
-      } else {
-        // 3. Add it (handles intro/outro wrapping automatically)
-        const outcome = await addPathToPlaylist(schedule.playlist_id, newPath, schedule.position, accessToken);
-        if (outcome !== 'added') throw new Error(`Failed to save playlist: ${outcome}`);
-
-        await sql`
-          INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-          VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'success', 'Added to playlist')
-        `;
-
-        await logActivity(0, 'scheduler', `SCHEDULED_ADD: ${schedule.audio_file_name} → ${schedule.playlist_name}`, '/api/schedules/run');
-
-        results.push({ schedule: schedule.audio_file_name, playlist: schedule.playlist_name, status: 'success' });
+        return { schedule: schedule.audio_file_name, status: 'error', error: err.message };
       }
-
-      // 7. Update next_run_at or deactivate if one-time
-      if (schedule.schedule_type === 'once') {
-        await sql`UPDATE schedules SET is_active = false, last_run_at = ${now.toISOString()} WHERE id = ${schedule.id}`;
-      } else {
-        const next = calculateNextRun(schedule.schedule_type, schedule.days_of_week, schedule.specific_dates, schedule.time_of_day, now);
-        await sql`UPDATE schedules SET last_run_at = ${now.toISOString()}, next_run_at = ${next} WHERE id = ${schedule.id}`;
-      }
-
-    } catch (err: any) {
-      console.error('[scheduler] Error processing schedule:', schedule.id, err);
-      await sql`
-        INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-        VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'error', ${err.message})
-      `;
-      results.push({ schedule: schedule.audio_file_name, status: 'error', error: err.message });
-    }
+    }));
+    results.push(...batchResults);
   }
 
   // Send email notification
