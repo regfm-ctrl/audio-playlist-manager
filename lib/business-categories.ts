@@ -15,11 +15,12 @@ export const BUSINESS_CATEGORIES: string[] = [
   "Education",
   "Financial Services",
   "Furniture Manufacturer",
+  "Garden",
   "Government",
   "Hardware Store",
   "Health Services",
   "Heating",
-  "Home & Garden",
+  "Home Interior
   "Insurance",
   "Jewellery",
   "Legal Services",
