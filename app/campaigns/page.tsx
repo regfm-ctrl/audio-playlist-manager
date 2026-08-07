@@ -72,6 +72,7 @@ const IconAudit = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="no
 export default function CampaignsPage() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignFilter, setCampaignFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
@@ -428,6 +429,19 @@ export default function CampaignsPage() {
     p.name.toLowerCase().includes(breakSearch.toLowerCase())
   );
 
+  const filteredCampaigns = campaigns.filter(c => {
+    const q = campaignFilter.toLowerCase();
+    if (!q) return true;
+    return (
+      c.sponsor_name.toLowerCase().includes(q) ||
+      c.audio_file_name.toLowerCase().includes(q) ||
+      (c.business_category || '').toLowerCase().includes(q) ||
+      (c.booking_reference || '').toLowerCase().includes(q) ||
+      c.distribution_type.toLowerCase().includes(q) ||
+      c.status.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div style={S.app}>
       {/* Sidebar */}
@@ -464,6 +478,12 @@ export default function CampaignsPage() {
             <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0, color: '#1d1d1f' }}>Campaigns</h1>
             <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Schedule sponsor audio across multiple breaks automatically</p>
           </div>
+          <input
+            value={campaignFilter}
+            onChange={e => setCampaignFilter(e.target.value)}
+            placeholder="Filter campaigns..."
+            style={{ padding: '7px 12px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13, background: 'white', outline: 'none', width: 200 }}
+          />
           <button
             onClick={() => { setForm(defaultForm); setEditingCampaignId(null); setShowForm(true); setMsg(''); loadPlaylists(); }}
             style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
@@ -481,7 +501,7 @@ export default function CampaignsPage() {
           <div style={S.card}>
             <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #eee', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 15, fontWeight: 500 }}>All Campaigns</span>
-              <span style={{ background: '#e8e8ed', color: '#666', borderRadius: 10, padding: '1px 8px', fontSize: 12 }}>{campaigns.length}</span>
+              <span style={{ background: '#e8e8ed', color: '#666', borderRadius: 10, padding: '1px 8px', fontSize: 12 }}>{filteredCampaigns.length}</span>
             </div>
             {loading ? (
               <div style={{ padding: '40px 0', textAlign: 'center' }}>
@@ -490,6 +510,10 @@ export default function CampaignsPage() {
             ) : campaigns.length === 0 ? (
               <div style={{ padding: '40px 0', textAlign: 'center', color: '#aaa', fontSize: 14 }}>
                 No campaigns yet. Click "+ New Campaign" to get started.
+              </div>
+            ) : filteredCampaigns.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: '#aaa', fontSize: 14 }}>
+                No campaigns match "{campaignFilter}".
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -502,7 +526,7 @@ export default function CampaignsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {campaigns.map(c => (
+                    {filteredCampaigns.map(c => (
                       <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
                         <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {c.sponsor_name}
