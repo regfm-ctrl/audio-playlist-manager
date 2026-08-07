@@ -47,12 +47,15 @@ Use the Gmail send tool to send this email now.`
 async function processSchedules(accessToken: string, forceRun = false) {
   const now = new Date();
 
-  // Find expired schedules before deactivating them
+  // Find expired schedules before deactivating them (capped and ordered
+  // most-overdue-first, same reasoning as the "due" cap below)
   const expired = await sql`
     SELECT * FROM schedules
     WHERE is_active = true
     AND expires_at IS NOT NULL
     AND expires_at <= ${now.toISOString()}
+    ORDER BY expires_at ASC
+    LIMIT 60
   `;
 
   // For each expired schedule, remove the file directly from its own known
@@ -78,33 +81,39 @@ async function processSchedules(accessToken: string, forceRun = false) {
             VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', 'File not found in playlist')
           `;
         }
+        // Deactivate this specific row now that it's actually been handled
+        // — only what was genuinely processed this run, not the full
+        // (possibly larger, capped-off) set of expired rows.
+        await sql`UPDATE schedules SET is_active = false WHERE id = ${schedule.id}`;
       } catch (err: any) {
         console.error('[scheduler] Error removing expired file:', schedule.id, err);
         await sql`
           INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
           VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expire_error', ${err.message})
         `;
+        // Left active on error so the next run retries it, rather than
+        // silently abandoning a removal that never actually happened.
       }
     }));
   }
 
-  // Now deactivate all expired schedules
-  await sql`
-    UPDATE schedules
-    SET is_active = false
-    WHERE is_active = true
-    AND expires_at IS NOT NULL
-    AND expires_at <= ${now.toISOString()}
-  `;
-
-  // Get all active schedules due to run (not expired)
-  // forceRun=true ignores next_run_at and runs ALL active schedules immediately
+  // Get active schedules due to run (not expired), capped per invocation and
+  // processing the most overdue first. If a run failed for a while (as
+  // happened during the earlier outage), everything that was due during
+  // that window is still sitting there — without this cap, one run would
+  // try to process the entire backlog at once and keep timing out with zero
+  // progress. Capping guarantees every run makes real forward progress;
+  // the backlog just drains gradually across the next several runs instead.
+  // forceRun=true still ignores next_run_at (runs whatever's due) but gets
+  // the same cap and ordering for the same reason.
   const due = forceRun
     ? await sql`
         SELECT * FROM schedules
         WHERE is_active = true
         AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
         AND schedule_type != 'expiry_only'
+        ORDER BY next_run_at ASC NULLS FIRST
+        LIMIT 100
       `
     : await sql`
         SELECT * FROM schedules
@@ -112,6 +121,8 @@ async function processSchedules(accessToken: string, forceRun = false) {
         AND next_run_at <= ${now.toISOString()}
         AND (expires_at IS NULL OR expires_at > ${now.toISOString()})
         AND schedule_type != 'expiry_only'
+        ORDER BY next_run_at ASC
+        LIMIT 100
       `;
 
   if (due.length === 0 && !forceRun) return { processed: 0, results: [] };
