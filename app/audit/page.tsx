@@ -6,6 +6,9 @@ type PhantomItem = { playlistId: string; playlistName: string; path: string; fil
 type ReconcileResult = { scanned: number; added: string[]; phantoms: PhantomItem[]; errors: string[] };
 type ReconcilePage = { totalPlaylists: number; pageScanned: number; nextOffset: number | null; added: string[]; phantoms: PhantomItem[]; errors: string[] };
 type CategoryConflict = { playlistId: string; playlistName: string; category: string; sponsors: { scheduleId: number; campaignId: number; sponsorName: string; createdAt: string }[] };
+type RebalanceMove = { scheduleId: number; sponsorName: string; audioFileName: string; audioLocalPath: string; fromPlaylistId: string; fromPlaylistName: string; toPlaylistId: string; toPlaylistName: string };
+type RebalanceSkipped = { scheduleId: number; sponsorName: string; playlistName: string; reason: string };
+type FixPlan = { overloadedPlaylists: number; moves: RebalanceMove[]; skipped: RebalanceSkipped[] };
 
 const PAGE_SIZE = 30;
 
@@ -17,16 +20,53 @@ export default function AuditPage() {
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [conflicts, setConflicts] = useState<CategoryConflict[] | null>(null);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [fixPlan, setFixPlan] = useState<FixPlan | null>(null);
+  const [computingFix, setComputingFix] = useState(false);
+  const [applyingFix, setApplyingFix] = useState(false);
+  const [fixApplyResult, setFixApplyResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
 
   async function checkCategoryConflicts() {
     setCheckingConflicts(true);
     setConflicts(null);
+    setFixPlan(null);
+    setFixApplyResult(null);
     try {
       const res = await fetch('/api/audit/category-conflicts');
       const data = await res.json();
       setConflicts(data.conflicts || []);
     } finally {
       setCheckingConflicts(false);
+    }
+  }
+
+  async function computeFixPlan() {
+    setComputingFix(true);
+    setFixPlan(null);
+    setFixApplyResult(null);
+    try {
+      const res = await fetch('/api/audit/category-conflicts/fix-plan');
+      const data = await res.json();
+      setFixPlan(data);
+    } finally {
+      setComputingFix(false);
+    }
+  }
+
+  async function applyFixPlan() {
+    if (!fixPlan || fixPlan.moves.length === 0) return;
+    setApplyingFix(true);
+    try {
+      const res = await fetch('/api/rebalance/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moves: fixPlan.moves }),
+      });
+      const data = await res.json();
+      setFixApplyResult(data);
+      setFixPlan(null);
+      setConflicts(null); // stale now — re-check to confirm
+    } finally {
+      setApplyingFix(false);
     }
   }
 
@@ -139,21 +179,69 @@ export default function AuditPage() {
               {conflicts.length === 0 ? (
                 <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every break is clean.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {conflicts.map((c, i) => (
-                    <div key={i} style={{ padding: '10px 12px', background: '#fdecec', border: '0.5px solid #f5b8b8', borderRadius: 7 }}>
-                      <p style={{ fontSize: 12, fontWeight: 500, margin: '0 0 4px', color: '#a02020' }}>
-                        {c.playlistName.replace(/\.m3u8$/i, '')} — "{c.category}"
-                      </p>
-                      {c.sponsors.map(s => (
-                        <p key={s.scheduleId} style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>
-                          {s.sponsorName} (schedule #{s.scheduleId}, campaign #{s.campaignId}, placed {new Date(s.createdAt).toLocaleDateString('en-AU')})
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                    {conflicts.map((c, i) => (
+                      <div key={i} style={{ padding: '10px 12px', background: '#fdecec', border: '0.5px solid #f5b8b8', borderRadius: 7 }}>
+                        <p style={{ fontSize: 12, fontWeight: 500, margin: '0 0 4px', color: '#a02020' }}>
+                          {c.playlistName.replace(/\.m3u8$/i, '')} — "{c.category}"
                         </p>
-                      ))}
-                    </div>
-                  ))}
-                </div>
+                        {c.sponsors.map(s => (
+                          <p key={s.scheduleId} style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>
+                            {s.sponsorName} (schedule #{s.scheduleId}, campaign #{s.campaignId}, placed {new Date(s.createdAt).toLocaleDateString('en-AU')})
+                          </p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={computeFixPlan} disabled={computingFix}
+                    style={{ padding: '7px 16px', background: '#a02020', color: 'white', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: computingFix ? 0.6 : 1 }}>
+                    {computingFix ? 'Computing fix...' : 'Compute Fix Plan'}
+                  </button>
+                </>
               )}
+            </div>
+          )}
+
+          {fixApplyResult && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 800 }}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>
+                Fix applied: {fixApplyResult.succeeded} of {fixApplyResult.total} moved successfully
+              </p>
+              {fixApplyResult.failed.length > 0 && fixApplyResult.failed.map((f, i) => (
+                <p key={i} style={{ fontSize: 12, color: '#a02020', margin: '4px 0 0' }}>{f}</p>
+              ))}
+            </div>
+          )}
+
+          {fixPlan && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 800 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>
+                  Fix Plan — keeps the oldest campaign in each conflicted break, moves the newer one(s) out
+                </p>
+                {fixPlan.moves.length > 0 && (
+                  <button onClick={applyFixPlan} disabled={applyingFix}
+                    style={{ padding: '7px 16px', background: '#0a6e46', color: 'white', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: applyingFix ? 0.6 : 1 }}>
+                    {applyingFix ? 'Applying...' : `Apply ${fixPlan.moves.length} Move${fixPlan.moves.length === 1 ? '' : 's'}`}
+                  </button>
+                )}
+              </div>
+              {fixPlan.moves.length === 0 && fixPlan.skipped.length === 0 && (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>Nothing to fix.</p>
+              )}
+              {fixPlan.moves.map((m, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: '#f5f9f7', borderRadius: 7, fontSize: 12, marginBottom: 6 }}>
+                  <span style={{ fontWeight: 500 }}>{m.sponsorName}</span>
+                  <span style={{ color: '#666' }}>{m.fromPlaylistName.replace(/\.m3u8$/i, '')} <span style={{ color: '#0a6e46' }}>→</span> {m.toPlaylistName.replace(/\.m3u8$/i, '')}</span>
+                </div>
+              ))}
+              {fixPlan.skipped.map((s, i) => (
+                <div key={i} style={{ padding: '8px 10px', background: '#faf6ea', borderRadius: 7, marginBottom: 6 }}>
+                  <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{s.sponsorName} — {s.playlistName.replace(/\.m3u8$/i, '')}</p>
+                  <p style={{ fontSize: 11, color: '#888', margin: '2px 0 0' }}>{s.reason}</p>
+                </div>
+              ))}
             </div>
           )}
 
