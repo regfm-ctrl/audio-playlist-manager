@@ -5,6 +5,7 @@ import { useState } from 'react';
 type PhantomItem = { playlistId: string; playlistName: string; path: string; fileName: string };
 type ReconcileResult = { scanned: number; added: string[]; phantoms: PhantomItem[]; errors: string[] };
 type ReconcilePage = { totalPlaylists: number; pageScanned: number; nextOffset: number | null; added: string[]; phantoms: PhantomItem[]; errors: string[] };
+type CategoryConflict = { playlistId: string; playlistName: string; category: string; sponsors: { scheduleId: number; campaignId: number; sponsorName: string; createdAt: string }[] };
 
 const PAGE_SIZE = 30;
 
@@ -14,6 +15,20 @@ export default function AuditPage() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [conflicts, setConflicts] = useState<CategoryConflict[] | null>(null);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
+
+  async function checkCategoryConflicts() {
+    setCheckingConflicts(true);
+    setConflicts(null);
+    try {
+      const res = await fetch('/api/audit/category-conflicts');
+      const data = await res.json();
+      setConflicts(data.conflicts || []);
+    } finally {
+      setCheckingConflicts(false);
+    }
+  }
 
   async function runAudit() {
     setLoading(true);
@@ -102,13 +117,46 @@ export default function AuditPage() {
             <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Audit</h1>
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects</p>
           </div>
-          <button onClick={runAudit} disabled={loading}
-            style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
-            {loading ? (progress ? `Scanning... ${progress.done}/${progress.total}` : 'Starting...') : 'Run Audit'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={checkCategoryConflicts} disabled={checkingConflicts}
+              style={{ padding: '8px 18px', background: 'white', color: '#0071e3', border: '0.5px solid #0071e3', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingConflicts ? 0.6 : 1 }}>
+              {checkingConflicts ? 'Checking...' : 'Check Category Conflicts'}
+            </button>
+            <button onClick={runAudit} disabled={loading}
+              style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+              {loading ? (progress ? `Scanning... ${progress.done}/${progress.total}` : 'Starting...') : 'Run Audit'}
+            </button>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {conflicts !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 800 }}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Category Conflicts</p>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                Breaks currently holding more than one active campaign from the same business category — this should never happen.
+              </p>
+              {conflicts.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every break is clean.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {conflicts.map((c, i) => (
+                    <div key={i} style={{ padding: '10px 12px', background: '#fdecec', border: '0.5px solid #f5b8b8', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: '0 0 4px', color: '#a02020' }}>
+                        {c.playlistName.replace(/\.m3u8$/i, '')} — "{c.category}"
+                      </p>
+                      {c.sponsors.map(s => (
+                        <p key={s.scheduleId} style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>
+                          {s.sponsorName} (schedule #{s.scheduleId}, campaign #{s.campaignId}, placed {new Date(s.createdAt).toLocaleDateString('en-AU')})
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {loading && (
             <div style={{ marginBottom: 20 }}>
               <p style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>
