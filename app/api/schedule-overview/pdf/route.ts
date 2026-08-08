@@ -49,7 +49,7 @@ function formatTimestampHeader(page: PDFPage, font: PDFFont, fontBold: PDFFont):
   const tsWidth = font.widthOfTextAtSize(timestamp, 9);
   page.drawText(timestamp, { x: PAGE_WIDTH - MARGIN_X - tsWidth, y, size: 9, font, color: gray });
 
-  page.drawText('Radio East Gippsland Inc', { x: MARGIN_X, y, size: 15, font: fontBold, color: black });
+  page.drawText('Radio East Gippsland - REGFM', { x: MARGIN_X, y, size: 15, font: fontBold, color: black });
   y -= 18;
   page.drawText('Weekly Sponsorship Schedule — All Campaigns', { x: MARGIN_X, y, size: 11, font, color: gray });
   y -= 24;
@@ -133,9 +133,18 @@ export async function GET(req: NextRequest) {
         rowIndex = 0;
       }
 
+      // Text is drawn from its baseline, not its top — so the shaded band
+      // needs to account for how far glyphs actually extend above (ascent)
+      // and below (descent) that baseline, tightly hugging the real text
+      // instead of the arbitrary row-height box.
+      const ASCENT = FONT_SIZE * 0.75;
+      const DESCENT = FONT_SIZE * 0.25;
+      const BAND_PAD = 2;
       if (rowIndex % 2 === 1) {
+        const rectTop = colY + ASCENT + BAND_PAD;
+        const rectBottom = colY - (sponsorLines.length - 1) * LINE_HEIGHT - DESCENT - BAND_PAD;
         page.drawRectangle({
-          x: colX - 3, y: colY - rowHeight + LINE_HEIGHT * 0.3, width: columnWidth + 6, height: rowHeight,
+          x: colX - 3, y: rectBottom, width: columnWidth + 6, height: rectTop - rectBottom,
           color: bandColor,
         });
       }
