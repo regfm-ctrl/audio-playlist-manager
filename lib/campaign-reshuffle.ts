@@ -183,7 +183,9 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
     }));
   }
 
-  const weeklyEndDate = campaign.end_date ? new Date(campaign.end_date).toISOString() : null;
+  const weeklyEndDate = campaign.end_date
+    ? (() => { const [y, m, d] = campaign.end_date.split('-').map(Number); return melbourneWallTimeToUTC(y, m, d, 22, 0).toISOString(); })()
+    : null;
   const now = new Date();
   let placed = 0;
   // Files pre-assigned sequentially, in slot order, before the parallel

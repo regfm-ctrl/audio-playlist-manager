@@ -99,10 +99,20 @@ export async function POST(req: NextRequest) {
   const audioFiles = parseCampaignAudioFiles(campaign)
   const audioFilePaths = new Set(audioFiles.map(f => f.localPath))
 
+  // "Start date" means the campaign shouldn't go live in Drive before 6am
+  // Melbourne time that day; "end date" means it should keep running
+  // through to 10pm Melbourne time that day, not cut off at UTC midnight
+  // (which previously landed mid-morning on the end date itself).
+  function dateStringToMelbourneThreshold(dateStr: string, hour: number): Date {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return melbourneWallTimeToUTC(y, m, d, hour, 0)
+  }
+  const startThreshold = start_date ? dateStringToMelbourneThreshold(start_date, 6) : null
+  const endThreshold = end_date ? dateStringToMelbourneThreshold(end_date, 22) : null
+
   // ── If confirming with pre-calculated slots ────────────────────────────────
   if (confirm && previewSlots && previewSlots.length > 0) {
-    const endDate = end_date ? new Date(end_date) : null
-    const weeklyEndDate = endDate ? endDate.toISOString() : null
+    const weeklyEndDate = endThreshold ? endThreshold.toISOString() : null
     let created = 0
     let removed = 0
     let refreshed = 0
@@ -204,9 +214,17 @@ export async function POST(req: NextRequest) {
           const hour = parseBreakHour(slot.name) ?? 9
           const timeOfDay = `${String(hour).padStart(2, '0')}:00`
           const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
-          const nextRun = slot.scheduledFor
 
-          await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
+          // Same start-date gate as a fresh campaign — don't go live before
+          // 6am Melbourne time on the start date.
+          const gateOpen = !startThreshold || new Date() >= startThreshold
+          const nextRun = startThreshold && new Date(slot.scheduledFor) < startThreshold
+            ? startThreshold.toISOString()
+            : slot.scheduledFor
+
+          if (gateOpen) {
+            await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
+          }
           await sql`
             INSERT INTO schedules (
               audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
@@ -247,13 +265,24 @@ export async function POST(req: NextRequest) {
         const hour = parseBreakHour(slot.name) ?? 9
         const timeOfDay = `${String(hour).padStart(2, '0')}:00`
         const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
-        const nextRun = slot.scheduledFor
 
-        // Apply to Drive right away, same as an edit does. If this throws
-        // (e.g. a transient Drive error), the catch below reports it and
-        // the schedule row is NOT created — better to have neither than a
-        // database row claiming placement that never actually happened.
-        await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
+        // Don't go live in Drive before 6am Melbourne time on the start
+        // date. If that gate hasn't opened yet, defer entirely to the
+        // scheduler — insert the row with next_run_at pushed out to the
+        // gate (or the break's own natural time, whichever is later), and
+        // skip the Drive write here.
+        const gateOpen = !startThreshold || new Date() >= startThreshold
+        const nextRun = startThreshold && new Date(slot.scheduledFor) < startThreshold
+          ? startThreshold.toISOString()
+          : slot.scheduledFor
+
+        if (gateOpen) {
+          // Apply to Drive right away, same as an edit does. If this throws
+          // (e.g. a transient Drive error), the catch below reports it and
+          // the schedule row is NOT created — better to have neither than a
+          // database row claiming placement that never actually happened.
+          await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
+        }
 
         await sql`
           INSERT INTO schedules (
@@ -517,7 +546,6 @@ export async function POST(req: NextRequest) {
   }
 
   const startDate = new Date(start_date)
-  const endDate = end_date ? new Date(end_date) : null
 
   const slotsWithDates = selectedSlots.map(slot => {
     const d = new Date(startDate)
@@ -527,7 +555,7 @@ export async function POST(req: NextRequest) {
     const minute = time?.minute ?? 0
     const scheduledUTC = melbourneWallTimeToUTC(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), hour, minute)
     return { ...slot, scheduledFor: scheduledUTC.toISOString() }
-  }).filter(slot => !endDate || new Date(slot.scheduledFor) <= endDate)
+  }).filter(slot => !endThreshold || new Date(slot.scheduledFor) <= endThreshold)
     .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
 
   // For edits, work out what's actually changing vs what's already placed
