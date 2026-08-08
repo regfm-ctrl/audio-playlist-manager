@@ -9,6 +9,9 @@ type CategoryConflict = { playlistId: string; playlistName: string; category: st
 type RebalanceMove = { scheduleId: number; sponsorName: string; audioFileName: string; audioLocalPath: string; fromPlaylistId: string; fromPlaylistName: string; toPlaylistId: string; toPlaylistName: string };
 type RebalanceSkipped = { scheduleId: number; sponsorName: string; playlistName: string; reason: string };
 type FixPlan = { overloadedPlaylists: number; moves: RebalanceMove[]; skipped: RebalanceSkipped[] };
+type PathMigCampaign = { id: number; sponsorName: string; oldPath: string; newPath: string; fileCount: number };
+type PathMigDriveFile = { playlistId: string; playlistName: string; oldPaths: string[]; newPaths: string[] };
+type PathMigrationPreview = { campaignsAffected: PathMigCampaign[]; schedulesAffectedCount: number; driveFilesAffected: PathMigDriveFile[]; driveScanned: number; errors: string[] };
 
 const PAGE_SIZE = 30;
 
@@ -24,6 +27,20 @@ export default function AuditPage() {
   const [computingFix, setComputingFix] = useState(false);
   const [applyingFix, setApplyingFix] = useState(false);
   const [fixApplyResult, setFixApplyResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+  const [pathMigration, setPathMigration] = useState<PathMigrationPreview | null>(null);
+  const [checkingPathMigration, setCheckingPathMigration] = useState(false);
+
+  async function checkPathMigration() {
+    setCheckingPathMigration(true);
+    setPathMigration(null);
+    try {
+      const res = await fetch('/api/audit/path-migration');
+      const data = await res.json();
+      setPathMigration(data);
+    } finally {
+      setCheckingPathMigration(false);
+    }
+  }
 
   async function checkCategoryConflicts() {
     setCheckingConflicts(true);
@@ -158,6 +175,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={checkPathMigration} disabled={checkingPathMigration}
+              style={{ padding: '8px 18px', background: 'white', color: '#a02020', border: '0.5px solid #a02020', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingPathMigration ? 0.6 : 1 }}>
+              {checkingPathMigration ? 'Checking...' : 'Check Path Migration'}
+            </button>
             <button onClick={checkCategoryConflicts} disabled={checkingConflicts}
               style={{ padding: '8px 18px', background: 'white', color: '#0071e3', border: '0.5px solid #0071e3', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingConflicts ? 0.6 : 1 }}>
               {checkingConflicts ? 'Checking...' : 'Check Category Conflicts'}
@@ -170,6 +191,75 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {pathMigration !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Path Migration Preview (read-only — nothing has been changed)</p>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                Scanned {pathMigration.driveScanned} playlists. This is what would change if the old wrong local paths get fixed.
+              </p>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                <div style={{ flex: 1, background: '#faf6ea', borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#a06000' }}>{pathMigration.campaignsAffected.length}</p>
+                  <p style={{ fontSize: 11, color: '#888', margin: '2px 0 0' }}>Campaigns with wrong stored path</p>
+                </div>
+                <div style={{ flex: 1, background: '#faf6ea', borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#a06000' }}>{pathMigration.schedulesAffectedCount}</p>
+                  <p style={{ fontSize: 11, color: '#888', margin: '2px 0 0' }}>Schedule rows with wrong path</p>
+                </div>
+                <div style={{ flex: 1, background: '#faf6ea', borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#a06000' }}>{pathMigration.driveFilesAffected.length}</p>
+                  <p style={{ fontSize: 11, color: '#888', margin: '2px 0 0' }}>Actual Drive files with wrong path</p>
+                </div>
+              </div>
+
+              {pathMigration.errors.length > 0 && (
+                <p style={{ fontSize: 12, color: '#a02020', margin: '0 0 10px' }}>{pathMigration.errors.length} read error(s) during scan — see console.</p>
+              )}
+
+              {pathMigration.campaignsAffected.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 12, fontWeight: 500, margin: '0 0 6px', color: '#1a1a1a' }}>Campaigns (example paths)</p>
+                  <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {pathMigration.campaignsAffected.map(c => (
+                      <div key={c.id} style={{ fontSize: 11, padding: '6px 10px', background: '#f9f9f9', borderRadius: 6 }}>
+                        <div style={{ fontWeight: 500, color: '#1a1a1a' }}>{c.sponsorName} ({c.fileCount} file{c.fileCount === 1 ? '' : 's'})</div>
+                        <div style={{ color: '#a02020' }}>− {c.oldPath}</div>
+                        <div style={{ color: '#0a6e46' }}>+ {c.newPath}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pathMigration.driveFilesAffected.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 500, margin: '0 0 6px', color: '#1a1a1a' }}>Drive files (example paths)</p>
+                  <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {pathMigration.driveFilesAffected.slice(0, 30).map((d, i) => (
+                      <div key={i} style={{ fontSize: 11, padding: '6px 10px', background: '#f9f9f9', borderRadius: 6 }}>
+                        <div style={{ fontWeight: 500, color: '#1a1a1a' }}>{d.playlistName.replace(/\.m3u8$/i, '')}</div>
+                        {d.oldPaths.map((p, j) => (
+                          <div key={j}>
+                            <div style={{ color: '#a02020' }}>− {p}</div>
+                            <div style={{ color: '#0a6e46' }}>+ {d.newPaths[j]}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    {pathMigration.driveFilesAffected.length > 30 && (
+                      <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>...and {pathMigration.driveFilesAffected.length - 30} more.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {pathMigration.campaignsAffected.length === 0 && pathMigration.schedulesAffectedCount === 0 && pathMigration.driveFilesAffected.length === 0 && (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>Nothing found with the old paths — everything's already correct.</p>
+              )}
+            </div>
+          )}
+
           {conflicts !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 800 }}>
               <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Category Conflicts</p>

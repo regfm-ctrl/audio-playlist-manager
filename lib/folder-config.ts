@@ -22,17 +22,17 @@ import type { AudioDirectory } from "./google-drive"
 //   {
 //     name: "CSAs - Audio",
 //     driveId: "1CrQC5MBpF_ryPAvz8EaPmBTnp1mctW_B",
-//     localPath: "T:\\REGFM RadioBOSS\\CSAs Audio\\{audio_filename}",
+//     localPath: "T:\\REGFM - RadioBOSS\\CSAs Audio\\{audio_filename}",
 //   },
 //   {
 //     name: "Promos - Audio",
 //     driveId: "1mbx5urrrdPcRF27rDNm88yqZaPtQ9v9d",
-//     localPath: "T:\\REGFM RadioBOSS\\Promos\\{audio_filename}",
+//     localPath: "T:\\REGFM - RadioBOSS\\Promos\\{audio_filename}",
 //   },
 //   {
 //     name: "Sponsors - Audio",
 //     driveId: "1hidm0iLokkG92VN_PMxcm56FikqJOahl",
-//     localPath: "T:\\REGFM RadioBOSS\\Sponsors\\{audio_filename}",
+//     localPath: "T:\\REGFM - RadioBOSS\\Sponsors\\{audio_filename}",
 //   },
 // ]
 
@@ -50,27 +50,27 @@ export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
   {
     name: "Sponsors - Audio",
     driveId: "1B_LOIo2jl_-P-1UrWoRZ4W688_lk0NQC",
-    localPath: "T:\\REGFM RadioBOSS\\Sponsors\\{audio_filename}",
+    localPath: "T:\\REGFM - RadioBOSS\\Sponsors\\{audio_filename}",
   },  
   {
     name: "IDs - Test Update",
     driveId: "1cy56CgC1KtxCgZI-kGOEWTTNuC5rjzh_",
-    localPath: "T:\\REGFM RadioBOSS\\IDs\\{audio_filename}",
+    localPath: "T:\\REGFM - RadioBOSS\\IDs\\{audio_filename}",
   },
   {
     name: "CSAs - Audio",
     driveId: "14Oy00clKujI6ldWv7NW35DybZVBN_MPm",
-    localPath: "T:\\REGFM RadioBOSS\\CSAs Audio\\{audio_filename}",
+    localPath: "T:\\REGFM - RadioBOSS\\CSAs Audio\\{audio_filename}",
   },
   {
     name: "Promos - Audio",
     driveId: "1PzkL-eDZVPU-g3D7c5IUY93g14-SV3l6",
-    localPath: "T:\\REGFM RadioBOSS\\Promos\\{audio_filename}",
+    localPath: "T:\\REGFM - RadioBOSS\\Promos\\{audio_filename}",
   },
 ]
 
 // Test playlist folder (current active configuration)
-export const PLAYLIST_FOLDER_ID = "1HzK12zBmHK_H-OhinBZFLQasnp2x185u"
+export const PLAYLIST_FOLDER_ID = "1sPxn5mFxy7DagMtpmGGq4-K1c98BX_-b"
 
 // Sponsor break intro/outro stings — the scheduler auto-wraps these around
 // a break's content when it goes from empty to populated, rotating through
@@ -81,13 +81,13 @@ export const PLAYLIST_FOLDER_ID = "1HzK12zBmHK_H-OhinBZFLQasnp2x185u"
 //   e.g. https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz
 //                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^ this part
 
-export const INTRO_FOLDER_ID = "1gIyIQiuCaynQ9fw4UA2aKc78aPUi5ZRU" // T:\My Drive\Traffic System\Sponsor Intro & Outros\Intros
-export const OUTRO_FOLDER_ID = "14dqV6ujoSubM3VUm7w9rVHI2KrpSUS9N" // T:\My Drive\Traffic System\Sponsor Intro & Outros\Outros
+export const INTRO_FOLDER_ID = "1gIyIQiuCaynQ9fw4UA2aKc78aPUi5ZRU" // T:\REGFM - RadioBOSS\Traffic System\Sponsor Intro & Outros\Intros
+export const OUTRO_FOLDER_ID = "14dqV6ujoSubM3VUm7w9rVHI2KrpSUS9N" // T:\REGFM - RadioBOSS\Traffic System\Sponsor Intro & Outros\Outros
 
 // Local paths RadioBOSS actually uses to resolve these files (must match
 // the mapped network drive path, same pattern as DEFAULT_AUDIO_DIRECTORIES)
-export const INTRO_LOCAL_PATH_PREFIX = "T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Intros\\"
-export const OUTRO_LOCAL_PATH_PREFIX = "T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Outros\\"
+export const INTRO_LOCAL_PATH_PREFIX = "T:\\REGFM - RadioBOSS\\Traffic System\\Sponsor Intro & Outros\\Intros\\"
+export const OUTRO_LOCAL_PATH_PREFIX = "T:\\REGFM - RadioBOSS\\Traffic System\\Sponsor Intro & Outros\\Outros\\"
 
 
 
