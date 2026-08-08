@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
+import { fetchPlaylistState, savePlaylistContent } from '@/lib/playlist-ops';
 
 // The old, wrong path prefixes found on RadioBOSS's mapped drive, and what
 // they need to become. Specific per-subfolder rather than a blanket root
@@ -100,4 +101,110 @@ export async function computePathMigrationPreview(accessToken: string): Promise<
   }
 
   return { campaignsAffected, schedulesAffectedCount, driveFilesAffected, driveScanned: playlists.length, errors };
+}
+
+// In-place path correction for one playlist file — a straight find-and-
+// replace on whatever's currently there, preserving exact order and
+// position. Deliberately not a remove-then-add: that would risk the
+// break briefly looking empty (if it only had one item) and picking a
+// fresh intro/outro from rotation, when nothing about the actual content
+// has changed — just the path string pointing at it.
+async function fixPlaylistPaths(playlistId: string, accessToken: string): Promise<{ changed: boolean; error?: string }> {
+  try {
+    const state = await fetchPlaylistState(playlistId, accessToken);
+    if (!state) return { changed: false, error: 'Could not read playlist' };
+    const { containerName, existingPaths } = state;
+
+    const newPaths = existingPaths.map(applyPathReplacements);
+    const changed = newPaths.some((p, i) => p !== existingPaths[i]);
+    if (!changed) return { changed: false };
+
+    const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
+    const newContent = newPaths.length > 0
+      ? `#EXTM3U\nContainer=<${encodedName}>${newPaths.join('|')}\n`
+      : `#EXTM3U\n`;
+    const ok = await savePlaylistContent(playlistId, newContent, accessToken);
+    if (!ok) return { changed: false, error: 'Failed to save' };
+    return { changed: true };
+  } catch (err: any) {
+    return { changed: false, error: err.message ?? String(err) };
+  }
+}
+
+export type PathMigrationResult = {
+  campaignsUpdated: number;
+  schedulesUpdated: number;
+  driveFilesUpdated: number;
+  driveFilesFailed: string[];
+};
+
+export async function applyPathMigration(accessToken: string): Promise<PathMigrationResult> {
+  const BATCH_SIZE = 15;
+
+  // 1. Campaigns — batched, DB-only
+  const campaigns = await sql`SELECT id, audio_local_path, audio_files FROM campaigns`;
+  let campaignsUpdated = 0;
+  for (let i = 0; i < campaigns.length; i += BATCH_SIZE) {
+    const batch = (campaigns as any[]).slice(i, i + BATCH_SIZE);
+    const outcomes = await Promise.all(batch.map(async (c: any) => {
+      let files: any[] = [];
+      try { files = typeof c.audio_files === 'string' ? JSON.parse(c.audio_files) : (c.audio_files || []); } catch { files = []; }
+
+      let changed = false;
+      const newFiles = files.map((f: any) => {
+        if (f.localPath) {
+          const newPath = applyPathReplacements(f.localPath);
+          if (newPath !== f.localPath) { changed = true; return { ...f, localPath: newPath }; }
+        }
+        return f;
+      });
+      const newLegacyPath = c.audio_local_path ? applyPathReplacements(c.audio_local_path) : c.audio_local_path;
+      if (newLegacyPath !== c.audio_local_path) changed = true;
+
+      if (!changed) return false;
+      await sql`UPDATE campaigns SET audio_local_path = ${newLegacyPath}, audio_files = ${JSON.stringify(newFiles)} WHERE id = ${c.id}`;
+      return true;
+    }));
+    campaignsUpdated += outcomes.filter(Boolean).length;
+  }
+
+  // 2. Schedules — batched, DB-only
+  const schedules = await sql`SELECT id, audio_local_path FROM schedules WHERE is_active = true`;
+  let schedulesUpdated = 0;
+  for (let i = 0; i < schedules.length; i += BATCH_SIZE) {
+    const batch = (schedules as any[]).slice(i, i + BATCH_SIZE);
+    const outcomes = await Promise.all(batch.map(async (s: any) => {
+      const newPath = applyPathReplacements(s.audio_local_path);
+      if (newPath === s.audio_local_path) return false;
+      await sql`UPDATE schedules SET audio_local_path = ${newPath} WHERE id = ${s.id}`;
+      return true;
+    }));
+    schedulesUpdated += outcomes.filter(Boolean).length;
+  }
+
+  // 3. Actual Drive file content — the part that actually matters for
+  // RadioBOSS, since it reads these files directly
+  const listRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!listRes.ok) throw new Error('Failed to list playlists');
+  const listData = await listRes.json();
+  const playlists = (listData.files || []).filter((f: any) => f.name.endsWith('.m3u8'));
+
+  let driveFilesUpdated = 0;
+  const driveFilesFailed: string[] = [];
+  for (let i = 0; i < playlists.length; i += BATCH_SIZE) {
+    const batch = playlists.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (pl: any) => {
+      const result = await fixPlaylistPaths(pl.id, accessToken);
+      return { name: pl.name, ...result };
+    }));
+    for (const r of results) {
+      if (r.error) driveFilesFailed.push(`${r.name}: ${r.error}`);
+      else if (r.changed) driveFilesUpdated++;
+    }
+  }
+
+  return { campaignsUpdated, schedulesUpdated, driveFilesUpdated, driveFilesFailed };
 }

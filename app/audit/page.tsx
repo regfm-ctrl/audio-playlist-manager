@@ -29,10 +29,28 @@ export default function AuditPage() {
   const [fixApplyResult, setFixApplyResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
   const [pathMigration, setPathMigration] = useState<PathMigrationPreview | null>(null);
   const [checkingPathMigration, setCheckingPathMigration] = useState(false);
+  const [applyingMigration, setApplyingMigration] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{ campaignsUpdated: number; schedulesUpdated: number; driveFilesUpdated: number; driveFilesFailed: string[] } | null>(null);
+  const [confirmMigration, setConfirmMigration] = useState(false);
+
+  async function applyPathMigration() {
+    setApplyingMigration(true);
+    setConfirmMigration(false);
+    try {
+      const res = await fetch('/api/audit/path-migration/apply', { method: 'POST' });
+      const data = await res.json();
+      setMigrationResult(data);
+      setPathMigration(null);
+    } finally {
+      setApplyingMigration(false);
+    }
+  }
 
   async function checkPathMigration() {
     setCheckingPathMigration(true);
     setPathMigration(null);
+    setMigrationResult(null);
+    setConfirmMigration(false);
     try {
       const res = await fetch('/api/audit/path-migration');
       const data = await res.json();
@@ -213,6 +231,30 @@ export default function AuditPage() {
                 </div>
               </div>
 
+              {(pathMigration.campaignsAffected.length > 0 || pathMigration.schedulesAffectedCount > 0 || pathMigration.driveFilesAffected.length > 0) && (
+                <div style={{ marginBottom: 14 }}>
+                  {!confirmMigration ? (
+                    <button onClick={() => setConfirmMigration(true)}
+                      style={{ padding: '8px 18px', background: '#a02020', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                      Apply Path Migration
+                    </button>
+                  ) : (
+                    <div style={{ background: '#fdecec', border: '0.5px solid #f5b8b8', borderRadius: 8, padding: 12 }}>
+                      <p style={{ fontSize: 12, color: '#a02020', margin: '0 0 10px', fontWeight: 500 }}>
+                        This will update {pathMigration.campaignsAffected.length} campaign record(s), {pathMigration.schedulesAffectedCount} schedule row(s), and rewrite {pathMigration.driveFilesAffected.length} live Drive file(s). Are you sure?
+                      </p>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => setConfirmMigration(false)} style={{ padding: '7px 14px', background: '#4a4a4c', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={applyPathMigration} disabled={applyingMigration}
+                          style={{ padding: '7px 14px', background: '#a02020', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: applyingMigration ? 0.6 : 1 }}>
+                          {applyingMigration ? 'Applying — this may take a minute or two...' : 'Yes, apply it'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {pathMigration.errors.length > 0 && (
                 <p style={{ fontSize: 12, color: '#a02020', margin: '0 0 10px' }}>{pathMigration.errors.length} read error(s) during scan — see console.</p>
               )}
@@ -256,6 +298,21 @@ export default function AuditPage() {
 
               {pathMigration.campaignsAffected.length === 0 && pathMigration.schedulesAffectedCount === 0 && pathMigration.driveFilesAffected.length === 0 && (
                 <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>Nothing found with the old paths — everything's already correct.</p>
+              )}
+            </div>
+          )}
+
+          {migrationResult && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 800 }}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 8px', color: '#1a1a1a' }}>Path Migration Applied</p>
+              <p style={{ fontSize: 12, color: '#0a6e46', margin: '2px 0' }}>{migrationResult.campaignsUpdated} campaign(s) updated</p>
+              <p style={{ fontSize: 12, color: '#0a6e46', margin: '2px 0' }}>{migrationResult.schedulesUpdated} schedule row(s) updated</p>
+              <p style={{ fontSize: 12, color: '#0a6e46', margin: '2px 0' }}>{migrationResult.driveFilesUpdated} Drive file(s) rewritten</p>
+              {migrationResult.driveFilesFailed.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ fontSize: 12, color: '#a02020', margin: '0 0 4px' }}>{migrationResult.driveFilesFailed.length} failed — re-run "Check Path Migration" to see what's still outstanding:</p>
+                  {migrationResult.driveFilesFailed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0' }}>{f}</p>)}
+                </div>
               )}
             </div>
           )}
