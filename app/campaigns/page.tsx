@@ -9,6 +9,8 @@ import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+type AudioFileRef = { id: string; name: string; dir: string; localPath: string };
+
 type Campaign = {
   id: number;
   sponsor_name: string;
@@ -20,6 +22,7 @@ type Campaign = {
   audio_file_id: string | null;
   audio_directory_name: string | null;
   audio_local_path: string;
+  audio_files: AudioFileRef[] | string | null;
   spots_per_week: number;
   distribution_type: string;
   per_day_counts: string | Record<number, number> | null;
@@ -101,6 +104,7 @@ export default function CampaignsPage() {
     audio_file_id: '',
     audio_directory_name: '',
     audio_local_path: '',
+    audio_files: [] as AudioFileRef[],
     spots_per_week: 10,
     distribution_type: 'even',
     per_day_counts: { 0: 0, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 0 } as Record<number, number>,
@@ -172,16 +176,38 @@ export default function CampaignsPage() {
     }
   }
 
-  function selectFile(file: { id: string; name: string; dir: string; localPath: string }) {
-    setForm(f => ({
-      ...f,
-      audio_file_id: file.id,
-      audio_file_name: file.name,
-      audio_directory_name: file.dir,
-      audio_local_path: file.localPath,
-    }));
-    setShowFilePicker(false);
-    setPickerSearch('');
+  function toggleFile(file: AudioFileRef) {
+    setForm(f => {
+      const exists = f.audio_files.some(a => a.id === file.id);
+      const audio_files = exists ? f.audio_files.filter(a => a.id !== file.id) : [...f.audio_files, file];
+      // Keep the legacy singular fields in sync with the first file, for
+      // the older parts of the system (and campaigns table display) that
+      // still read them directly.
+      const first = audio_files[0];
+      return {
+        ...f,
+        audio_files,
+        audio_file_id: first?.id ?? '',
+        audio_file_name: first?.name ?? '',
+        audio_directory_name: first?.dir ?? '',
+        audio_local_path: first?.localPath ?? '',
+      };
+    });
+  }
+
+  function removeFile(fileId: string) {
+    setForm(f => {
+      const audio_files = f.audio_files.filter(a => a.id !== fileId);
+      const first = audio_files[0];
+      return {
+        ...f,
+        audio_files,
+        audio_file_id: first?.id ?? '',
+        audio_file_name: first?.name ?? '',
+        audio_directory_name: first?.dir ?? '',
+        audio_local_path: first?.localPath ?? '',
+      };
+    });
   }
 
   useEffect(() => { loadCampaigns(); }, []);
@@ -226,7 +252,7 @@ export default function CampaignsPage() {
 
   async function generatePreview() {
     if (!form.sponsor_name) { setMsg('Please enter a sponsor name'); return; }
-    if (!form.audio_file_name) { setMsg('Please enter an audio file name'); return; }
+    if (form.audio_files.length === 0) { setMsg('Please select at least one audio file'); return; }
 
     if (playlists.length === 0) { setMsg('Loading breaks...'); await loadPlaylists(); }
 
@@ -337,6 +363,18 @@ export default function CampaignsPage() {
     }
     const allowedBreaks = campaign.allowed_breaks ? campaign.allowed_breaks.split(',') : [];
 
+    let audioFiles: AudioFileRef[] = [];
+    if (campaign.audio_files) {
+      try {
+        const parsed = typeof campaign.audio_files === 'string' ? JSON.parse(campaign.audio_files) : campaign.audio_files;
+        if (Array.isArray(parsed) && parsed.length > 0) audioFiles = parsed;
+      } catch {}
+    }
+    if (audioFiles.length === 0 && campaign.audio_local_path) {
+      // Legacy campaign, created before multi-file support existed
+      audioFiles = [{ id: campaign.audio_file_id || '', name: campaign.audio_file_name, dir: campaign.audio_directory_name || '', localPath: campaign.audio_local_path }];
+    }
+
     setForm({
       sponsor_name: campaign.sponsor_name,
       business_category: campaign.business_category || '',
@@ -346,6 +384,7 @@ export default function CampaignsPage() {
       audio_file_id: campaign.audio_file_id || '',
       audio_directory_name: campaign.audio_directory_name || '',
       audio_local_path: campaign.audio_local_path,
+      audio_files: audioFiles,
       spots_per_week: campaign.spots_per_week,
       distribution_type: campaign.distribution_type,
       per_day_counts: perDayCounts,
@@ -532,7 +571,17 @@ export default function CampaignsPage() {
                           {c.sponsor_name}
                           {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
                         </td>
-                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>{c.audio_file_name.replace(/\.[^/.]+$/, '')}</td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>
+                          {c.audio_file_name.replace(/\.[^/.]+$/, '')}
+                          {(() => {
+                            let count = 1;
+                            try {
+                              const parsed = typeof c.audio_files === 'string' ? JSON.parse(c.audio_files) : c.audio_files;
+                              if (Array.isArray(parsed) && parsed.length > 1) count = parsed.length;
+                            } catch {}
+                            return count > 1 ? <span style={{ marginLeft: 5, fontSize: 10, color: '#0071e3', fontWeight: 500 }}>+{count - 1} more</span> : null;
+                          })()}
+                        </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{c.spots_per_week}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: c.distribution_type === 'even' ? '#e8f0fb' : c.distribution_type === 'random' ? '#fff8e8' : '#e4f5ee', color: c.distribution_type === 'even' ? '#0055cc' : c.distribution_type === 'random' ? '#a06000' : '#0a6e46' }}>
@@ -628,14 +677,24 @@ export default function CampaignsPage() {
 
               {/* Audio file picker */}
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ ...S.label, color: '#ddd' }}>Audio File</label>
-                {form.audio_file_name ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0071e322', border: '0.5px solid #0071e344', borderRadius: 7 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, color: '#4da3ff', fontWeight: 500 }}>{form.audio_file_name.replace(/\.[^/.]+$/, '')}</div>
-                      <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{form.audio_local_path}</div>
-                    </div>
-                    <button onClick={openFilePicker} style={{ padding: '4px 10px', background: '#4a4a4c', border: '0.5px solid #666', borderRadius: 5, color: '#ddd', fontSize: 12, cursor: 'pointer' }}>Change</button>
+                <label style={{ ...S.label, color: '#ddd' }}>
+                  Audio File{form.audio_files.length > 1 ? 's' : ''}
+                  {form.audio_files.length > 1 && <span style={{ fontWeight: 400, color: '#888' }}> — rotates round-robin between breaks</span>}
+                </label>
+                {form.audio_files.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {form.audio_files.map(file => (
+                      <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0071e322', border: '0.5px solid #0071e344', borderRadius: 7 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: '#4da3ff', fontWeight: 500 }}>{file.name.replace(/\.[^/.]+$/, '')}</div>
+                          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{file.localPath}</div>
+                        </div>
+                        <button onClick={() => removeFile(file.id)} style={{ padding: '4px 10px', background: '#4a4a4c', border: '0.5px solid #666', borderRadius: 5, color: '#ddd', fontSize: 12, cursor: 'pointer' }}>Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={openFilePicker} style={{ padding: '7px 0', background: '#4a4a4c', border: '0.5px dashed #666', borderRadius: 7, color: '#aaa', fontSize: 12, cursor: 'pointer' }}>
+                      + Add another file
+                    </button>
                   </div>
                 ) : (
                   <button onClick={openFilePicker} style={{ width: '100%', padding: '10px 0', background: '#4a4a4c', border: '0.5px dashed #666', borderRadius: 7, color: '#aaa', fontSize: 13, cursor: 'pointer' }}>
@@ -956,10 +1015,13 @@ export default function CampaignsPage() {
       {showFilePicker && (
         <div style={{ ...S.overlay, zIndex: 60 }}>
           <div style={{ ...S.dialog, maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>Select Audio File</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>Select Audio Files</h2>
               <button onClick={() => setShowFilePicker(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 14px' }}>
+              Pick one or more — with several, the scheduler rotates between them round-robin as it fills breaks.
+            </p>
             {/* Folder tabs */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' as const }}>
               {AUDIO_DIRECTORIES.map((dir, i) => (
@@ -986,20 +1048,29 @@ export default function CampaignsPage() {
               ) : (
                 pickerFiles
                   .filter(f => f.name.toLowerCase().includes(pickerSearch.toLowerCase()))
-                  .map((f, i) => (
-                    <div key={f.id} onClick={() => selectFile(f)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', background: i % 2 === 0 ? '#3a3a3c' : '#2a2a2c', borderBottom: '0.5px solid #4a4a4c' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#0071e322')}
-                      onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? '#3a3a3c' : '#2a2a2c')}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#4da3ff" strokeWidth="1.4"><path d="M2 2h6l3 3v7H2V2z"/><path d="M8 2v3h3"/></svg>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: '#e0e0e0' }}>{f.name.replace(/\.[^/.]+$/, '')}</div>
-                        <div style={{ fontSize: 11, color: '#666' }}>{f.dir}</div>
+                  .map((f, i) => {
+                    const checked = form.audio_files.some(a => a.id === f.id)
+                    return (
+                      <div key={f.id} onClick={() => toggleFile(f)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', background: checked ? '#0071e322' : (i % 2 === 0 ? '#3a3a3c' : '#2a2a2c'), borderBottom: '0.5px solid #4a4a4c' }}
+                      >
+                        <input type="checkbox" checked={checked} onChange={() => toggleFile(f)} onClick={e => e.stopPropagation()} style={{ accentColor: '#0071e3', width: 15, height: 15, flexShrink: 0 }} />
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#4da3ff" strokeWidth="1.4"><path d="M2 2h6l3 3v7H2V2z"/><path d="M8 2v3h3"/></svg>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: '#e0e0e0' }}>{f.name.replace(/\.[^/.]+$/, '')}</div>
+                          <div style={{ fontSize: 11, color: '#666' }}>{f.dir}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
               )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+              <span style={{ fontSize: 12, color: '#888' }}>{form.audio_files.length} selected</span>
+              <button onClick={() => { setShowFilePicker(false); setPickerSearch(''); }}
+                style={{ padding: '8px 20px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                Done
+              </button>
             </div>
           </div>
         </div>

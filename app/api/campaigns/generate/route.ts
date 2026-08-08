@@ -6,6 +6,7 @@ import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { getPlaylistLoad } from '@/lib/playlist-load';
+import { parseCampaignAudioFiles, getNextCampaignAudioFile, type CampaignAudioFile } from '@/lib/campaign-audio-rotation';
 
 export const maxDuration = 60;
 
@@ -92,6 +93,12 @@ export async function POST(req: NextRequest) {
     position, start_date, end_date,
   } = campaign;
 
+  // audio_files is the canonical list going forward — falls back to the
+  // single legacy audio_local_path for campaigns created before this
+  // feature existed, so nothing breaks for existing single-file campaigns.
+  const audioFiles = parseCampaignAudioFiles(campaign)
+  const audioFilePaths = new Set(audioFiles.map(f => f.localPath))
+
   // ── If confirming with pre-calculated slots ────────────────────────────────
   if (confirm && previewSlots && previewSlots.length > 0) {
     const endDate = end_date ? new Date(end_date) : null
@@ -136,15 +143,18 @@ export async function POST(req: NextRequest) {
           } catch (err: any) {
             return { type: 'error' as const, message: `Remove ${sched.playlist_name}: ${err.message ?? String(err)}` }
           }
-        } else if (sched.audio_local_path !== audio_local_path) {
-          // Same break, but the audio file changed — swap it in place
+        } else if (!audioFilePaths.has(sched.audio_local_path)) {
+          // Same break, but the file it's currently playing is no longer
+          // one of the campaign's valid audio files (e.g. it was removed
+          // from the list) — swap in the next file in rotation
           try {
+            const file = await getNextCampaignAudioFile(campaign.id, audioFiles)
             await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
-            await addPathToPlaylist(sched.playlist_id, audio_local_path, position ?? -1, accessToken)
+            await addPathToPlaylist(sched.playlist_id, file.localPath, position ?? -1, accessToken)
             await sql`
               UPDATE schedules SET
-                audio_file_id = ${audio_file_id ?? ''}, audio_file_name = ${audio_file_name},
-                audio_directory_name = ${audio_directory_name ?? ''}, audio_local_path = ${audio_local_path},
+                audio_file_id = ${file.id ?? ''}, audio_file_name = ${file.name ?? ''},
+                audio_directory_name = ${file.dir ?? ''}, audio_local_path = ${file.localPath},
                 position = ${position ?? -1}, expires_at = ${weeklyEndDate}
               WHERE id = ${sched.id}
             `
@@ -153,8 +163,10 @@ export async function POST(req: NextRequest) {
             return { type: 'error' as const, message: `Update ${sched.playlist_name}: ${err.message ?? String(err)}` }
           }
         } else {
-          // Unchanged placement — just refresh metadata (dates/position),
-          // no Drive operation needed since the audio is already there
+          // Unchanged placement — still one of the campaign's valid files,
+          // so just refresh metadata (dates/position). No Drive operation
+          // needed, and the specific variant it has stays put rather than
+          // reshuffling on every edit.
           try {
             await sql`
               UPDATE schedules SET position = ${position ?? -1}, expires_at = ${weeklyEndDate}
@@ -172,7 +184,8 @@ export async function POST(req: NextRequest) {
         else errors.push(r.message)
       }
 
-      // Add any genuinely new breaks
+      // Add any genuinely new breaks — round-robin through the campaign's
+      // audio files rather than always using the same one
       const newSlots = previewSlots.filter((slot: any) => !currentPlaylistIds.has(slot.id))
       const addResults = await processInBatches(newSlots, async (slot: any) => {
         try {
@@ -180,8 +193,9 @@ export async function POST(req: NextRequest) {
           const timeOfDay = `${String(hour).padStart(2, '0')}:00`
           const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
           const nextRun = slot.scheduledFor
+          const file = await getNextCampaignAudioFile(campaign.id, audioFiles)
 
-          await addPathToPlaylist(slot.id, audio_local_path, position ?? -1, accessToken)
+          await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
           await sql`
             INSERT INTO schedules (
               audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
@@ -189,7 +203,7 @@ export async function POST(req: NextRequest) {
               schedule_type, days_of_week, specific_dates, time_of_day,
               next_run_at, expires_at, created_by, campaign_id
             ) VALUES (
-              ${audio_file_id ?? ''}, ${audio_file_name}, ${audio_directory_name ?? ''}, ${audio_local_path},
+              ${file.id ?? ''}, ${file.name ?? ''}, ${file.dir ?? ''}, ${file.localPath},
               ${slot.id}, ${slot.name}, ${position ?? -1},
               'recurring', ${dayOfWeek}, null, ${timeOfDay},
               ${nextRun}, ${weeklyEndDate}, ${user.username}, ${campaign.id}
@@ -220,11 +234,12 @@ export async function POST(req: NextRequest) {
         const timeOfDay = `${String(hour).padStart(2, '0')}:00`
         const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
         const nextRun = slot.scheduledFor
+        const file = await getNextCampaignAudioFile(campaign.id, audioFiles)
 
         // Apply to Drive right away, same as an edit does. If this fails
         // (e.g. a transient Drive error) the schedule row is still created
         // with next_run_at due, so the normal scheduler run will retry it.
-        const outcome = await addPathToPlaylist(slot.id, audio_local_path, position ?? -1, accessToken)
+        const outcome = await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
         const driveError = outcome === 'failed'
           ? `${slot.name}: failed to write to Drive, will retry on next scheduler run`
           : null
@@ -236,10 +251,10 @@ export async function POST(req: NextRequest) {
             schedule_type, days_of_week, specific_dates, time_of_day,
             next_run_at, expires_at, created_by, campaign_id
           ) VALUES (
-            ${audio_file_id ?? ''},
-            ${audio_file_name},
-            ${audio_directory_name ?? ''},
-            ${audio_local_path},
+            ${file.id ?? ''},
+            ${file.name ?? ''},
+            ${file.dir ?? ''},
+            ${file.localPath},
             ${slot.id},
             ${slot.name},
             ${position ?? -1},
@@ -519,7 +534,7 @@ export async function POST(req: NextRequest) {
       const existing = currentByPlaylistId.get(slot.id) as any
       if (!existing) {
         added.push(slot.name)
-      } else if (existing.audio_local_path !== audio_local_path) {
+      } else if (!audioFilePaths.has(existing.audio_local_path)) {
         added.push(`${slot.name} (audio update)`)
         audioChanged = true
       } else {

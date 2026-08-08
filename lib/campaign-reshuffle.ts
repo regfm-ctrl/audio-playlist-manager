@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
 import { getPlaylistLoad } from '@/lib/playlist-load';
+import { parseCampaignAudioFiles, getNextCampaignAudioFile } from '@/lib/campaign-audio-rotation';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
@@ -160,6 +161,7 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
   );
   const pool = matching.filter((pl: any) => !excludedPlaylistIds.has(pl.id));
   const picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys, loadByPlaylist);
+  const audioFiles = parseCampaignAudioFiles(campaign);
 
   // Full reshuffle: clear everything currently placed, then place the
   // freshly picked set. This is deliberately different from an edit
@@ -184,7 +186,8 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
       const hour = parseBreakHour(slot.name) ?? 9;
       const timeOfDay = `${String(hour).padStart(2, '0')}:00`;
       try {
-        await addPathToPlaylist(slot.id, campaign.audio_local_path, campaign.position ?? -1, accessToken);
+        const file = await getNextCampaignAudioFile(campaign.id, audioFiles);
+        await addPathToPlaylist(slot.id, file.localPath, campaign.position ?? -1, accessToken);
         await sql`
           INSERT INTO schedules (
             audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
@@ -192,7 +195,7 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
             schedule_type, days_of_week, specific_dates, time_of_day,
             next_run_at, expires_at, created_by, campaign_id
           ) VALUES (
-            ${campaign.audio_file_id ?? ''}, ${campaign.audio_file_name}, ${campaign.audio_directory_name ?? ''}, ${campaign.audio_local_path},
+            ${file.id ?? ''}, ${file.name ?? ''}, ${file.dir ?? ''}, ${file.localPath},
             ${slot.id}, ${slot.name}, ${campaign.position ?? -1},
             'recurring', ${String(day)}, null, ${timeOfDay},
             ${now.toISOString()}, ${weeklyEndDate}, 'weekly-reshuffle', ${campaign.id}

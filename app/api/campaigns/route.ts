@@ -29,20 +29,29 @@ export async function POST(req: NextRequest) {
   await ensureCampaignCategoryColumns();
 
   const {
-    sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+    sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path, audio_files,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
     position, start_date, end_date, booking_reference, booking_details, randomize_weekly,
   } = await req.json();
 
+  // audio_files is the canonical list going forward. The singular columns
+  // are kept in sync with the first file for backward compatibility with
+  // any older code path that still reads them directly.
+  const filesList = Array.isArray(audio_files) && audio_files.length > 0
+    ? audio_files
+    : (audio_local_path ? [{ id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path }] : []);
+  const firstFile = filesList[0] || { id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path };
+
   const rows = await sql`
     INSERT INTO campaigns (
-      sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+      sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path, audio_files,
       spots_per_week, distribution_type, per_day_counts,
       allowed_days, time_from, time_to, allowed_breaks,
       position, start_date, end_date, created_by, booking_reference, booking_details, randomize_weekly
     ) VALUES (
-      ${sponsor_name}, ${business_category || null}, ${audio_file_id}, ${audio_file_name}, ${audio_directory_name}, ${audio_local_path},
+      ${sponsor_name}, ${business_category || null}, ${firstFile.id ?? ''}, ${firstFile.name ?? ''}, ${firstFile.dir ?? ''}, ${firstFile.localPath ?? audio_local_path},
+      ${JSON.stringify(filesList)},
       ${spots_per_week}, ${distribution_type}, ${per_day_counts ? JSON.stringify(per_day_counts) : null},
       ${allowed_days ?? null}, ${time_from ?? null}, ${time_to ?? null}, ${allowed_breaks ?? null},
       ${position ?? -1}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}, ${!!randomize_weekly}
@@ -69,11 +78,16 @@ export async function PATCH(req: NextRequest) {
 
   // Full edit — update every editable field
   const {
-    sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
+    sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path, audio_files,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
     position, start_date, end_date, booking_reference, booking_details, randomize_weekly,
   } = body;
+
+  const filesList = Array.isArray(audio_files) && audio_files.length > 0
+    ? audio_files
+    : (audio_local_path ? [{ id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path }] : []);
+  const firstFile = filesList[0] || { id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path };
 
   // If randomize_weekly is being turned on for the first time, seed
   // last_reshuffled_at to now so the first automatic reshuffle happens on
@@ -87,10 +101,11 @@ export async function PATCH(req: NextRequest) {
     UPDATE campaigns SET
       sponsor_name = ${sponsor_name},
       business_category = ${business_category || null},
-      audio_file_id = ${audio_file_id},
-      audio_file_name = ${audio_file_name},
-      audio_directory_name = ${audio_directory_name ?? ''},
-      audio_local_path = ${audio_local_path},
+      audio_file_id = ${firstFile.id ?? ''},
+      audio_file_name = ${firstFile.name ?? ''},
+      audio_directory_name = ${firstFile.dir ?? ''},
+      audio_local_path = ${firstFile.localPath ?? audio_local_path},
+      audio_files = ${JSON.stringify(filesList)},
       spots_per_week = ${spots_per_week},
       distribution_type = ${distribution_type},
       per_day_counts = ${per_day_counts ? JSON.stringify(per_day_counts) : null},

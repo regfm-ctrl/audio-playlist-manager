@@ -10,4 +10,5 @@ export async function ensureCampaignCategoryColumns() {
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS booking_details TEXT`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS randomize_weekly BOOLEAN DEFAULT false`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_reshuffled_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS audio_files JSONB DEFAULT '[]'`;
 }
