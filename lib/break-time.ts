@@ -70,3 +70,42 @@ export function melbourneWallTimeToUTC(year: number, month: number, day: number,
   const offsetMinutes = (melbourneAsUTC - guessUTC.getTime()) / 60000;
   return new Date(guessUTC.getTime() - offsetMinutes * 60000);
 }
+
+// Works out the next UTC instant this recurring (or one-time) schedule
+// should fire, given its stored days/time. Melbourne-timezone-aware, same
+// as melbourneWallTimeToUTC above.
+export function calculateNextRun(
+  scheduleType: string,
+  daysOfWeek: string | null,
+  specificDates: string | null,
+  timeOfDay: string,
+  fromDate: Date = new Date()
+): string {
+  const [hours, minutes] = timeOfDay.split(':').map(Number);
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Australia/Melbourne',
+    year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+  });
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+  if (scheduleType === 'recurring' && daysOfWeek) {
+    const days = daysOfWeek.split(',').map(Number);
+    for (let i = 1; i <= 7; i++) {
+      const candidate = new Date(fromDate.getTime() + i * 24 * 60 * 60 * 1000);
+      const parts: Record<string, string> = {};
+      for (const p of dtf.formatToParts(candidate)) parts[p.type] = p.value;
+      const weekday = weekdayMap[parts.weekday];
+      if (days.includes(weekday)) {
+        const scheduledUTC = melbourneWallTimeToUTC(parseInt(parts.year), parseInt(parts.month), parseInt(parts.day), hours, minutes);
+        return scheduledUTC.toISOString();
+      }
+    }
+  }
+
+  // Fallback: tomorrow at the given Melbourne time
+  const tomorrow = new Date(fromDate.getTime() + 24 * 60 * 60 * 1000);
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(tomorrow)) parts[p.type] = p.value;
+  const scheduledUTC = melbourneWallTimeToUTC(parseInt(parts.year), parseInt(parts.month), parseInt(parts.day), hours, minutes);
+  return scheduledUTC.toISOString();
+}

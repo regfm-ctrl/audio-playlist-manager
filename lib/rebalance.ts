@@ -1,6 +1,6 @@
 import { sql } from '@/lib/db';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
-import { parseBreakDay, parseBreakMinuteOfDay } from '@/lib/break-time';
+import { parseBreakDay, parseBreakTime, parseBreakMinuteOfDay, calculateNextRun } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 export type RebalanceMove = {
@@ -150,7 +150,30 @@ export async function applyRebalanceMove(move: RebalanceMove, accessToken: strin
   try {
     await removePathFromPlaylist(move.fromPlaylistId, move.audioLocalPath, accessToken);
     await addPathToPlaylist(move.toPlaylistId, move.audioLocalPath, -1, accessToken);
-    await sql`UPDATE schedules SET playlist_id = ${move.toPlaylistId}, playlist_name = ${move.toPlaylistName} WHERE id = ${move.scheduleId}`;
+
+    // The move can land on a genuinely different day and/or time, not just
+    // a different block at the same time — so the schedule's own
+    // days_of_week/time_of_day/next_run_at bookkeeping needs to reflect
+    // the destination, not just playlist_id/playlist_name. Otherwise the
+    // Schedules page would show stale info and next_run_at would be
+    // computed off the wrong time going forward.
+    const day = parseBreakDay(move.toPlaylistName);
+    const time = parseBreakTime(move.toPlaylistName);
+    const daysOfWeek = day !== null ? String(day) : null;
+    const timeOfDay = time ? `${String(time.hour).padStart(2, '0')}:00` : null;
+    const nextRun = daysOfWeek && timeOfDay
+      ? calculateNextRun('recurring', daysOfWeek, null, timeOfDay)
+      : null;
+
+    await sql`
+      UPDATE schedules SET
+        playlist_id = ${move.toPlaylistId},
+        playlist_name = ${move.toPlaylistName},
+        days_of_week = COALESCE(${daysOfWeek}, days_of_week),
+        time_of_day = COALESCE(${timeOfDay}, time_of_day),
+        next_run_at = COALESCE(${nextRun}, next_run_at)
+      WHERE id = ${move.scheduleId}
+    `;
     return true;
   } catch (err) {
     console.error('[rebalance] Move failed:', move, err);

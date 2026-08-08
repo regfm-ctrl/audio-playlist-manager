@@ -5,9 +5,13 @@ import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
-import { melbourneWallTimeToUTC } from '@/lib/break-time';
+import { melbourneWallTimeToUTC, calculateNextRun } from '@/lib/break-time';
 
-export const maxDuration = 60;
+// Fluid Compute is enabled on this project, which raises Hobby plan's
+// execution ceiling to 300s (from the standard 60s) — extra headroom on
+// top of the per-run capping below, at effectively no cost given how far
+// under the monthly usage limits this project sits.
+export const maxDuration = 300;
 
 const NOTIFY_EMAIL = 'rorie.g.ryan@gmail.com';
 const FROM_EMAIL = 'rorie.ryan@broadcastnow.com.au';
@@ -219,42 +223,6 @@ async function processSchedules(accessToken: string, forceRun = false) {
   }
 
   return { processed: due.length, results };
-}
-
-function calculateNextRun(
-  scheduleType: string,
-  daysOfWeek: string | null,
-  specificDates: string | null,
-  timeOfDay: string,
-  fromDate: Date = new Date()
-): string {
-  const [hours, minutes] = timeOfDay.split(':').map(Number);
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Australia/Melbourne',
-    year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
-  });
-  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-
-  if (scheduleType === 'recurring' && daysOfWeek) {
-    const days = daysOfWeek.split(',').map(Number);
-    for (let i = 1; i <= 7; i++) {
-      const candidate = new Date(fromDate.getTime() + i * 24 * 60 * 60 * 1000);
-      const parts: Record<string, string> = {};
-      for (const p of dtf.formatToParts(candidate)) parts[p.type] = p.value;
-      const weekday = weekdayMap[parts.weekday];
-      if (days.includes(weekday)) {
-        const scheduledUTC = melbourneWallTimeToUTC(parseInt(parts.year), parseInt(parts.month), parseInt(parts.day), hours, minutes);
-        return scheduledUTC.toISOString();
-      }
-    }
-  }
-
-  // Fallback: tomorrow at the given Melbourne time
-  const tomorrow = new Date(fromDate.getTime() + 24 * 60 * 60 * 1000);
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(tomorrow)) parts[p.type] = p.value;
-  const scheduledUTC = melbourneWallTimeToUTC(parseInt(parts.year), parseInt(parts.month), parseInt(parts.day), hours, minutes);
-  return scheduledUTC.toISOString();
 }
 
 // POST — manual "Run Now" trigger (requires login)
