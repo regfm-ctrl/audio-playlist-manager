@@ -160,6 +160,17 @@ export async function GET(req: NextRequest) {
     colY -= LINE_HEIGHT * 0.5; // breathing room before the next day's heading
   }
 
+  // Page numbers added in a final pass, since the total isn't known until
+  // all the flowing content above has finished (a day can spill onto a
+  // new page unpredictably depending on how busy it is).
+  const allPages = pdfDoc.getPages();
+  const totalPages = allPages.length;
+  allPages.forEach((p, i) => {
+    const label = `Page ${i + 1} of ${totalPages}`;
+    const labelWidth = font.widthOfTextAtSize(label, 9);
+    p.drawText(label, { x: PAGE_WIDTH - MARGIN_X - labelWidth, y: MARGIN_BOTTOM - 12, size: 9, font, color: rgb(0.55, 0.55, 0.55) });
+  });
+
   const pdfBytes = await pdfDoc.save();
   return new NextResponse(Buffer.from(pdfBytes), {
     headers: {
