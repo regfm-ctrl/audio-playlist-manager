@@ -1,6 +1,6 @@
 import { sql } from '@/lib/db';
 import { getPlaylistLoad } from '@/lib/playlist-load';
-import { parseCampaignAudioFiles, getNextCampaignAudioFile } from '@/lib/campaign-audio-rotation';
+import { parseCampaignAudioFiles, getNextCampaignAudioFiles } from '@/lib/campaign-audio-rotation';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
@@ -179,14 +179,18 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
   const weeklyEndDate = campaign.end_date ? new Date(campaign.end_date).toISOString() : null;
   const now = new Date();
   let placed = 0;
+  // Files pre-assigned sequentially, in slot order, before the parallel
+  // Drive work starts — see getNextCampaignAudioFiles for why.
+  const reshuffleFiles = await getNextCampaignAudioFiles(campaign.id, audioFiles, picked.length);
   for (let i = 0; i < picked.length; i += BATCH_SIZE) {
     const batch = picked.slice(i, i + BATCH_SIZE);
-    const outcomes = await Promise.all(batch.map(async (slot) => {
+    const batchFiles = reshuffleFiles.slice(i, i + BATCH_SIZE);
+    const outcomes = await Promise.all(batch.map(async (slot, j) => {
       const day = parseBreakDay(slot.name) ?? 0;
       const hour = parseBreakHour(slot.name) ?? 9;
       const timeOfDay = `${String(hour).padStart(2, '0')}:00`;
       try {
-        const file = await getNextCampaignAudioFile(campaign.id, audioFiles);
+        const file = batchFiles[j];
         await addPathToPlaylist(slot.id, file.localPath, campaign.position ?? -1, accessToken);
         await sql`
           INSERT INTO schedules (

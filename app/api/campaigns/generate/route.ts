@@ -6,7 +6,7 @@ import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { getPlaylistLoad } from '@/lib/playlist-load';
-import { parseCampaignAudioFiles, getNextCampaignAudioFile, type CampaignAudioFile } from '@/lib/campaign-audio-rotation';
+import { parseCampaignAudioFiles, getNextCampaignAudioFiles, type CampaignAudioFile } from '@/lib/campaign-audio-rotation';
 
 export const maxDuration = 60;
 
@@ -131,6 +131,17 @@ export async function POST(req: NextRequest) {
       `
       const currentPlaylistIds = new Set(existingSchedules.map((s: any) => s.playlist_id))
 
+      // Pre-assign files for anything that'll need a fresh one — sequentially,
+      // before the parallel Drive work starts. Calling the rotation counter
+      // from inside a Promise.all doesn't guarantee assignment order matches
+      // slot order (network timing decides who reaches the counter first),
+      // which can make an otherwise-correct rotation look uneven.
+      const needsSwap = (existingSchedules as any[]).filter((sched: any) =>
+        desiredPlaylistIds.has(sched.playlist_id) && !audioFilePaths.has(sched.audio_local_path)
+      )
+      const swapFiles = await getNextCampaignAudioFiles(campaign.id, audioFiles, needsSwap.length)
+      const swapFileById = new Map(needsSwap.map((sched: any, i: number) => [sched.id, swapFiles[i]]))
+
       const reconcileResults = await processInBatches(existingSchedules, async (sched: any) => {
         const stillWanted = desiredPlaylistIds.has(sched.playlist_id)
         if (!stillWanted) {
@@ -146,9 +157,9 @@ export async function POST(req: NextRequest) {
         } else if (!audioFilePaths.has(sched.audio_local_path)) {
           // Same break, but the file it's currently playing is no longer
           // one of the campaign's valid audio files (e.g. it was removed
-          // from the list) — swap in the next file in rotation
+          // from the list) — swap in the pre-assigned next file in rotation
           try {
-            const file = await getNextCampaignAudioFile(campaign.id, audioFiles)
+            const file = swapFileById.get(sched.id)!
             await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
             await addPathToPlaylist(sched.playlist_id, file.localPath, position ?? -1, accessToken)
             await sql`
@@ -185,15 +196,15 @@ export async function POST(req: NextRequest) {
       }
 
       // Add any genuinely new breaks — round-robin through the campaign's
-      // audio files rather than always using the same one
+      // audio files, pre-assigned in order before the parallel batch
       const newSlots = previewSlots.filter((slot: any) => !currentPlaylistIds.has(slot.id))
-      const addResults = await processInBatches(newSlots, async (slot: any) => {
+      const newSlotFiles = await getNextCampaignAudioFiles(campaign.id, audioFiles, newSlots.length)
+      const addResults = await processInBatches(newSlots.map((slot: any, i: number) => ({ slot, file: newSlotFiles[i] })), async ({ slot, file }: { slot: any; file: CampaignAudioFile }) => {
         try {
           const hour = parseBreakHour(slot.name) ?? 9
           const timeOfDay = `${String(hour).padStart(2, '0')}:00`
           const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
           const nextRun = slot.scheduledFor
-          const file = await getNextCampaignAudioFile(campaign.id, audioFiles)
 
           await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
           await sql`
@@ -228,13 +239,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Brand new campaign — write to Drive immediately + insert schedules ──
-    const createResults = await processInBatches(previewSlots, async (slot: any) => {
+    // Files pre-assigned sequentially, in slot order, before the parallel
+    // Drive work starts — see getNextCampaignAudioFiles for why.
+    const newCampaignFiles = await getNextCampaignAudioFiles(campaign.id, audioFiles, previewSlots.length)
+    const createResults = await processInBatches(previewSlots.map((slot: any, i: number) => ({ slot, file: newCampaignFiles[i] })), async ({ slot, file }: { slot: any; file: CampaignAudioFile }) => {
       try {
         const hour = parseBreakHour(slot.name) ?? 9
         const timeOfDay = `${String(hour).padStart(2, '0')}:00`
         const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
         const nextRun = slot.scheduledFor
-        const file = await getNextCampaignAudioFile(campaign.id, audioFiles)
 
         // Apply to Drive right away, same as an edit does. If this fails
         // (e.g. a transient Drive error) the schedule row is still created
