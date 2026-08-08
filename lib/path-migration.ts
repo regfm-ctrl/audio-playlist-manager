@@ -2,10 +2,15 @@ import { sql } from '@/lib/db';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 // The old, wrong path prefixes found on RadioBOSS's mapped drive, and what
-// they need to become. Order doesn't matter here since the patterns don't
-// overlap with each other.
+// they need to become. Specific per-subfolder rather than a blanket root
+// replace, since each audio type folder actually lives inside a shared
+// "Traffic System" parent that wasn't reflected in the old paths at all —
+// a plain dash-fix alone wasn't enough.
 export const PATH_REPLACEMENTS = [
-  { old: 'T:\\REGFM RadioBOSS\\', new: 'T:\\REGFM - RadioBOSS\\' },
+  { old: 'T:\\REGFM RadioBOSS\\Sponsors\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Sponsors\\' },
+  { old: 'T:\\REGFM RadioBOSS\\IDs\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\IDs\\' },
+  { old: 'T:\\REGFM RadioBOSS\\CSAs Audio\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\CSAs Audio\\' },
+  { old: 'T:\\REGFM RadioBOSS\\Promos\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Promos\\' },
   { old: 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Intros\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Sponsor Intro & Outros\\Intros\\' },
   { old: 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Outros\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Sponsor Intro & Outros\\Outros\\' },
 ];
