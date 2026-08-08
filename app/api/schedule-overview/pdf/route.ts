@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { getWeeklyOverview, DAY_NAMES } from '@/lib/schedule-overview';
+import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
+import { getWeeklyOverview, DAY_NAMES, type WeeklyOverview } from '@/lib/schedule-overview';
 
 function formatTimestamp(date: Date): string {
   const dd = String(date.getDate()).padStart(2, '0');
@@ -14,111 +14,141 @@ function formatTimestamp(date: Date): string {
   return `${dd}/${mm}/${yyyy} ${h}:${min} ${period}`;
 }
 
+const PAGE_WIDTH = 841.89; // A4 landscape
+const PAGE_HEIGHT = 595.28;
+const MARGIN_X = 30;
+const MARGIN_BOTTOM = 24;
+const COLUMN_GAP = 22;
+const COLUMNS_PER_PAGE = 2;
+const FONT_SIZE = 9;
+const LINE_HEIGHT = FONT_SIZE * 1.65;
+
+function wrapLines(font: PDFFont, text: string, fontSize: number, maxWidth: number): string[] {
+  const words = text.split(' ');
+  let line = '';
+  const lines: string[] = [];
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, fontSize) > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function formatTimestampHeader(page: PDFPage, font: PDFFont, fontBold: PDFFont): number {
+  const black = rgb(0.1, 0.1, 0.1);
+  const gray = rgb(0.45, 0.45, 0.45);
+  let y = PAGE_HEIGHT - 30;
+  const now = new Date();
+  const timestamp = formatTimestamp(now);
+  const tsWidth = font.widthOfTextAtSize(timestamp, 9);
+  page.drawText(timestamp, { x: PAGE_WIDTH - MARGIN_X - tsWidth, y, size: 9, font, color: gray });
+
+  page.drawText('Radio East Gippsland Inc', { x: MARGIN_X, y, size: 15, font: fontBold, color: black });
+  y -= 18;
+  page.drawText('Weekly Sponsorship Schedule — All Campaigns', { x: MARGIN_X, y, size: 11, font, color: gray });
+  y -= 24;
+  return y;
+}
+
 export async function GET(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
   const user = token ? await verifyToken(token) : null;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const overview = await getWeeklyOverview();
+  const overview: WeeklyOverview = await getWeeklyOverview();
 
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([841.89, 595.28]); // A4 landscape
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const pageWidth = 841.89;
-  const pageHeight = 595.28;
-  const marginX = 30;
+
   const black = rgb(0.1, 0.1, 0.1);
-  const gray = rgb(0.45, 0.45, 0.45);
-  const lightGray = rgb(0.75, 0.75, 0.75);
+  const bandColor = rgb(0.96, 0.96, 0.97);
+  const sponsorColor = rgb(0.2, 0.2, 0.2);
 
-  let y = pageHeight - 30;
-  const now = new Date();
-  const timestamp = formatTimestamp(now);
-  const tsWidth = font.widthOfTextAtSize(timestamp, 9);
-  page.drawText(timestamp, { x: pageWidth - marginX - tsWidth, y, size: 9, font, color: gray });
+  const columnWidth = (PAGE_WIDTH - MARGIN_X * 2 - COLUMN_GAP * (COLUMNS_PER_PAGE - 1)) / COLUMNS_PER_PAGE;
+  const timeColWidth = font.widthOfTextAtSize('12:45pm', FONT_SIZE + 0.5) + 8;
 
-  page.drawText('Radio East Gippsland Inc', { x: marginX, y, size: 15, font: fontBold, color: black });
-  y -= 18;
-  page.drawText('Weekly Sponsorship Schedule — All Campaigns', { x: marginX, y, size: 11, font, color: gray });
-  y -= 20;
+  let page!: PDFPage;
+  let headerBottom = 0;
+  let colIndex = 0;
+  let colX = 0;
+  let colY = 0;
 
-  const headerBottom = y;
-  const columnGap = 8;
-  const columnWidth = (pageWidth - marginX * 2 - columnGap * 6) / 7;
-  const bottomMargin = 20;
-  const availableHeight = headerBottom - bottomMargin - 20; // minus day heading space
+  function newPage() {
+    page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    headerBottom = formatTimestampHeader(page, font, fontBold);
+    colIndex = 0;
+    colX = MARGIN_X;
+    colY = headerBottom;
+  }
 
-  // Pick a font size that keeps every day's content within the available
-  // column height, so the whole week fits on this one page regardless of
-  // how busy things are.
-  function estimateLines(fontSize: number): number {
-    let maxLines = 0;
-    for (let day = 0; day <= 6; day++) {
-      let lines = 0;
-      for (const slot of overview[day]) {
-        const sponsorText = slot.sponsors.join(', ');
-        const full = `${slot.time}  ${sponsorText}`;
-        const width = font.widthOfTextAtSize(full, fontSize);
-        lines += Math.max(1, Math.ceil(width / (columnWidth - 4)));
-      }
-      maxLines = Math.max(maxLines, lines);
+  function nextColumn() {
+    colIndex++;
+    if (colIndex >= COLUMNS_PER_PAGE) {
+      newPage();
+    } else {
+      colX = MARGIN_X + colIndex * (columnWidth + COLUMN_GAP);
+      colY = headerBottom;
     }
-    return maxLines;
   }
 
-  let fontSize = 8.5;
-  const lineHeight = () => fontSize * 1.55;
-  while (fontSize > 5.5) {
-    const linesNeeded = estimateLines(fontSize);
-    if (linesNeeded * lineHeight() <= availableHeight) break;
-    fontSize -= 0.5;
+  function drawDayHeading(dayName: string, continued: boolean) {
+    page.drawText(continued ? `${dayName} (cont.)` : dayName, { x: colX, y: colY, size: 12, font: fontBold, color: black });
+    colY -= 5;
+    page.drawLine({ start: { x: colX, y: colY }, end: { x: colX + columnWidth, y: colY }, thickness: 0.75, color: black });
+    colY -= 15;
   }
+
+  newPage();
 
   for (let day = 0; day <= 6; day++) {
-    const colX = marginX + day * (columnWidth + columnGap);
-    let colY = headerBottom;
+    const slots = overview[day] || [];
 
-    page.drawText(DAY_NAMES[day], { x: colX, y: colY, size: 10, font: fontBold, color: black });
-    colY -= 4;
-    page.drawLine({ start: { x: colX, y: colY }, end: { x: colX + columnWidth, y: colY }, thickness: 0.5, color: lightGray });
-    colY -= lineHeight();
+    // Don't start a new day heading right at the very bottom of a column
+    // with no room for at least one entry under it
+    if (colY - 15 - LINE_HEIGHT < MARGIN_BOTTOM) nextColumn();
 
-    const slots = overview[day];
+    drawDayHeading(DAY_NAMES[day], false);
+
     if (slots.length === 0) {
-      page.drawText('—', { x: colX, y: colY, size: fontSize, font, color: gray });
+      page.drawText('Nothing scheduled', { x: colX, y: colY, size: FONT_SIZE, font, color: rgb(0.55, 0.55, 0.55) });
+      colY -= LINE_HEIGHT * 1.4;
       continue;
     }
 
+    let rowIndex = 0;
     for (const slot of slots) {
-      const sponsorText = slot.sponsors.join(', ');
-      const full = `${slot.time}  ${sponsorText}`;
-      const words = full.split(' ');
-      let line = '';
-      const lines: string[] = [];
-      for (const word of words) {
-        const candidate = line ? `${line} ${word}` : word;
-        if (font.widthOfTextAtSize(candidate, fontSize) > columnWidth - 4 && line) {
-          lines.push(line);
-          line = word;
-        } else {
-          line = candidate;
-        }
-      }
-      if (line) lines.push(line);
+      const sponsorLines = wrapLines(font, slot.sponsors.join(', '), FONT_SIZE, columnWidth - timeColWidth - 4);
+      const rowHeight = Math.max(1, sponsorLines.length) * LINE_HEIGHT;
 
-      for (let i = 0; i < lines.length; i++) {
-        const isFirstLine = i === 0;
-        page.drawText(lines[i], {
-          x: colX,
-          y: colY,
-          size: fontSize,
-          font: isFirstLine ? fontBold : font,
-          color: isFirstLine ? black : gray,
-        });
-        colY -= lineHeight();
+      if (colY - rowHeight < MARGIN_BOTTOM) {
+        nextColumn();
+        drawDayHeading(DAY_NAMES[day], true);
+        rowIndex = 0;
       }
+
+      if (rowIndex % 2 === 1) {
+        page.drawRectangle({
+          x: colX - 3, y: colY - rowHeight + LINE_HEIGHT * 0.3, width: columnWidth + 6, height: rowHeight,
+          color: bandColor,
+        });
+      }
+
+      page.drawText(slot.time, { x: colX, y: colY, size: FONT_SIZE, font: fontBold, color: black });
+      for (let i = 0; i < sponsorLines.length; i++) {
+        page.drawText(sponsorLines[i], { x: colX + timeColWidth, y: colY - i * LINE_HEIGHT, size: FONT_SIZE, font, color: sponsorColor });
+      }
+      colY -= rowHeight;
+      rowIndex++;
     }
+
+    colY -= LINE_HEIGHT * 0.5; // breathing room before the next day's heading
   }
 
   const pdfBytes = await pdfDoc.save();
