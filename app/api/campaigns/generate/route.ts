@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date,
+    position, start_date, end_date, go_live_time, expiry_time,
   } = campaign;
 
   // audio_files is the canonical list going forward — falls back to the
@@ -99,16 +99,20 @@ export async function POST(req: NextRequest) {
   const audioFiles = parseCampaignAudioFiles(campaign)
   const audioFilePaths = new Set(audioFiles.map(f => f.localPath))
 
-  // "Start date" means the campaign shouldn't go live in Drive before 6am
-  // Melbourne time that day; "end date" means it should keep running
-  // through to 10pm Melbourne time that day, not cut off at UTC midnight
-  // (which previously landed mid-morning on the end date itself).
-  function dateStringToMelbourneThreshold(dateStr: string, hour: number): Date {
+  // "Start date" means the campaign shouldn't go live in Drive before its
+  // go-live time (default 6am) Melbourne time that day; "end date" means
+  // it should keep running through its expiry time (default 10pm) that
+  // day, not cut off at UTC midnight (which previously landed mid-morning
+  // on the end date itself). Both are independent of time_from/time_to,
+  // which only control which breaks get picked, not when the campaign
+  // itself goes live or expires.
+  function dateStringToMelbourneThreshold(dateStr: string, timeStr: string): Date {
     const [y, m, d] = dateStr.split('-').map(Number)
-    return melbourneWallTimeToUTC(y, m, d, hour, 0)
+    const [hour, minute] = (timeStr || '00:00').split(':').map(Number)
+    return melbourneWallTimeToUTC(y, m, d, hour, minute || 0)
   }
-  const startThreshold = start_date ? dateStringToMelbourneThreshold(start_date, 6) : null
-  const endThreshold = end_date ? dateStringToMelbourneThreshold(end_date, 22) : null
+  const startThreshold = start_date ? dateStringToMelbourneThreshold(start_date, go_live_time || '06:00') : null
+  const endThreshold = end_date ? dateStringToMelbourneThreshold(end_date, expiry_time || '22:00') : null
 
   // ── If confirming with pre-calculated slots ────────────────────────────────
   if (confirm && previewSlots && previewSlots.length > 0) {

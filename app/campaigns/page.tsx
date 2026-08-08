@@ -18,6 +18,8 @@ type Campaign = {
   booking_reference: string | null;
   booking_details: string | null;
   randomize_weekly: boolean;
+  go_live_time: string | null;
+  expiry_time: string | null;
   audio_file_name: string;
   audio_file_id: string | null;
   audio_directory_name: string | null;
@@ -118,6 +120,8 @@ export default function CampaignsPage() {
     end_date: '',
     use_specific_breaks: false,
     randomize_weekly: false,
+    go_live_time: '06:00',
+    expiry_time: '22:00',
   };
   const [form, setForm] = useState(defaultForm);
 
@@ -398,6 +402,8 @@ export default function CampaignsPage() {
       end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
       use_specific_breaks: allowedBreaks.length > 0,
       randomize_weekly: !!campaign.randomize_weekly,
+      go_live_time: campaign.go_live_time || '06:00',
+      expiry_time: campaign.expiry_time || '22:00',
     });
     setEditingCampaignId(campaign.id);
     setShowForm(true);
@@ -795,6 +801,16 @@ export default function CampaignsPage() {
               <div>
                 <label style={{ ...S.label, color: '#ddd' }}>End Date <span style={{ color: '#888', fontWeight: 400 }}>(optional)</span></label>
                 <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} min={form.start_date} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
+              </div>
+              <div>
+                <label style={{ ...S.label, color: '#ddd' }}>Go-Live Time</label>
+                <input type="time" value={form.go_live_time} onChange={e => setForm(f => ({ ...f, go_live_time: e.target.value }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
+                <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>When the campaign actually goes live in Drive on the Start Date — separate from Time From/To above, which just controls which breaks are eligible.</p>
+              </div>
+              <div>
+                <label style={{ ...S.label, color: '#ddd' }}>Expiry Time</label>
+                <input type="time" value={form.expiry_time} onChange={e => setForm(f => ({ ...f, expiry_time: e.target.value }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
+                <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>When the campaign is actually removed on the End Date.</p>
               </div>
 
               {/* Specific breaks toggle */}

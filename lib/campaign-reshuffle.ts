@@ -184,7 +184,11 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
   }
 
   const weeklyEndDate = campaign.end_date
-    ? (() => { const [y, m, d] = campaign.end_date.split('-').map(Number); return melbourneWallTimeToUTC(y, m, d, 22, 0).toISOString(); })()
+    ? (() => {
+        const [y, m, d] = campaign.end_date.split('-').map(Number);
+        const [eh, em] = (campaign.expiry_time || '22:00').split(':').map(Number);
+        return melbourneWallTimeToUTC(y, m, d, eh, em || 0).toISOString();
+      })()
     : null;
   const now = new Date();
   let placed = 0;
