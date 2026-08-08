@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
   const accessToken = await getValidAccessToken();
   if (!accessToken) return NextResponse.json({ error: 'Google Drive not connected' }, { status: 400 });
 
-  const removed = await removePathFromPlaylist(playlistId, path, accessToken);
-  return NextResponse.json({ ok: removed });
+  try {
+    const removed = await removePathFromPlaylist(playlistId, path, accessToken);
+    return NextResponse.json({ ok: removed });
+  } catch (err: any) {
+    return NextResponse.json({ ok: false, error: err.message ?? String(err) }, { status: 500 });
+  }
 }

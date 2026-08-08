@@ -160,9 +160,9 @@ async function processSchedules(accessToken: string, forceRun = false) {
           `;
           result = { schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' };
         } else {
-          // 3. Add it (handles intro/outro wrapping automatically)
-          const outcome = await addPathToPlaylist(schedule.playlist_id, newPath, schedule.position, accessToken);
-          if (outcome !== 'added') throw new Error(`Failed to save playlist: ${outcome}`);
+          // 3. Add it (handles intro/outro wrapping automatically; throws
+          // on a genuine failure, caught by the outer try/catch below)
+          await addPathToPlaylist(schedule.playlist_id, newPath, schedule.position, accessToken);
 
           await sql`
             INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)

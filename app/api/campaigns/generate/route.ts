@@ -249,13 +249,11 @@ export async function POST(req: NextRequest) {
         const dayOfWeek = String(slot.day ?? parseBreakDay(slot.name) ?? 0)
         const nextRun = slot.scheduledFor
 
-        // Apply to Drive right away, same as an edit does. If this fails
-        // (e.g. a transient Drive error) the schedule row is still created
-        // with next_run_at due, so the normal scheduler run will retry it.
-        const outcome = await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
-        const driveError = outcome === 'failed'
-          ? `${slot.name}: failed to write to Drive, will retry on next scheduler run`
-          : null
+        // Apply to Drive right away, same as an edit does. If this throws
+        // (e.g. a transient Drive error), the catch below reports it and
+        // the schedule row is NOT created — better to have neither than a
+        // database row claiming placement that never actually happened.
+        await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
 
         await sql`
           INSERT INTO schedules (
@@ -281,14 +279,14 @@ export async function POST(req: NextRequest) {
             ${campaign.id ?? null}
           )
         `
-        return { ok: true as const, driveError }
+        return { ok: true as const }
       } catch (err: any) {
         console.error('[campaigns/generate] Insert error:', err)
         return { ok: false as const, message: `${slot.name}: ${err.message ?? String(err)}` }
       }
     })
     for (const r of createResults) {
-      if (r.ok) { created++; if (r.driveError) errors.push(r.driveError) }
+      if (r.ok) created++
       else errors.push(r.message)
     }
 

@@ -77,7 +77,6 @@ export async function runReconcileAuditPage(
           try {
             const outcome = await addPathToPlaylist(pl.id, exp.path, -1, accessToken);
             if (outcome === 'added') added.push(`${pl.name}: ${exp.audioFileName}`);
-            else if (outcome === 'failed') errors.push(`${pl.name}: failed to add ${exp.audioFileName}`);
           } catch (err: any) {
             errors.push(`${pl.name}: ${err.message ?? String(err)}`);
           }

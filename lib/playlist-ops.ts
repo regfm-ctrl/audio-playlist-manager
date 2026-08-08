@@ -51,10 +51,15 @@ export async function savePlaylistContent(playlistId: string, content: string, a
 
 // Removes a specific path from a playlist. If that was the last real
 // (non-sting) item, the intro/outro get dropped too. Returns true if the
-// path was actually found and removed.
+// path was found and removed, false if it genuinely wasn't there to begin
+// with. Throws if the playlist couldn't be read or the save failed — that's
+// a real failure, not "nothing to do", and callers must not treat it as
+// success (a caller that swallows this and proceeds anyway can end up
+// adding audio to a new break while never actually removing it from the
+// old one, leaving an orphaned copy behind).
 export async function removePathFromPlaylist(playlistId: string, pathToRemove: string, accessToken: string): Promise<boolean> {
   const state = await fetchPlaylistState(playlistId, accessToken);
-  if (!state) return false;
+  if (!state) throw new Error(`Could not read playlist ${playlistId} to remove ${pathToRemove}`);
   const { containerName, existingPaths } = state;
   if (!existingPaths.includes(pathToRemove)) return false;
 
@@ -62,20 +67,25 @@ export async function removePathFromPlaylist(playlistId: string, pathToRemove: s
   const outroPath = existingPaths.find(isOutroPath) || null;
   const updatedReal = existingPaths.filter((p) => p !== pathToRemove && !isProtectedPath(p));
   const newContent = buildPlaylistContent(containerName, updatedReal, introPath, outroPath);
-  return savePlaylistContent(playlistId, newContent, accessToken);
+  const ok = await savePlaylistContent(playlistId, newContent, accessToken);
+  if (!ok) throw new Error(`Failed to save playlist ${playlistId} after removing ${pathToRemove}`);
+  return true;
 }
 
 // Adds a path to a playlist at the given position (relative to real
 // content only). Wraps with a fresh intro/outro in rotation if the break
-// was empty. Returns 'added' | 'already_present' | 'failed'.
+// was empty. Returns 'added' | 'already_present'. Throws on a genuine read
+// or save failure — same reasoning as removePathFromPlaylist above; a
+// caller must not treat a failed add as if the file is now safely in its
+// new home.
 export async function addPathToPlaylist(
   playlistId: string,
   pathToAdd: string,
   position: number,
   accessToken: string
-): Promise<'added' | 'already_present' | 'failed'> {
+): Promise<'added' | 'already_present'> {
   const state = await fetchPlaylistState(playlistId, accessToken);
-  if (!state) return 'failed';
+  if (!state) throw new Error(`Could not read playlist ${playlistId} to add ${pathToAdd}`);
   const { containerName, existingPaths } = state;
   if (existingPaths.includes(pathToAdd)) return 'already_present';
 
@@ -94,5 +104,6 @@ export async function addPathToPlaylist(
   }
   const newContent = buildPlaylistContent(containerName, realPaths, introPath, outroPath);
   const ok = await savePlaylistContent(playlistId, newContent, accessToken);
-  return ok ? 'added' : 'failed';
+  if (!ok) throw new Error(`Failed to save playlist ${playlistId} after adding ${pathToAdd}`);
+  return 'added';
 }

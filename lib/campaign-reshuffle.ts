@@ -166,13 +166,20 @@ async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPl
   // Full reshuffle: clear everything currently placed, then place the
   // freshly picked set. This is deliberately different from an edit
   // (which preserves unchanged breaks) — the whole point here is change.
-  // Batched in parallel, same pattern as the rest of the app.
+  // Batched in parallel, same pattern as the rest of the app. Only delete
+  // the database row if the Drive removal actually succeeded (or genuinely
+  // wasn't needed) — never on a real failure, or the audio is orphaned in
+  // Drive with no record of it left anywhere.
   const BATCH_SIZE = 15;
   for (let i = 0; i < existingSchedules.length; i += BATCH_SIZE) {
     const batch = (existingSchedules as any[]).slice(i, i + BATCH_SIZE);
     await Promise.all(batch.map(async (sched: any) => {
-      try { await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken); } catch {}
-      await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
+      try {
+        await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
+        await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
+      } catch (err) {
+        console.error('[reshuffle] Failed to remove/clear schedule:', sched.id, err);
+      }
     }));
   }
 
