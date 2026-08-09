@@ -18,8 +18,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // Only admins can access /admin routes
-  if (pathname.startsWith('/admin') && user.role !== 'admin') {
+  // Admin-only: the /admin pages, and the diagnostic/maintenance API
+  // routes they use (audit, category conflicts, path migration). These
+  // aren't under /api/admin, so they need covering explicitly here rather
+  // than relying on the path prefix alone.
+  const isAdminRestricted = pathname.startsWith('/admin') || pathname.startsWith('/api/audit');
+  if (isAdminRestricted && user.role !== 'admin') {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 });
+    }
     return NextResponse.redirect(new URL('/', req.url));
   }
 

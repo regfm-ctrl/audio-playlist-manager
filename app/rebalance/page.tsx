@@ -85,7 +85,6 @@ export default function RebalancePage() {
           <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          <a href="/audit" style={S.navItem}><IconAudit /> Audit</a>
           <a href="/rebalance" style={S.navItemActive}><IconRebalance /> Rebalance</a>
           <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
         </div>

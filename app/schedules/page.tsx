@@ -151,7 +151,6 @@ export default function SchedulesPage() {
           <a href="/schedules" style={S.navItemActive}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          <a href="/audit" style={S.navItem}><IconAudit /> Audit</a>
   <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
           <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
         </div>

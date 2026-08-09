@@ -179,18 +179,22 @@ export default function AuditPage() {
           <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          <a href="/audit" style={S.navItemActive}><IconAudit /> Audit</a>
           <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
-          <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
+          <a href="/admin" style={S.navItemActive}><IconAdmin /> Admin</a>
         </div>
         <div style={{ flex: 1 }} />
       </div>
 
       <div style={S.main}>
-        <div style={{ padding: '20px 28px', borderBottom: '0.5px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white' }}>
+        <div style={{ padding: '20px 28px', borderBottom: '0.5px solid #ddd', background: 'white' }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+            <a href="/admin" style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 500, color: '#666', textDecoration: 'none', background: '#f0f0f0' }}>Users</a>
+            <a href="/admin/audit" style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 500, color: 'white', textDecoration: 'none', background: '#0071e3' }}>Audit &amp; Diagnostics</a>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Audit</h1>
-            <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects</p>
+            <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={checkPathMigration} disabled={checkingPathMigration}
@@ -205,6 +209,7 @@ export default function AuditPage() {
               style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
               {loading ? (progress ? `Scanning... ${progress.done}/${progress.total}` : 'Starting...') : 'Run Audit'}
             </button>
+          </div>
           </div>
         </div>
 

@@ -107,8 +107,7 @@ export default function AdminPage() {
           <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          <a href="/audit" style={S.navItem}><IconAudit /> Audit</a>
-<a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
+          <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
           <a href="/admin" style={S.navItemActive}><IconAdmin /> Admin</a>
         </div>
         <div style={{ flex: 1 }} />
@@ -129,7 +128,12 @@ export default function AdminPage() {
       {/* Main */}
       <div style={S.main}>
         {/* Toolbar */}
-        <div style={{ padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ padding: '12px 20px', background: '#e8e8ed', borderBottom: '0.5px solid #ccc' }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            <a href="/admin" style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 500, color: 'white', textDecoration: 'none', background: '#0071e3' }}>Users</a>
+            <a href="/admin/audit" style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 500, color: '#666', textDecoration: 'none', background: '#d8d8dc' }}>Audit &amp; Diagnostics</a>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0, color: '#1d1d1f' }}>Admin</h1>
             <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Manage users and review activity</p>
@@ -141,6 +145,7 @@ export default function AdminPage() {
                 {t === 'users' ? `Users (${users.length})` : `Logs (${logs.length})`}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
