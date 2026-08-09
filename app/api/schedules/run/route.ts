@@ -5,7 +5,9 @@ import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
+import { expireIndividualAudioFiles } from '@/lib/campaign-file-expiry';
 import { melbourneWallTimeToUTC, calculateNextRun } from '@/lib/break-time';
+import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 // Fluid Compute is enabled on this project, which raises Hobby plan's
 // execution ceiling to 300s (from the standard 60s) — extra headroom on
@@ -51,6 +53,47 @@ Use the Gmail send tool to send this email now.`
 async function processSchedules(accessToken: string, forceRun = false) {
   const now = new Date();
 
+  // Removes a schedule's file. Most schedules know exactly which one
+  // playlist they belong to, so this is a single direct lookup — fast,
+  // and what fixed the scheduler timing out on a large folder. But the
+  // "Expiry" button on the Sponsorship Breaks page sets playlist_id to
+  // the literal string 'all', since it doesn't know in advance which
+  // break(s) contain the file — for that specific case, every playlist
+  // genuinely needs to be checked.
+  async function removeExpiredFile(schedule: any): Promise<string[]> {
+    if (schedule.playlist_id !== 'all') {
+      const removed = await removePathFromPlaylist(schedule.playlist_id, schedule.audio_local_path, accessToken);
+      return removed ? [schedule.playlist_name] : [];
+    }
+
+    const listRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!listRes.ok) throw new Error('Failed to list playlists for all-playlists expiry');
+    const listData = await listRes.json();
+    const playlists = (listData.files || []).filter((f: any) => f.name.endsWith('.m3u8'));
+
+    const removedFrom: string[] = [];
+    const SCAN_BATCH = 15;
+    for (let i = 0; i < playlists.length; i += SCAN_BATCH) {
+      const batch = playlists.slice(i, i + SCAN_BATCH);
+      const results = await Promise.all(batch.map(async (pl: any) => {
+        try {
+          const removed = await removePathFromPlaylist(pl.id, schedule.audio_local_path, accessToken);
+          return removed ? pl.name : null;
+        } catch (err) {
+          // One unreadable playlist shouldn't abort the whole scan —
+          // log and keep checking the rest
+          console.error(`[scheduler] Failed reading ${pl.name} during all-playlists expiry:`, err);
+          return null;
+        }
+      }));
+      removedFrom.push(...results.filter((n): n is string => n !== null));
+    }
+    return removedFrom;
+  }
+
   // Find expired schedules before deactivating them (capped and ordered
   // most-overdue-first, same reasoning as the "due" cap below)
   const expired = await sql`
@@ -72,17 +115,17 @@ async function processSchedules(accessToken: string, forceRun = false) {
     const batch = expired.slice(i, i + BATCH_SIZE);
     await Promise.all(batch.map(async (schedule: any) => {
       try {
-        const removed = await removePathFromPlaylist(schedule.playlist_id, schedule.audio_local_path, accessToken);
-        if (removed) {
+        const removedFrom = await removeExpiredFile(schedule);
+        if (removedFrom.length > 0) {
           await sql`
             INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', ${'Removed from: ' + schedule.playlist_name})
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${removedFrom.join(', ')}, 'expired', ${'Removed from: ' + removedFrom.join(', ')})
           `;
-          await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${schedule.playlist_name}`, '/api/schedules/run');
+          await logActivity(0, 'scheduler', `EXPIRED: ${schedule.audio_file_name} removed from ${removedFrom.join(', ')}`, '/api/schedules/run');
         } else {
           await sql`
             INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)
-            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', 'File not found in playlist')
+            VALUES (${schedule.id}, ${schedule.audio_file_name}, ${schedule.playlist_name}, 'expired', 'File not found in any playlist')
           `;
         }
         // Deactivate this specific row now that it's actually been handled
@@ -266,6 +309,15 @@ export async function POST(req: NextRequest) {
     console.error('[schedules/run] Weekly reshuffle check failed:', err);
   }
 
+  // Per-file round-robin expiry check — cheap no-op unless a campaign has
+  // an individual file expiry set and it's actually passed
+  try {
+    const fileExpiry = await expireIndividualAudioFiles(accessToken);
+    if (fileExpiry.processed > 0) (result as any).fileExpiry = fileExpiry;
+  } catch (err) {
+    console.error('[schedules/run] File expiry check failed:', err);
+  }
+
   return NextResponse.json(result);
 }
 
@@ -291,6 +343,13 @@ export async function GET(req: NextRequest) {
     if (reshuffle.processed > 0) (result as any).weeklyReshuffle = reshuffle;
   } catch (err) {
     console.error('[schedules/run] Weekly reshuffle check failed:', err);
+  }
+
+  try {
+    const fileExpiry = await expireIndividualAudioFiles(accessToken);
+    if (fileExpiry.processed > 0) (result as any).fileExpiry = fileExpiry;
+  } catch (err) {
+    console.error('[schedules/run] File expiry check failed:', err);
   }
 
   return NextResponse.json(result);

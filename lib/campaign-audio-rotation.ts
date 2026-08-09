@@ -5,6 +5,7 @@ export type CampaignAudioFile = {
   name: string;
   dir: string;
   localPath: string;
+  expiresAt?: string | null; // ISO UTC timestamp — this specific file stops being used in rotation after this point, while the campaign's other files keep going
 };
 
 export async function ensureCampaignAudioRotationTable() {
@@ -51,9 +52,21 @@ export function parseCampaignAudioFiles(campaign: any): CampaignAudioFile[] {
 
 // Picks the next file in rotation for this campaign, round-robin, and
 // persists the position so a later edit that adds more breaks continues
-// the rotation rather than restarting at file 1 every time.
+// the rotation rather than restarting at file 1 every time. Expired files
+// (per-file expiresAt already passed) are excluded from the pool entirely
+// — the campaign just keeps rotating through whatever's still valid.
+export function isFileExpired(file: CampaignAudioFile, now: Date = new Date()): boolean {
+  return !!file.expiresAt && new Date(file.expiresAt) <= now;
+}
+
+export function getValidCampaignAudioFiles(files: CampaignAudioFile[], now: Date = new Date()): CampaignAudioFile[] {
+  return files.filter(f => !isFileExpired(f, now));
+}
+
 export async function getNextCampaignAudioFile(campaignId: number, files: CampaignAudioFile[]): Promise<CampaignAudioFile> {
-  if (files.length === 1) return files[0];
+  const validFiles = getValidCampaignAudioFiles(files);
+  if (validFiles.length === 0) throw new Error('No valid (non-expired) audio files remain for this campaign');
+  if (validFiles.length === 1) return validFiles[0];
 
   await ensureCampaignAudioRotationTable();
   const rows = await sql`
@@ -63,7 +76,7 @@ export async function getNextCampaignAudioFile(campaignId: number, files: Campai
     RETURNING position
   `;
   const position = rows[0].position as number;
-  return files[position % files.length];
+  return validFiles[position % validFiles.length];
 }
 
 // Reserves `count` consecutive rotation slots in one go and returns the
@@ -77,7 +90,9 @@ export async function getNextCampaignAudioFile(campaignId: number, files: Campai
 // round-trips sequentially (fast — it's just a counter increment, not a
 // Drive call) so slot order and file order always line up.
 export async function getNextCampaignAudioFiles(campaignId: number, files: CampaignAudioFile[], count: number): Promise<CampaignAudioFile[]> {
-  if (files.length === 1) return new Array(count).fill(files[0]);
+  const validFiles = getValidCampaignAudioFiles(files);
+  if (validFiles.length === 0) throw new Error('No valid (non-expired) audio files remain for this campaign');
+  if (validFiles.length === 1) return new Array(count).fill(validFiles[0]);
 
   await ensureCampaignAudioRotationTable();
   const result: CampaignAudioFile[] = [];
@@ -89,7 +104,7 @@ export async function getNextCampaignAudioFiles(campaignId: number, files: Campa
       RETURNING position
     `;
     const position = rows[0].position as number;
-    result.push(files[position % files.length]);
+    result.push(validFiles[position % validFiles.length]);
   }
   return result;
 }

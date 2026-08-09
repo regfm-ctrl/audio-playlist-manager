@@ -4,6 +4,25 @@ import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { melbourneWallTimeToUTC } from '@/lib/break-time';
+
+// The frontend sends per-file expiresAt as a plain "YYYY-MM-DDTHH:MM"
+// Melbourne-local string (no timezone math needed client-side) — convert
+// to a proper UTC ISO timestamp here, same approach as go_live_time/
+// expiry_time at the campaign level.
+function normalizeAudioFilesExpiry(files: any[]): any[] {
+  if (!Array.isArray(files)) return files;
+  return files.map(f => {
+    if (!f?.expiresAt || typeof f.expiresAt !== 'string') return f;
+    // Already converted (a full ISO string with seconds/zone) — leave as-is
+    if (f.expiresAt.includes('Z') || /[+-]\d{2}:\d{2}$/.test(f.expiresAt)) return f;
+    const [datePart, timePart] = f.expiresAt.split('T');
+    if (!datePart || !timePart) return f;
+    const [y, m, d] = datePart.split('-').map(Number);
+    const [h, min] = timePart.split(':').map(Number);
+    return { ...f, expiresAt: melbourneWallTimeToUTC(y, m, d, h, min || 0).toISOString() };
+  });
+}
 
 async function getUser(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
@@ -38,9 +57,9 @@ export async function POST(req: NextRequest) {
   // audio_files is the canonical list going forward. The singular columns
   // are kept in sync with the first file for backward compatibility with
   // any older code path that still reads them directly.
-  const filesList = Array.isArray(audio_files) && audio_files.length > 0
+  const filesList = normalizeAudioFilesExpiry(Array.isArray(audio_files) && audio_files.length > 0
     ? audio_files
-    : (audio_local_path ? [{ id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path }] : []);
+    : (audio_local_path ? [{ id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path }] : []));
   const firstFile = filesList[0] || { id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path };
 
   const rows = await sql`
@@ -86,9 +105,9 @@ export async function PATCH(req: NextRequest) {
     position, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
   } = body;
 
-  const filesList = Array.isArray(audio_files) && audio_files.length > 0
+  const filesList = normalizeAudioFilesExpiry(Array.isArray(audio_files) && audio_files.length > 0
     ? audio_files
-    : (audio_local_path ? [{ id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path }] : []);
+    : (audio_local_path ? [{ id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path }] : []));
   const firstFile = filesList[0] || { id: audio_file_id, name: audio_file_name, dir: audio_directory_name, localPath: audio_local_path };
 
   // If randomize_weekly is being turned on for the first time, seed

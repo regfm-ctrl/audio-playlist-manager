@@ -9,7 +9,7 @@ import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-type AudioFileRef = { id: string; name: string; dir: string; localPath: string };
+type AudioFileRef = { id: string; name: string; dir: string; localPath: string; expiresAt?: string | null };
 
 type Campaign = {
   id: number;
@@ -79,6 +79,8 @@ export default function CampaignsPage() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignFilter, setCampaignFilter] = useState('');
+  const [expiryEditorFileId, setExpiryEditorFileId] = useState<string | null>(null);
+  const [expiryDraft, setExpiryDraft] = useState({ date: '', time: '23:59' });
   const [loading, setLoading] = useState(true);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
@@ -213,6 +215,42 @@ export default function CampaignsPage() {
         audio_local_path: first?.localPath ?? '',
       };
     });
+  }
+
+  // Converts a stored UTC ISO timestamp back into Melbourne-local date/time
+  // parts for editing — the reverse of the conversion the backend does
+  // when saving.
+  function isoToMelbourneParts(iso: string): { date: string; time: string } {
+    const d = new Date(iso);
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Melbourne', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+    return { date, time };
+  }
+
+  function openExpiryEditor(file: AudioFileRef) {
+    setExpiryEditorFileId(file.id);
+    setExpiryDraft(file.expiresAt ? isoToMelbourneParts(file.expiresAt) : { date: '', time: '23:59' });
+  }
+
+  function saveExpiryDraft(fileId: string) {
+    if (!expiryDraft.date) return;
+    // Sent as a plain Melbourne-local string — the backend converts it to
+    // a proper UTC timestamp on save, same pattern as go_live_time/
+    // expiry_time at the campaign level.
+    const expiresAt = `${expiryDraft.date}T${expiryDraft.time}`;
+    setForm(f => ({
+      ...f,
+      audio_files: f.audio_files.map(a => a.id === fileId ? { ...a, expiresAt } : a),
+    }));
+    setExpiryEditorFileId(null);
+  }
+
+  function clearFileExpiry(fileId: string) {
+    setForm(f => ({
+      ...f,
+      audio_files: f.audio_files.map(a => a.id === fileId ? { ...a, expiresAt: null } : a),
+    }));
+    setExpiryEditorFileId(null);
   }
 
   useEffect(() => { loadCampaigns(); }, []);
@@ -683,15 +721,46 @@ export default function CampaignsPage() {
                 </label>
                 {form.audio_files.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {form.audio_files.map(file => (
-                      <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0071e322', border: '0.5px solid #0071e344', borderRadius: 7 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, color: '#4da3ff', fontWeight: 500 }}>{file.name.replace(/\.[^/.]+$/, '')}</div>
-                          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{file.localPath}</div>
+                    {form.audio_files.map(file => {
+                      const editing = expiryEditorFileId === file.id;
+                      const expired = file.expiresAt && new Date(file.expiresAt) <= new Date();
+                      return (
+                        <div key={file.id} style={{ padding: '8px 12px', background: '#0071e322', border: '0.5px solid #0071e344', borderRadius: 7 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, color: '#4da3ff', fontWeight: 500 }}>{file.name.replace(/\.[^/.]+$/, '')}</div>
+                              <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{file.localPath}</div>
+                              {file.expiresAt && (
+                                <div style={{ fontSize: 11, color: expired ? '#cc4444' : '#a06000', marginTop: 3 }}>
+                                  {expired ? 'Expired' : 'Expires'} {new Date(file.expiresAt).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', dateStyle: 'short', timeStyle: 'short' })}
+                                </div>
+                              )}
+                            </div>
+                            <button onClick={() => openExpiryEditor(file)} style={{ padding: '4px 10px', background: file.expiresAt ? '#a0600033' : '#4a4a4c', border: '0.5px solid #666', borderRadius: 5, color: file.expiresAt ? '#e0a030' : '#ddd', fontSize: 12, cursor: 'pointer' }}>
+                              {file.expiresAt ? 'Edit Expiry' : 'Set Expiry'}
+                            </button>
+                            <button onClick={() => removeFile(file.id)} style={{ padding: '4px 10px', background: '#4a4a4c', border: '0.5px solid #666', borderRadius: 5, color: '#ddd', fontSize: 12, cursor: 'pointer' }}>Remove</button>
+                          </div>
+                          {editing && (
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '0.5px solid #0071e344' }}>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 3 }}>Expiry date</label>
+                                <input type="date" value={expiryDraft.date} onChange={e => setExpiryDraft(d => ({ ...d, date: e.target.value }))}
+                                  style={{ width: '100%', padding: '6px 10px', border: '0.5px solid #666', borderRadius: 6, fontSize: 12, background: '#4a4a4c', color: 'white', colorScheme: 'dark', boxSizing: 'border-box' as const }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 3 }}>Time</label>
+                                <input type="time" value={expiryDraft.time} onChange={e => setExpiryDraft(d => ({ ...d, time: e.target.value }))}
+                                  style={{ padding: '6px 10px', border: '0.5px solid #666', borderRadius: 6, fontSize: 12, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
+                              </div>
+                              <button onClick={() => saveExpiryDraft(file.id)} style={{ padding: '6px 12px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Save</button>
+                              {file.expiresAt && <button onClick={() => clearFileExpiry(file.id)} style={{ padding: '6px 12px', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Clear</button>}
+                              <button onClick={() => setExpiryEditorFileId(null)} style={{ padding: '6px 12px', background: 'none', color: '#888', border: 'none', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                            </div>
+                          )}
                         </div>
-                        <button onClick={() => removeFile(file.id)} style={{ padding: '4px 10px', background: '#4a4a4c', border: '0.5px solid #666', borderRadius: 5, color: '#ddd', fontSize: 12, cursor: 'pointer' }}>Remove</button>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <button onClick={openFilePicker} style={{ padding: '7px 0', background: '#4a4a4c', border: '0.5px dashed #666', borderRadius: 7, color: '#aaa', fontSize: 12, cursor: 'pointer' }}>
                       + Add another file
                     </button>
