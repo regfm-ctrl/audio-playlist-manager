@@ -169,6 +169,15 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
   const picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys, loadByPlaylist);
   const audioFiles = parseCampaignAudioFiles(campaign);
 
+  // Diagnostic breakdown of the candidate funnel, only surfaced in the
+  // result message when the pick came up short — so a shortfall shows
+  // exactly where it happened instead of just a smaller-than-expected
+  // number with no explanation.
+  const distinctSlots = new Set(pool.map((pl: any) => `${parseBreakDay(pl.name)}-${parseBreakMinuteOfDay(pl.name)}`)).size;
+  const shortfallNote = picked.length < campaign.spots_per_week
+    ? ` [wanted ${campaign.spots_per_week}, got ${picked.length}: ${playlists.length} total playlists → ${matching.length} match day/hour/allowed-breaks → ${excludedPlaylistIds.size} excluded for category conflict → ${pool.length} in pool (${distinctSlots} distinct times)]`
+    : '';
+
   // Full reshuffle: clear everything currently placed, then place the
   // freshly picked set. This is deliberately different from an edit
   // (which preserves unchanged breaks) — the whole point here is change.
@@ -254,7 +263,7 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
   const errorSummary = errors.length > 0
     ? ` — ${errors.length} FAILED: ${errors.slice(0, 5).join(' | ')}${errors.length > 5 ? ` ...and ${errors.length - 5} more` : ''}`
     : '';
-  return `${campaign.sponsor_name}: reshuffled to ${placed} break(s)${errorSummary}`;
+  return `${campaign.sponsor_name}: reshuffled to ${placed} break(s)${errorSummary}${shortfallNote}`;
 }
 
 // Called from the scheduler cron each run — cheap no-op unless it's a new
