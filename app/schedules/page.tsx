@@ -34,6 +34,7 @@ const fmt = (dt: string | null) =>
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [runMsg, setRunMsg] = useState('');
   const [runLoading, setRunLoading] = useState(false);
   const [forceRunLoading, setForceRunLoading] = useState(false);
@@ -49,6 +50,12 @@ export default function SchedulesPage() {
   }
 
   useEffect(() => { loadSchedules(); }, []);
+  useEffect(() => {
+    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
+    if (token) {
+      try { setIsAdmin(JSON.parse(atob(token.split('.')[1])).role === 'admin'); } catch {}
+    }
+  }, []);
 
   async function toggleActive(id: number, schedule: Schedule) {
     await fetch('/api/schedules', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...schedule, id, is_active: !schedule.is_active }) });
@@ -152,7 +159,7 @@ export default function SchedulesPage() {
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
   <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
-          <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
+          {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>

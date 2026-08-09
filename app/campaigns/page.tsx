@@ -79,6 +79,7 @@ export default function CampaignsPage() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignFilter, setCampaignFilter] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [expiryEditorFileId, setExpiryEditorFileId] = useState<string | null>(null);
   const [expiryDraft, setExpiryDraft] = useState({ date: '', time: '23:59' });
   const [reshufflingId, setReshufflingId] = useState<number | null>(null);
@@ -272,6 +273,12 @@ export default function CampaignsPage() {
   }
 
   useEffect(() => { loadCampaigns(); }, []);
+  useEffect(() => {
+    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
+    if (token) {
+      try { setIsAdmin(JSON.parse(atob(token.split('.')[1])).role === 'admin'); } catch {}
+    }
+  }, []);
 
   // Deletion has no real progress signal from the server mid-request, so
   // ease toward 90% while it's running (never claiming completion until
@@ -576,7 +583,7 @@ export default function CampaignsPage() {
           <a href="/campaigns" style={S.navItemActive}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
 <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
-          <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
+          {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>

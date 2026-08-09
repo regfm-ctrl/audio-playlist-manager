@@ -20,12 +20,19 @@ const SPONSOR_COLORS = [
 export default function ScheduleOverviewPage() {
   const [overview, setOverview] = useState<WeeklyOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     fetch('/api/schedule-overview')
       .then(res => res.ok ? res.json() : null)
       .then(data => { setOverview(data); setLoading(false); })
       .catch(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
+    if (token) {
+      try { setIsAdmin(JSON.parse(atob(token.split('.')[1])).role === 'admin'); } catch {}
+    }
   }, []);
 
   // Stable color per sponsor name, derived from the full data set so the
@@ -70,7 +77,7 @@ export default function ScheduleOverviewPage() {
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItemActive}><IconOverview /> Weekly Overview</a>
   <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
-          <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
+          {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />
       </div>

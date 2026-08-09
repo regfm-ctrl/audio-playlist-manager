@@ -83,6 +83,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   // ─── Core state ─────────────────────────────────────────────────────────
   const [playlists, setPlaylists] = useState<GoogleDriveFile[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedPlaylist, setSelectedPlaylist] = useState<GoogleDriveFile | null>(null)
   const [playlistSearch, setPlaylistSearch] = useState("")
@@ -100,6 +101,18 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
   // ─── Google server-side auth status ─────────────────────────────────────────
   const [googleAuthStatus, setGoogleAuthStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown')
+
+  useEffect(() => {
+    // Only show the Admin nav link for admin users — display-only check,
+    // actual access is enforced server-side by middleware regardless.
+    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1]
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        setIsAdmin(payload.role === 'admin')
+      } catch {}
+    }
+  }, [])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -731,7 +744,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
             <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
             <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
-            <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
+            {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
           </div>
 
           {/* Breaks list */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type RebalanceMove = {
   scheduleId: number;
@@ -22,6 +22,14 @@ export default function RebalancePage() {
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
+    if (token) {
+      try { setIsAdmin(JSON.parse(atob(token.split('.')[1])).role === 'admin'); } catch {}
+    }
+  }, []);
 
   async function computePlan() {
     const max = parseInt(maxInput);
@@ -86,7 +94,7 @@ export default function RebalancePage() {
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
           <a href="/rebalance" style={S.navItemActive}><IconRebalance /> Rebalance</a>
-          <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>
+          {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />
       </div>
