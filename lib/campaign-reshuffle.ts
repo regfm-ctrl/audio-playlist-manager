@@ -1,6 +1,6 @@
 import { sql } from '@/lib/db';
 import { getPlaylistLoad } from '@/lib/playlist-load';
-import { parseCampaignAudioFiles, getNextCampaignAudioFiles } from '@/lib/campaign-audio-rotation';
+import { parseCampaignAudioFiles, getNextCampaignAudioFiles, getValidCampaignAudioFiles } from '@/lib/campaign-audio-rotation';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
@@ -129,6 +129,12 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
   const avoidKeys = new Set(
     (existingSchedules as any[]).map(s => `${parseBreakDay(s.playlist_name)}-${parseBreakMinuteOfDay(s.playlist_name)}`)
   );
+  // Remember what file was sitting in each break before the reshuffle, so
+  // if that same break gets picked again, it's never handed straight back
+  // the exact file it just had.
+  const previousFileByPlaylist = new Map<string, string>(
+    (existingSchedules as any[]).map(s => [s.playlist_id, s.audio_local_path])
+  );
 
   const listRes = await fetch(
     `https://www.googleapis.com/drive/v3/files?q='${PLAYLIST_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`,
@@ -194,7 +200,22 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
   let placed = 0;
   // Files pre-assigned sequentially, in slot order, before the parallel
   // Drive work starts — see getNextCampaignAudioFiles for why.
-  const reshuffleFiles = await getNextCampaignAudioFiles(campaign.id, audioFiles, picked.length);
+  const rawReshuffleFiles = await getNextCampaignAudioFiles(campaign.id, audioFiles, picked.length);
+
+  // If a break happens to get re-picked and its assigned file is the exact
+  // same one it just had, shift to the next file in the valid pool instead
+  // — the rotation counter alone has no memory of what any specific break
+  // had before, so this needs to be checked explicitly.
+  const validFiles = getValidCampaignAudioFiles(audioFiles);
+  const reshuffleFiles = picked.map((slot, i) => {
+    const file = rawReshuffleFiles[i];
+    const previousPath = previousFileByPlaylist.get(slot.id);
+    if (previousPath && file.localPath === previousPath && validFiles.length > 1) {
+      const idx = validFiles.findIndex(f => f.id === file.id);
+      return validFiles[(idx + 1) % validFiles.length];
+    }
+    return file;
+  });
   for (let i = 0; i < picked.length; i += BATCH_SIZE) {
     const batch = picked.slice(i, i + BATCH_SIZE);
     const batchFiles = reshuffleFiles.slice(i, i + BATCH_SIZE);
