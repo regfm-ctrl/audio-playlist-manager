@@ -438,7 +438,10 @@ export default function CampaignsPage() {
       const res = await fetch('/api/schedules');
       if (res.ok) {
         const all = await res.json();
-        const matching = all.filter((s: any) => s.audio_file_name === campaign.audio_file_name);
+        // Filter by campaign_id, not audio_file_name — a round-robin
+        // campaign has schedules using many different files, only one of
+        // which happens to match the legacy single "first file" field.
+        const matching = all.filter((s: any) => s.campaign_id === campaign.id);
         setCampaignSchedules(matching);
       }
     } finally {
