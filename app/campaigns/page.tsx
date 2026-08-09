@@ -505,6 +505,21 @@ export default function CampaignsPage() {
     }
   }
 
+  // For "per day" distribution, spots_per_week is a stale field that
+  // doesn't track the real total — the actual count is the sum of the
+  // per-day targets, same as what the generate/reshuffle logic actually
+  // uses.
+  function effectiveSpotsPerWeek(campaign: Campaign): number {
+    if (campaign.distribution_type === 'per_day' && campaign.per_day_counts) {
+      let counts: Record<string, number> = {};
+      try {
+        counts = typeof campaign.per_day_counts === 'string' ? JSON.parse(campaign.per_day_counts) : campaign.per_day_counts;
+      } catch {}
+      return Object.values(counts).reduce((sum: number, n: any) => sum + (Number(n) || 0), 0);
+    }
+    return campaign.spots_per_week;
+  }
+
   function weeksRemaining(campaign: Campaign): number | null {
     if (!campaign.end_date) return null;
     const now = new Date();
@@ -517,7 +532,7 @@ export default function CampaignsPage() {
   function spotsRemaining(campaign: Campaign): number | null {
     const weeks = weeksRemaining(campaign);
     if (weeks === null) return null;
-    return weeks * campaign.spots_per_week;
+    return weeks * effectiveSpotsPerWeek(campaign);
   }
 
   async function toggleStatus(campaign: Campaign) {
@@ -638,7 +653,7 @@ export default function CampaignsPage() {
                           {c.sponsor_name}
                           {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
                         </td>
-                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{c.spots_per_week}</td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{effectiveSpotsPerWeek(c)}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: c.distribution_type === 'even' ? '#e8f0fb' : c.distribution_type === 'random' ? '#fff8e8' : '#e4f5ee', color: c.distribution_type === 'even' ? '#0055cc' : c.distribution_type === 'random' ? '#a06000' : '#0a6e46' }}>
                             {c.distribution_type}
