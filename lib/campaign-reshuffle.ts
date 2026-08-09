@@ -122,7 +122,7 @@ function pickRandomAvoiding(
   return picked;
 }
 
-async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
+export async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
   const existingSchedules = await sql`
     SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
   `;

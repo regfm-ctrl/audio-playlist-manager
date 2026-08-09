@@ -81,6 +81,24 @@ export default function CampaignsPage() {
   const [campaignFilter, setCampaignFilter] = useState('');
   const [expiryEditorFileId, setExpiryEditorFileId] = useState<string | null>(null);
   const [expiryDraft, setExpiryDraft] = useState({ date: '', time: '23:59' });
+  const [reshufflingId, setReshufflingId] = useState<number | null>(null);
+
+  async function reshuffleNow(campaign: Campaign) {
+    setReshufflingId(campaign.id);
+    setMsg('');
+    try {
+      const res = await fetch(`/api/campaigns/${campaign.id}/reshuffle-now`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg(`✅ ${data.detail}`);
+        loadCampaigns();
+      } else {
+        setMsg(`❌ ${data.error || 'Reshuffle failed'}`);
+      }
+    } finally {
+      setReshufflingId(null);
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
@@ -654,6 +672,11 @@ export default function CampaignsPage() {
                               {c.status === 'active' ? 'Pause' : 'Resume'}
                             </button>
                             <button onClick={() => editCampaign(c)} style={{ fontSize: 12, color: '#a06000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit</button>
+                            {c.randomize_weekly && (
+                              <button onClick={() => reshuffleNow(c)} disabled={reshufflingId === c.id} style={{ fontSize: 12, color: '#8a3ec9', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: reshufflingId === c.id ? 0.5 : 1 }}>
+                                {reshufflingId === c.id ? 'Reshuffling...' : 'Reshuffle'}
+                              </button>
+                            )}
                             <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Export PDF</a>
                             <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
                             <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(false); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
