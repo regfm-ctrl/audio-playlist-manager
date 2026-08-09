@@ -726,7 +726,8 @@ export default function CampaignsPage() {
       {/* Campaign Form */}
       {showForm && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 700, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ ...S.dialog, maxWidth: 700, maxHeight: '90vh', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className="dialog-scroll" style={{ overflowY: 'auto', padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, color: 'white', margin: 0 }}>{editingCampaignId ? 'Edit Campaign' : 'New Campaign'}</h2>
               <button onClick={() => { setShowForm(false); setPreview(null); setPreviewDiff(null); setEditingCampaignId(null); setMsg(''); }} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
@@ -948,7 +949,7 @@ export default function CampaignsPage() {
                   {playlistsLoading ? (
                     <div style={{ textAlign: 'center', padding: 16, color: '#888' }}>Loading breaks...</div>
                   ) : (
-                    <div style={{ border: '0.5px solid #555', borderRadius: 8, maxHeight: 200, overflowY: 'auto' }}>
+                    <div className="dialog-scroll" style={{ border: '0.5px solid #555', borderRadius: 8, maxHeight: 200, overflowY: 'auto' }}>
                       {filteredPlaylists.map(pl => {
                         const isSelected = form.allowed_breaks.includes(pl.id)
                         return (
@@ -970,13 +971,15 @@ export default function CampaignsPage() {
               Preview Schedule →
             </button>
           </div>
+          </div>
         </div>
       )}
 
       {/* Preview Dialog */}
       {preview && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ ...S.dialog, maxWidth: 600, maxHeight: '90vh', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className="dialog-scroll" style={{ overflowY: 'auto', padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 500, color: 'white', margin: 0 }}>{editingCampaignId ? 'Review Changes' : 'Schedule Preview'}</h2>
@@ -1015,7 +1018,7 @@ export default function CampaignsPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20, maxHeight: 400, overflowY: 'auto' }}>
+            <div className="dialog-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20, maxHeight: 400, overflowY: 'auto' }}>
               {preview.map((slot, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: i % 2 === 0 ? '#2a2a2c' : '#333335', borderRadius: 6 }}>
                   <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 600, width: 24, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
@@ -1041,6 +1044,7 @@ export default function CampaignsPage() {
                 {confirming ? (editingCampaignId ? 'Updating...' : 'Creating...') : (editingCampaignId ? '✓ Confirm & Update' : '✓ Confirm & Schedule')}
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}
@@ -1082,7 +1086,7 @@ export default function CampaignsPage() {
       {/* View Campaign Schedules dialog */}
       {viewSchedulesCampaign && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 660, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...S.dialog, maxWidth: 660, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexShrink: 0 }}>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: 0 }}>{viewSchedulesCampaign.sponsor_name} — Schedules</h2>
@@ -1095,7 +1099,7 @@ export default function CampaignsPage() {
               </div>
               <button onClick={() => setViewSchedulesCampaign(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div className="dialog-scroll" style={{ flex: 1, overflowY: 'auto' }}>
               {campaignSchedulesLoading ? (
                 <div style={{ padding: '30px 0', textAlign: 'center' }}>
                   <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', color: '#0071e3', margin: '0 auto 8px' }} />
@@ -1170,7 +1174,7 @@ export default function CampaignsPage() {
               placeholder="Search files..."
               style={{ ...S.input, marginBottom: 10 }}
             />
-            <div style={{ flex: 1, overflowY: 'auto', border: '0.5px solid #555', borderRadius: 8 }}>
+            <div className="dialog-scroll" style={{ flex: 1, overflowY: 'auto', border: '0.5px solid #555', borderRadius: 8 }}>
               {pickerLoading ? (
                 <div style={{ padding: '30px 0', textAlign: 'center', color: '#888' }}>
                   <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
