@@ -216,6 +216,7 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
     }
     return file;
   });
+  const errors: string[] = [];
   for (let i = 0; i < picked.length; i += BATCH_SIZE) {
     const batch = picked.slice(i, i + BATCH_SIZE);
     const batchFiles = reshuffleFiles.slice(i, i + BATCH_SIZE);
@@ -240,7 +241,9 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
           )
         `;
         return true;
-      } catch {
+      } catch (err: any) {
+        console.error(`[reshuffle] Failed to place ${slot.name} for campaign ${campaign.id}:`, err);
+        errors.push(`${slot.name}: ${err.message ?? String(err)}`);
         return false;
       }
     }));
@@ -248,7 +251,10 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
   }
 
   await sql`UPDATE campaigns SET last_reshuffled_at = NOW() WHERE id = ${campaign.id}`;
-  return `${campaign.sponsor_name}: reshuffled to ${placed} break(s)`;
+  const errorSummary = errors.length > 0
+    ? ` — ${errors.length} FAILED: ${errors.slice(0, 5).join(' | ')}${errors.length > 5 ? ` ...and ${errors.length - 5} more` : ''}`
+    : '';
+  return `${campaign.sponsor_name}: reshuffled to ${placed} break(s)${errorSummary}`;
 }
 
 // Called from the scheduler cron each run — cheap no-op unless it's a new
