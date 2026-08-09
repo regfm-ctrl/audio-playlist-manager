@@ -166,16 +166,39 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
     campaign.business_category, campaign.id, campaign.start_date, campaign.end_date
   );
   const pool = matching.filter((pl: any) => !excludedPlaylistIds.has(pl.id));
-  const picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys, loadByPlaylist);
   const audioFiles = parseCampaignAudioFiles(campaign);
+
+  // For "per day" distribution, spots_per_week is a stale/unrelated field
+  // — the actual target comes from summing per_day_counts, and each day
+  // needs its own pick from that day's own pool, same as campaign
+  // creation/editing already does it. Using spots_per_week directly here
+  // (as this used to) silently used the wrong target and produced a
+  // shortfall with no obvious cause.
+  let picked: { id: string; name: string }[] = [];
+  let effectiveTarget = campaign.spots_per_week;
+  if (campaign.distribution_type === 'per_day' && campaign.per_day_counts) {
+    let perDayCounts: Record<string, number> = {};
+    try {
+      perDayCounts = typeof campaign.per_day_counts === 'string' ? JSON.parse(campaign.per_day_counts) : campaign.per_day_counts;
+    } catch {}
+    effectiveTarget = Object.values(perDayCounts).reduce((sum: number, n: any) => sum + (Number(n) || 0), 0);
+    for (const [dayStr, count] of Object.entries(perDayCounts)) {
+      const dayNum = parseInt(dayStr);
+      const dayPool = pool.filter((pl: any) => parseBreakDay(pl.name) === dayNum);
+      const dayAvoid = new Set([...avoidKeys].filter(k => k.startsWith(`${dayNum}-`)));
+      picked.push(...pickRandomAvoiding(dayPool, count as number, dayAvoid, loadByPlaylist));
+    }
+  } else {
+    picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys, loadByPlaylist);
+  }
 
   // Diagnostic breakdown of the candidate funnel, only surfaced in the
   // result message when the pick came up short — so a shortfall shows
   // exactly where it happened instead of just a smaller-than-expected
   // number with no explanation.
   const distinctSlots = new Set(pool.map((pl: any) => `${parseBreakDay(pl.name)}-${parseBreakMinuteOfDay(pl.name)}`)).size;
-  const shortfallNote = picked.length < campaign.spots_per_week
-    ? ` [wanted ${campaign.spots_per_week}, got ${picked.length}: ${playlists.length} total playlists → ${matching.length} match day/hour/allowed-breaks → ${excludedPlaylistIds.size} excluded for category conflict → ${pool.length} in pool (${distinctSlots} distinct times)]`
+  const shortfallNote = picked.length < effectiveTarget
+    ? ` [wanted ${effectiveTarget}, got ${picked.length}: ${playlists.length} total playlists → ${matching.length} match day/hour/allowed-breaks → ${excludedPlaylistIds.size} excluded for category conflict → ${pool.length} in pool (${distinctSlots} distinct times)]`
     : '';
 
   // Full reshuffle: clear everything currently placed, then place the
