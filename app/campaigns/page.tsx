@@ -544,9 +544,9 @@ export default function CampaignsPage() {
         )}
 
         {/* Campaign list */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
-          <div style={S.card}>
-            <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #eee', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, overflow: 'hidden', padding: '12px 20px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...S.card, display: 'flex', flexDirection: 'column', overflow: 'hidden', marginBottom: 0, flex: 1 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #eee', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <span style={{ fontSize: 15, fontWeight: 500 }}>All Campaigns</span>
               <span style={{ background: '#e8e8ed', color: '#666', borderRadius: 10, padding: '1px 8px', fontSize: 12 }}>{filteredCampaigns.length}</span>
             </div>
@@ -563,32 +563,21 @@ export default function CampaignsPage() {
                 No campaigns match "{campaignFilter}".
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 800 }}>
+              <div style={{ overflow: 'auto', flex: 1 }}>
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 720 }}>
                   <thead>
                     <tr style={{ background: '#f9f9f9' }}>
-                      {['Sponsor', 'Audio File', 'Spots/Week', 'Distribution', 'Days', 'Times', 'Start', 'End', 'Weeks Left', 'Spots Left', 'Status', 'Actions'].map(h => (
+                      {['Sponsor', 'Spots/Week', 'Distribution', 'Days', 'Times', 'Start', 'End', 'Weeks Left', 'Spots Left', 'Status', 'Actions'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, color: '#888', fontWeight: 500, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '0.5px solid #eee' }}>{h.toUpperCase()}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCampaigns.map(c => (
-                      <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
+                    {filteredCampaigns.map((c, i) => (
+                      <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: i % 2 === 1 ? '#f7f8fa' : 'white' }}>
                         <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {c.sponsor_name}
                           {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
-                        </td>
-                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>
-                          {c.audio_file_name.replace(/\.[^/.]+$/, '')}
-                          {(() => {
-                            let count = 1;
-                            try {
-                              const parsed = typeof c.audio_files === 'string' ? JSON.parse(c.audio_files) : c.audio_files;
-                              if (Array.isArray(parsed) && parsed.length > 1) count = parsed.length;
-                            } catch {}
-                            return count > 1 ? <span style={{ marginLeft: 5, fontSize: 10, color: '#0071e3', fontWeight: 500 }}>+{count - 1} more</span> : null;
-                          })()}
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{c.spots_per_week}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
@@ -624,7 +613,7 @@ export default function CampaignsPage() {
                               {c.status === 'active' ? 'Pause' : 'Resume'}
                             </button>
                             <button onClick={() => editCampaign(c)} style={{ fontSize: 12, color: '#a06000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit</button>
-                            <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Broadcast Schedule</a>
+                            <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Export PDF</a>
                             <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
                             <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(false); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
                           </div>
