@@ -192,6 +192,20 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
     picked = pickRandomAvoiding(pool, campaign.spots_per_week, avoidKeys, loadByPlaylist);
   }
 
+  // Update the shared load map immediately with this campaign's own
+  // decisions — removing what it just cleared, adding what it just picked
+  // — so any other campaign reshuffling later in the same batch sees an
+  // accurate picture instead of a stale snapshot from before this run
+  // started. Without this, every campaign in a bulk Monday reshuffle sees
+  // the exact same "this break looks empty" picture and independently
+  // piles into the same handful of breaks, blind to each other.
+  for (const sched of existingSchedules as any[]) {
+    loadByPlaylist.set(sched.playlist_id, Math.max(0, (loadByPlaylist.get(sched.playlist_id) ?? 1) - 1));
+  }
+  for (const slot of picked) {
+    loadByPlaylist.set(slot.id, (loadByPlaylist.get(slot.id) ?? 0) + 1);
+  }
+
   // Diagnostic breakdown of the candidate funnel, only surfaced in the
   // result message when the pick came up short — so a shortfall shows
   // exactly where it happened instead of just a smaller-than-expected
