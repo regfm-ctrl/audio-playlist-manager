@@ -42,6 +42,22 @@ export default function AdminPage() {
   const [changePwValue, setChangePwValue] = useState('');
   const [logFilter, setLogFilter] = useState('');
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string } | null>(null);
+  const [testingReshuffle, setTestingReshuffle] = useState(false);
+  const [confirmTestReshuffle, setConfirmTestReshuffle] = useState(false);
+  const [reshuffleTestResult, setReshuffleTestResult] = useState<{ processed: number; totalEligible: number; details: string[] } | null>(null);
+
+  async function runTestReshuffle() {
+    setTestingReshuffle(true);
+    setConfirmTestReshuffle(false);
+    setReshuffleTestResult(null);
+    try {
+      const res = await fetch('/api/admin/test-weekly-reshuffle', { method: 'POST' });
+      const data = await res.json();
+      setReshuffleTestResult(data);
+    } finally {
+      setTestingReshuffle(false);
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -150,6 +166,45 @@ export default function AdminPage() {
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
+          <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 16, maxWidth: 700 }}>
+            <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Weekly Reshuffle — Manual Trigger</p>
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+              Runs the real weekly reshuffle right now, for every campaign with Randomize Weekly enabled — the same code that runs automatically every Monday, just triggered on demand. This isn't a preview; it actually reshuffles live campaigns.
+            </p>
+            {!confirmTestReshuffle ? (
+              <button onClick={() => setConfirmTestReshuffle(true)} disabled={testingReshuffle}
+                style={{ padding: '8px 18px', background: 'white', color: '#8a3ec9', border: '0.5px solid #8a3ec9', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                Run Weekly Reshuffle Now
+              </button>
+            ) : (
+              <div style={{ background: '#f5f0fa', border: '0.5px solid #d5c0ea', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: 12, color: '#6a2e9c', margin: '0 0 10px', fontWeight: 500 }}>
+                  This will actually reshuffle every eligible campaign's real placements right now. Are you sure?
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setConfirmTestReshuffle(false)} style={{ padding: '7px 14px', background: '#4a4a4c', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={runTestReshuffle} disabled={testingReshuffle}
+                    style={{ padding: '7px 14px', background: '#8a3ec9', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: testingReshuffle ? 0.6 : 1 }}>
+                    {testingReshuffle ? 'Running — this may take a while...' : 'Yes, run it now'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {reshuffleTestResult && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #eee' }}>
+                <p style={{ fontSize: 12, fontWeight: 500, margin: '0 0 8px', color: '#1a1a1a' }}>
+                  Processed {reshuffleTestResult.processed} of {reshuffleTestResult.totalEligible} eligible campaign(s)
+                  {reshuffleTestResult.totalEligible > reshuffleTestResult.processed && ` — the rest are capped for this run and will process on the next trigger`}
+                </p>
+                <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {reshuffleTestResult.details.map((d, i) => (
+                    <p key={i} style={{ fontSize: 11, color: d.includes('FAILED') || d.includes('failed') ? '#a02020' : '#555', margin: 0 }}>{d}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
               <Loader2 style={{ width: 24, height: 24, animation: 'spin 1s linear infinite', color: '#0071e3', margin: '0 auto 8px' }} />

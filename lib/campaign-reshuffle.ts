@@ -310,13 +310,18 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
 
 // Called from the scheduler cron each run — cheap no-op unless it's a new
 // Melbourne week and there's at least one campaign due for reshuffle.
-export async function reshuffleDueCampaigns(): Promise<{ processed: number; details: string[] }> {
+// force=true skips the "is it actually Monday" check and treats every
+// eligible campaign as due — used to manually trigger the real weekly
+// reshuffle process on demand (e.g. to verify a fix), rather than a
+// separate simulated code path that could behave differently from what
+// actually runs on the real Monday.
+export async function reshuffleDueCampaigns(force = false): Promise<{ processed: number; totalEligible: number; details: string[] }> {
   const campaigns = await sql`SELECT * FROM campaigns WHERE randomize_weekly = true AND status = 'active'`;
-  const due = (campaigns as any[]).filter(isDueForReshuffle);
-  if (due.length === 0) return { processed: 0, details: [] };
+  const due = force ? (campaigns as any[]) : (campaigns as any[]).filter(isDueForReshuffle);
+  if (due.length === 0) return { processed: 0, totalEligible: due.length, details: [] };
 
   const accessToken = await getValidAccessToken();
-  if (!accessToken) return { processed: 0, details: ['Weekly reshuffle skipped: Google Drive not connected'] };
+  if (!accessToken) return { processed: 0, totalEligible: due.length, details: ['Weekly reshuffle skipped: Google Drive not connected'] };
 
   const loadByPlaylist = await getPlaylistLoad();
 
@@ -342,5 +347,5 @@ export async function reshuffleDueCampaigns(): Promise<{ processed: number; deta
     }));
     details.push(...batchDetails);
   }
-  return { processed: dueThisRun.length, details };
+  return { processed: dueThisRun.length, totalEligible: due.length, details };
 }
