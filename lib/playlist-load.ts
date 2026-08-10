@@ -1,5 +1,13 @@
 import { sql } from '@/lib/db';
 
+// Hard ceiling — a break is never picked as a destination once it already
+// holds this many sponsors, regardless of how constrained the rest of a
+// campaign's candidate pool is. The existing load-ascending sort on top of
+// this still naturally prefers 0-1 sponsor breaks whenever they're
+// available, so in practice most picks land well under this ceiling —
+// this is just the absolute line that's never crossed.
+export const MAX_SPONSORS_PER_BREAK = 3;
+
 // How many active sponsors are currently sitting in each playlist. Used to
 // prefer emptier breaks when picking new slots, so campaigns naturally
 // spread out across the week's capacity instead of all independently
@@ -17,3 +25,4 @@ export async function getPlaylistLoad(): Promise<Map<string, number>> {
   }
   return load;
 }
+

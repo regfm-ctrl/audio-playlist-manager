@@ -5,7 +5,7 @@ import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
-import { getPlaylistLoad } from '@/lib/playlist-load';
+import { getPlaylistLoad, MAX_SPONSORS_PER_BREAK } from '@/lib/playlist-load';
 import { parseCampaignAudioFiles, getNextCampaignAudioFiles, type CampaignAudioFile } from '@/lib/campaign-audio-rotation';
 
 export const maxDuration = 60;
@@ -448,6 +448,10 @@ export async function POST(req: NextRequest) {
     if (count <= 0 || pool.length === 0) return []
     const groups = new Map<string, { id: string; name: string }[]>()
     for (const pl of pool) {
+      // Hard cap — a break already at the ceiling is never even considered
+      // as a candidate, regardless of how constrained the rest of the
+      // pool is.
+      if ((loadByPlaylist.get(pl.id) ?? 0) >= MAX_SPONSORS_PER_BREAK) continue
       const day = parseBreakDay(pl.name) ?? 0
       const minuteOfDay = parseBreakMinuteOfDay(pl.name) ?? 0
       const key = `${day}-${minuteOfDay}`
