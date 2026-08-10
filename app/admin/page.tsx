@@ -171,8 +171,15 @@ export default function AdminPage() {
             <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
               Runs the real weekly reshuffle right now, for every campaign with Randomize Weekly enabled — the same code that runs automatically every Monday, just triggered on demand. This isn't a preview; it actually reshuffles live campaigns.
             </p>
-            {!confirmTestReshuffle ? (
-              <button onClick={() => setConfirmTestReshuffle(true)} disabled={testingReshuffle}
+            {testingReshuffle ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f5f0fa', border: '0.5px solid #d5c0ea', borderRadius: 8, padding: '12px 14px' }}>
+                <Loader2 style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', color: '#8a3ec9', flexShrink: 0 }} />
+                <p style={{ fontSize: 12, color: '#6a2e9c', margin: 0, fontWeight: 500 }}>
+                  Running — reshuffling every eligible campaign now, this can take a minute or two for a large batch. Don't navigate away.
+                </p>
+              </div>
+            ) : !confirmTestReshuffle ? (
+              <button onClick={() => setConfirmTestReshuffle(true)}
                 style={{ padding: '8px 18px', background: 'white', color: '#8a3ec9', border: '0.5px solid #8a3ec9', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                 Run Weekly Reshuffle Now
               </button>
@@ -183,9 +190,9 @@ export default function AdminPage() {
                 </p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setConfirmTestReshuffle(false)} style={{ padding: '7px 14px', background: '#4a4a4c', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={runTestReshuffle} disabled={testingReshuffle}
-                    style={{ padding: '7px 14px', background: '#8a3ec9', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: testingReshuffle ? 0.6 : 1 }}>
-                    {testingReshuffle ? 'Running — this may take a while...' : 'Yes, run it now'}
+                  <button onClick={runTestReshuffle}
+                    style={{ padding: '7px 14px', background: '#8a3ec9', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                    Yes, run it now
                   </button>
                 </div>
               </div>

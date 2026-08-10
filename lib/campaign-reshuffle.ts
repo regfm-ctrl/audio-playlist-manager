@@ -316,7 +316,17 @@ export async function reshuffleOneCampaign(campaign: any, accessToken: string, l
 // separate simulated code path that could behave differently from what
 // actually runs on the real Monday.
 export async function reshuffleDueCampaigns(force = false): Promise<{ processed: number; totalEligible: number; details: string[] }> {
-  const campaigns = await sql`SELECT * FROM campaigns WHERE randomize_weekly = true AND status = 'active'`;
+  // Ordered by least-recently-reshuffled first — this is what makes
+  // repeated manual triggers (or repeated hourly runs on a real busy
+  // Monday) correctly work through the whole list over several calls,
+  // rather than the same capped-off first batch getting reprocessed every
+  // time. Each campaign's last_reshuffled_at gets set to "now" the moment
+  // it's processed, which naturally pushes it to the back of the queue.
+  const campaigns = await sql`
+    SELECT * FROM campaigns
+    WHERE randomize_weekly = true AND status = 'active'
+    ORDER BY last_reshuffled_at ASC NULLS FIRST
+  `;
   const due = force ? (campaigns as any[]) : (campaigns as any[]).filter(isDueForReshuffle);
   if (due.length === 0) return { processed: 0, totalEligible: due.length, details: [] };
 
