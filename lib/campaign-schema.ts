@@ -13,4 +13,5 @@ export async function ensureCampaignCategoryColumns() {
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS audio_files JSONB DEFAULT '[]'`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS go_live_time TEXT DEFAULT '06:00'`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS expiry_time TEXT DEFAULT '22:00'`;
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reshuffle_lock_acquired_at TIMESTAMPTZ`;
 }

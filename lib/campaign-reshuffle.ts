@@ -5,6 +5,7 @@ import { getValidAccessToken } from '@/lib/google-tokens';
 import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
+import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 
 // Returns YYYY-MM-DD of the most recent Monday in Melbourne time (today's
 // date if today is itself a Monday). Used as the weekly reshuffle boundary.
@@ -127,7 +128,47 @@ function pickRandomAvoiding(
   return picked;
 }
 
+// Prevents two processes from reshuffling the same campaign at the same
+// time — e.g. the automatic scheduler and a manual trigger overlapping.
+// Without this, both would read the campaign's placements at nearly the
+// same moment, both clear what they saw, and both place a fresh set —
+// and since neither knows about the other, freshly-placed audio from one
+// attempt can get orphaned by the other's cleanup step, leaving real
+// content behind with no schedule row tracking it (exactly the "0
+// missing, but untracked items keep appearing" pattern this was built to
+// fix). Implemented as a claim-with-timeout row update: only one caller
+// can successfully claim the lock, and a stale lock (crashed process)
+// auto-expires after 10 minutes rather than blocking the campaign
+// forever.
+async function acquireReshuffleLock(campaignId: number): Promise<boolean> {
+  const rows = await sql`
+    UPDATE campaigns
+    SET reshuffle_lock_acquired_at = NOW()
+    WHERE id = ${campaignId}
+      AND (reshuffle_lock_acquired_at IS NULL OR reshuffle_lock_acquired_at < NOW() - INTERVAL '10 minutes')
+    RETURNING id
+  `;
+  return rows.length > 0;
+}
+
+async function releaseReshuffleLock(campaignId: number): Promise<void> {
+  await sql`UPDATE campaigns SET reshuffle_lock_acquired_at = NULL WHERE id = ${campaignId}`;
+}
+
 export async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
+  await ensureCampaignCategoryColumns();
+  const gotLock = await acquireReshuffleLock(campaign.id);
+  if (!gotLock) {
+    return `${campaign.sponsor_name}: skipped — already being reshuffled by another process right now`;
+  }
+  try {
+    return await reshuffleOneCampaignLocked(campaign, accessToken, loadByPlaylist);
+  } finally {
+    await releaseReshuffleLock(campaign.id);
+  }
+}
+
+async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
   const existingSchedules = await sql`
     SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
   `;
