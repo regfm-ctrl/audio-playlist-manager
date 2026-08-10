@@ -3,7 +3,7 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { getPlaylistLoad } from '@/lib/playlist-load';
-import { reshuffleOneCampaign } from '@/lib/campaign-reshuffle';
+import { reshuffleOneCampaign, getInitialCategoryMap } from '@/lib/campaign-reshuffle';
 
 export const maxDuration = 60;
 
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!accessToken) return NextResponse.json({ error: 'Google Drive not connected' }, { status: 400 });
 
   const loadByPlaylist = await getPlaylistLoad();
-  const detail = await reshuffleOneCampaign(campaign, accessToken, loadByPlaylist);
+  const categoryByPlaylist = await getInitialCategoryMap();
+  const detail = await reshuffleOneCampaign(campaign, accessToken, loadByPlaylist, categoryByPlaylist);
   return NextResponse.json({ detail });
 }

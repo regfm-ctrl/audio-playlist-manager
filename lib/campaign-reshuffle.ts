@@ -64,6 +64,30 @@ async function getCategoryExcludedPlaylistIds(
   return excluded;
 }
 
+// Snapshot of which business categories currently occupy each playlist,
+// built once before a batch of campaigns starts reshuffling. Combined
+// with the live in-batch updates in reshuffleOneCampaignLocked, this is
+// what stops two same-category campaigns processed concurrently in the
+// same batch from both landing on the same break — the per-campaign DB
+// query alone (getCategoryExcludedPlaylistIds) can't see another
+// campaign's picks until that campaign's writes actually land, which is
+// exactly the race window this closes.
+export async function getInitialCategoryMap(): Promise<Map<string, Set<string>>> {
+  const rows = await sql`
+    SELECT s.playlist_id, c.business_category
+    FROM schedules s
+    JOIN campaigns c ON c.id = s.campaign_id
+    WHERE s.is_active = true AND c.business_category IS NOT NULL AND c.business_category != ''
+  `;
+  const map = new Map<string, Set<string>>();
+  for (const row of rows as any[]) {
+    const cat = row.business_category.toLowerCase();
+    if (!map.has(row.playlist_id)) map.set(row.playlist_id, new Set());
+    map.get(row.playlist_id)!.add(cat);
+  }
+  return map;
+}
+
 // Picks `count` breaks from the pool, spread across distinct day+time
 // combinations, actively preferring times NOT used last week — only
 // reusing an avoided time if there genuinely aren't enough alternatives.
@@ -155,20 +179,20 @@ async function releaseReshuffleLock(campaignId: number): Promise<void> {
   await sql`UPDATE campaigns SET reshuffle_lock_acquired_at = NULL WHERE id = ${campaignId}`;
 }
 
-export async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
+export async function reshuffleOneCampaign(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>, categoryByPlaylist: Map<string, Set<string>>): Promise<string> {
   await ensureCampaignCategoryColumns();
   const gotLock = await acquireReshuffleLock(campaign.id);
   if (!gotLock) {
     return `${campaign.sponsor_name}: skipped — already being reshuffled by another process right now`;
   }
   try {
-    return await reshuffleOneCampaignLocked(campaign, accessToken, loadByPlaylist);
+    return await reshuffleOneCampaignLocked(campaign, accessToken, loadByPlaylist, categoryByPlaylist);
   } finally {
     await releaseReshuffleLock(campaign.id);
   }
 }
 
-async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>): Promise<string> {
+async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, loadByPlaylist: Map<string, number>, categoryByPlaylist: Map<string, Set<string>>): Promise<string> {
   const existingSchedules = await sql`
     SELECT * FROM schedules WHERE campaign_id = ${campaign.id} AND is_active = true
   `;
@@ -211,7 +235,17 @@ async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, lo
   const excludedPlaylistIds = await getCategoryExcludedPlaylistIds(
     campaign.business_category, campaign.id, campaign.start_date, campaign.end_date
   );
-  const pool = matching.filter((pl: any) => !excludedPlaylistIds.has(pl.id));
+  // On top of the DB-based exclusion (which catches conflicts with
+  // campaigns outside this batch), also check the shared live map — this
+  // is what catches two same-category campaigns being reshuffled
+  // concurrently in the same batch, since neither one's DB writes are
+  // visible to the other yet at the moment they're both deciding.
+  const category = campaign.business_category ? campaign.business_category.toLowerCase() : null;
+  const pool = matching.filter((pl: any) => {
+    if (excludedPlaylistIds.has(pl.id)) return false;
+    if (category && categoryByPlaylist.get(pl.id)?.has(category)) return false;
+    return true;
+  });
   const audioFiles = parseCampaignAudioFiles(campaign);
 
   // For "per day" distribution, spots_per_week is a stale/unrelated field
@@ -245,11 +279,23 @@ async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, lo
   // started. Without this, every campaign in a bulk Monday reshuffle sees
   // the exact same "this break looks empty" picture and independently
   // piles into the same handful of breaks, blind to each other.
+  //
+  // Same reasoning applies to category exclusion: this whole block runs
+  // synchronously with no await in between, so it's atomic relative to
+  // other campaigns running concurrently in the same batch — critical,
+  // since two same-category campaigns processed at the same moment would
+  // otherwise both query the database, both see nothing conflicting yet
+  // (neither's picks are written yet), and both independently land on the
+  // same break.
   for (const sched of existingSchedules as any[]) {
     loadByPlaylist.set(sched.playlist_id, Math.max(0, (loadByPlaylist.get(sched.playlist_id) ?? 1) - 1));
   }
   for (const slot of picked) {
     loadByPlaylist.set(slot.id, (loadByPlaylist.get(slot.id) ?? 0) + 1);
+    if (category) {
+      if (!categoryByPlaylist.has(slot.id)) categoryByPlaylist.set(slot.id, new Set());
+      categoryByPlaylist.get(slot.id)!.add(category);
+    }
   }
 
   // Diagnostic breakdown of the candidate funnel, only surfaced in the
@@ -375,6 +421,7 @@ export async function reshuffleDueCampaigns(force = false): Promise<{ processed:
   if (!accessToken) return { processed: 0, totalEligible: due.length, details: ['Weekly reshuffle skipped: Google Drive not connected'] };
 
   const loadByPlaylist = await getPlaylistLoad();
+  const categoryByPlaylist = await getInitialCategoryMap();
 
   // Every campaign with weekly randomization enabled becomes due on the
   // same Monday, all at once — this grows directly with campaign count, so
@@ -391,7 +438,7 @@ export async function reshuffleDueCampaigns(force = false): Promise<{ processed:
     const batch = dueThisRun.slice(i, i + CAMPAIGN_BATCH_SIZE);
     const batchDetails = await Promise.all(batch.map(async (campaign) => {
       try {
-        return await reshuffleOneCampaign(campaign, accessToken, loadByPlaylist);
+        return await reshuffleOneCampaign(campaign, accessToken, loadByPlaylist, categoryByPlaylist);
       } catch (err: any) {
         return `${campaign.sponsor_name}: reshuffle failed — ${err.message ?? String(err)}`;
       }
