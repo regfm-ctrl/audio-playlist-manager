@@ -3,7 +3,11 @@ import { verifyToken } from '@/lib/auth';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { applyRebalanceMove, type RebalanceMove } from '@/lib/rebalance';
 
-export const maxDuration = 60;
+// Fluid Compute is enabled on this project, raising the execution ceiling
+// well past the standard 60s — needed here since a large rebalance batch
+// (each move needs a Drive read + write) can comfortably exceed 60s once
+// there are more than roughly 100 moves.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
