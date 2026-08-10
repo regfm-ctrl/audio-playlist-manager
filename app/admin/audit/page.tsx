@@ -110,6 +110,8 @@ export default function AuditPage() {
     setResult(null);
     setRemoved(new Set());
     setProgress(null);
+    setConfirmRemoveAll(false);
+    setRemoveAllResult(null);
 
     const accumulated: ReconcileResult = { scanned: 0, added: [], phantoms: [], errors: [] };
     try {
@@ -148,6 +150,39 @@ export default function AuditPage() {
       setRemoved(prev => new Set(prev).add(key));
     } finally {
       setRemoving(null);
+    }
+  }
+
+  const [confirmRemoveAll, setConfirmRemoveAll] = useState(false);
+  const [removingAll, setRemovingAll] = useState(false);
+  const [removeAllResult, setRemoveAllResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function removeAllPhantoms() {
+    if (!result) return;
+    const remaining = result.phantoms.filter(p => !removed.has(`${p.playlistId}:${p.path}`));
+    if (remaining.length === 0) return;
+    setRemovingAll(true);
+    setConfirmRemoveAll(false);
+    setRemoveAllResult(null);
+    try {
+      const res = await fetch('/api/audit/remove-phantom-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: remaining.map(p => ({ playlistId: p.playlistId, path: p.path, fileName: p.fileName, playlistName: p.playlistName })),
+        }),
+      });
+      const data = await res.json();
+      setRemoveAllResult(data);
+      // Mark everything attempted as removed in the UI — failed ones are
+      // listed in the result so they're not silently lost from view
+      setRemoved(prev => {
+        const next = new Set(prev);
+        for (const p of remaining) next.add(`${p.playlistId}:${p.path}`);
+        return next;
+      });
+    } finally {
+      setRemovingAll(false);
     }
   }
 
@@ -446,10 +481,36 @@ export default function AuditPage() {
               )}
 
               <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16 }}>
-                <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Untracked content</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Untracked content</p>
+                  {result.phantoms.filter(p => !removed.has(`${p.playlistId}:${p.path}`)).length > 0 && (
+                    confirmRemoveAll ? (
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: '#a02020' }}>Remove all {result.phantoms.filter(p => !removed.has(`${p.playlistId}:${p.path}`)).length}?</span>
+                        <button onClick={() => setConfirmRemoveAll(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={removeAllPhantoms} disabled={removingAll} style={{ padding: '4px 10px', background: '#a02020', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: removingAll ? 0.6 : 1 }}>
+                          {removingAll ? 'Removing...' : 'Yes, remove all'}
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmRemoveAll(true)}
+                        style={{ padding: '5px 12px', background: 'white', color: '#a02020', border: '0.5px solid #a02020', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                        Remove All ({result.phantoms.filter(p => !removed.has(`${p.playlistId}:${p.path}`)).length})
+                      </button>
+                    )
+                  )}
+                </div>
                 <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
-                  These are sitting in a break with no matching active schedule — could be a manual addition, or leftover from something deleted. Review and remove individually as needed.
+                  These are sitting in a break with no matching active schedule — could be a manual addition, or leftover from something deleted. Review individually, or remove all at once if you're confident they're all safe to clear.
                 </p>
+                {removeAllResult && (
+                  <div style={{ marginBottom: 12, padding: '8px 12px', background: removeAllResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                    <p style={{ fontSize: 12, margin: 0, color: removeAllResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                      Removed {removeAllResult.succeeded} of {removeAllResult.total}
+                    </p>
+                    {removeAllResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                  </div>
+                )}
                 {result.phantoms.length === 0 ? (
                   <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>Nothing untracked — every file matches the database.</p>
                 ) : (
