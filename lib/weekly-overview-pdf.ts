@@ -2,14 +2,13 @@ import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
 import { getWeeklyOverview, DAY_NAMES, type WeeklyOverview } from '@/lib/schedule-overview';
 
 function formatTimestamp(date: Date): string {
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  let h = date.getHours();
-  const period = h >= 12 ? 'PM' : 'AM';
-  h = h % 12; if (h === 0) h = 12;
-  const min = String(date.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${h}:${min} ${period}`;
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Melbourne',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()}`;
 }
 
 const PAGE_WIDTH = 841.89; // A4 landscape
