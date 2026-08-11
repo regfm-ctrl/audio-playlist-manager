@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findCategoryConflicts } from '@/lib/category-conflicts';
 import { logActivity } from '@/lib/activity';
+import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  await ensureCampaignCategoryColumns();
   const conflicts = await findCategoryConflicts();
 
   // Logged here (not just returned) so it shows up in the Admin activity
