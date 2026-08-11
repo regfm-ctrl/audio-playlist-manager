@@ -1,6 +1,7 @@
 import { sql } from '@/lib/db';
-import { fetchPlaylistState, savePlaylistContent } from '@/lib/playlist-ops';
+import { fetchPlaylistState, savePlaylistContent, removePathFromPlaylist as removePathFromPlaylistUnlocked } from '@/lib/playlist-ops';
 import { isIntroPath, isOutroPath, isProtectedPath, buildPlaylistContent, getNextSting } from '@/lib/stings';
+import { withPlaylistLock } from '@/lib/playlist-lock';
 
 export type PositionType = 'first' | 'middle' | 'second_last' | 'last';
 
@@ -21,7 +22,23 @@ export function normalizePositionType(value: any): PositionType {
 // truth for what each existing item's position preference is — anything
 // not tracked there (e.g. a manual addition) is treated as 'middle',
 // same as no preference at all.
+//
+// Wrapped in a per-playlist lock (see lib/playlist-lock.ts) — this reads
+// the current state, queries the database, and writes an updated version
+// back, none of which is atomic on its own. Without the lock, two
+// concurrent calls targeting the same break (routine when several
+// campaigns get reshuffled around the same time) can silently overwrite
+// each other.
 export async function addPathToPlaylistOrdered(
+  playlistId: string,
+  pathToAdd: string,
+  positionType: string | null | undefined,
+  accessToken: string
+): Promise<'added' | 'already_present'> {
+  return withPlaylistLock(playlistId, () => addPathToPlaylistOrderedUnlocked(playlistId, pathToAdd, positionType, accessToken));
+}
+
+async function addPathToPlaylistOrderedUnlocked(
   playlistId: string,
   pathToAdd: string,
   positionType: string | null | undefined,
@@ -71,8 +88,12 @@ export async function addPathToPlaylistOrdered(
 // in a break has its position_type changed (e.g. a campaign edited to
 // "Last in Break"), so the reordering takes effect immediately rather
 // than waiting for some unrelated future change to that break to trigger
-// it incidentally.
+// it incidentally. Same locking reasoning as above.
 export async function reorderPlaylistByPosition(playlistId: string, accessToken: string): Promise<boolean> {
+  return withPlaylistLock(playlistId, () => reorderPlaylistByPositionUnlocked(playlistId, accessToken));
+}
+
+async function reorderPlaylistByPositionUnlocked(playlistId: string, accessToken: string): Promise<boolean> {
   const state = await fetchPlaylistState(playlistId, accessToken);
   if (!state) throw new Error(`Could not read playlist ${playlistId} to reorder`);
   const { containerName, existingPaths } = state;
@@ -103,4 +124,15 @@ export async function reorderPlaylistByPosition(playlistId: string, accessToken:
   const ok = await savePlaylistContent(playlistId, newContent, accessToken);
   if (!ok) throw new Error(`Failed to save playlist ${playlistId} while reordering`);
   return true;
+}
+
+// Locked equivalent of removePathFromPlaylist — same read-then-write race
+// applies to removal too (e.g. two campaigns both being reshuffled at
+// once, each clearing their own old placement from a break they happen to
+// share). Every caller that adds or removes content from a break should
+// use the locked versions in this file rather than the raw ones in
+// lib/playlist-ops.ts directly, so a lock covers the full read-modify-
+// write sequence consistently everywhere.
+export async function removePathFromPlaylistLocked(playlistId: string, pathToRemove: string, accessToken: string): Promise<boolean> {
+  return withPlaylistLock(playlistId, () => removePathFromPlaylistUnlocked(playlistId, pathToRemove, accessToken));
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get('token')?.value;
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!accessToken) return NextResponse.json({ error: 'Google Drive not connected' }, { status: 400 });
 
   try {
-    const removed = await removePathFromPlaylist(playlistId, path, accessToken);
+    const removed = await removePathFromPlaylistLocked(playlistId, path, accessToken);
     return NextResponse.json({ ok: removed });
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err.message ?? String(err) }, { status: 500 });

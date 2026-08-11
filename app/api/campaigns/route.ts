@@ -3,7 +3,7 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { melbourneWallTimeToUTC } from '@/lib/break-time';
 
 // The frontend sends per-file expiresAt as a plain "YYYY-MM-DDTHH:MM"
@@ -187,7 +187,7 @@ export async function DELETE(req: NextRequest) {
           await Promise.all(batch.map(async (sched: any) => {
             try {
               if (accessToken) {
-                await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
+                await removePathFromPlaylistLocked(sched.playlist_id, sched.audio_local_path, accessToken);
               }
               await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
             } catch (err) {

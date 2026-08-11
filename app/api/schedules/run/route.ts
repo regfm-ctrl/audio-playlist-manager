@@ -3,8 +3,8 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { fetchPlaylistState, removePathFromPlaylist } from '@/lib/playlist-ops';
-import { addPathToPlaylistOrdered } from '@/lib/playlist-ordering';
+import { fetchPlaylistState } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
 import { expireIndividualAudioFiles } from '@/lib/campaign-file-expiry';
 import { melbourneWallTimeToUTC, calculateNextRun } from '@/lib/break-time';
@@ -63,7 +63,7 @@ async function processSchedules(accessToken: string, forceRun = false) {
   // genuinely needs to be checked.
   async function removeExpiredFile(schedule: any): Promise<string[]> {
     if (schedule.playlist_id !== 'all') {
-      const removed = await removePathFromPlaylist(schedule.playlist_id, schedule.audio_local_path, accessToken);
+      const removed = await removePathFromPlaylistLocked(schedule.playlist_id, schedule.audio_local_path, accessToken);
       return removed ? [schedule.playlist_name] : [];
     }
 
@@ -81,7 +81,7 @@ async function processSchedules(accessToken: string, forceRun = false) {
       const batch = playlists.slice(i, i + SCAN_BATCH);
       const results = await Promise.all(batch.map(async (pl: any) => {
         try {
-          const removed = await removePathFromPlaylist(pl.id, schedule.audio_local_path, accessToken);
+          const removed = await removePathFromPlaylistLocked(pl.id, schedule.audio_local_path, accessToken);
           return removed ? pl.name : null;
         } catch (err) {
           // One unreadable playlist shouldn't abort the whole scan —

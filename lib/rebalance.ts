@@ -1,6 +1,5 @@
 import { sql } from '@/lib/db';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
-import { addPathToPlaylistOrdered } from '@/lib/playlist-ordering';
+import { addPathToPlaylistOrdered, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakTime, parseBreakMinuteOfDay, calculateNextRun } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
@@ -263,7 +262,7 @@ export async function computeCategoryConflictFixPlan(accessToken: string): Promi
 
 export async function applyRebalanceMove(move: RebalanceMove, accessToken: string): Promise<boolean> {
   try {
-    await removePathFromPlaylist(move.fromPlaylistId, move.audioLocalPath, accessToken);
+    await removePathFromPlaylistLocked(move.fromPlaylistId, move.audioLocalPath, accessToken);
     await addPathToPlaylistOrdered(move.toPlaylistId, move.audioLocalPath, move.positionType, accessToken);
 
     // The move can land on a genuinely different day and/or time, not just

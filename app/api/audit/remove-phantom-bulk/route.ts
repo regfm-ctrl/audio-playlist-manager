@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 
 export const maxDuration = 300;
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const batch: { playlistId: string; path: string; fileName?: string; playlistName?: string }[] = items.slice(i, i + BATCH_SIZE);
     const outcomes = await Promise.all(batch.map(async (item) => {
       try {
-        const removed = await removePathFromPlaylist(item.playlistId, item.path, accessToken);
+        const removed = await removePathFromPlaylistLocked(item.playlistId, item.path, accessToken);
         return removed;
       } catch (err: any) {
         console.error('[remove-phantom-bulk] Failed:', item, err);

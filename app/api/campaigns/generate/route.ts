@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
-import { addPathToPlaylistOrdered, reorderPlaylistByPosition, normalizePositionType } from '@/lib/playlist-ordering';
+import { addPathToPlaylistOrdered, reorderPlaylistByPosition, normalizePositionType, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { getPlaylistLoad, MAX_SPONSORS_PER_BREAK } from '@/lib/playlist-load';
@@ -164,7 +163,7 @@ export async function POST(req: NextRequest) {
           // No longer needed — actually strip it out of the playlist, not
           // just the database row
           try {
-            await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
+            await removePathFromPlaylistLocked(sched.playlist_id, sched.audio_local_path, accessToken)
             await sql`DELETE FROM schedules WHERE id = ${sched.id}`
             return { type: 'removed' as const }
           } catch (err: any) {
@@ -176,7 +175,7 @@ export async function POST(req: NextRequest) {
           // from the list) — swap in the pre-assigned next file in rotation
           try {
             const file = swapFileById.get(sched.id)!
-            await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
+            await removePathFromPlaylistLocked(sched.playlist_id, sched.audio_local_path, accessToken)
             await addPathToPlaylistOrdered(sched.playlist_id, file.localPath, positionType, accessToken)
             await sql`
               UPDATE schedules SET

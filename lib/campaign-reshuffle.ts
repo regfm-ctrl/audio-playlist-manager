@@ -2,8 +2,7 @@ import { sql } from '@/lib/db';
 import { getPlaylistLoad, MAX_SPONSORS_PER_BREAK } from '@/lib/playlist-load';
 import { parseCampaignAudioFiles, getNextCampaignAudioFiles, getValidCampaignAudioFiles } from '@/lib/campaign-audio-rotation';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
-import { addPathToPlaylistOrdered, normalizePositionType } from '@/lib/playlist-ordering';
+import { addPathToPlaylistOrdered, normalizePositionType, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
@@ -320,7 +319,7 @@ async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, lo
     const batch = (existingSchedules as any[]).slice(i, i + BATCH_SIZE);
     await Promise.all(batch.map(async (sched: any) => {
       try {
-        await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
+        await removePathFromPlaylistLocked(sched.playlist_id, sched.audio_local_path, accessToken);
         await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
       } catch (err) {
         console.error('[reshuffle] Failed to remove/clear schedule:', sched.id, err);

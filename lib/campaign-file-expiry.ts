@@ -1,6 +1,5 @@
 import { sql } from '@/lib/db';
-import { removePathFromPlaylist } from '@/lib/playlist-ops';
-import { addPathToPlaylistOrdered, normalizePositionType } from '@/lib/playlist-ordering';
+import { addPathToPlaylistOrdered, normalizePositionType, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { parseCampaignAudioFiles, getNextCampaignAudioFiles, isFileExpired } from '@/lib/campaign-audio-rotation';
 
 // Cheap no-op unless a campaign actually has a per-file expiry set and it's
@@ -49,7 +48,7 @@ export async function expireIndividualAudioFiles(accessToken: string): Promise<{
       await Promise.all(batch.map(async (sched: any, j: number) => {
         const replacement = batchReplacements[j];
         try {
-          await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
+          await removePathFromPlaylistLocked(sched.playlist_id, sched.audio_local_path, accessToken);
           if (replacement) {
             await addPathToPlaylistOrdered(sched.playlist_id, replacement.localPath, normalizePositionType(campaign.position_type), accessToken);
             await sql`
