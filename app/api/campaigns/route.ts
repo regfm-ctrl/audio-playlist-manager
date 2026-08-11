@@ -19,8 +19,28 @@ function summarizeCampaignChanges(before: any, after: any, beforeFiles: any[], a
 
   if (before.sponsor_name !== after.sponsor_name) changes.push(`sponsor "${before.sponsor_name}" → "${after.sponsor_name}"`);
   if ((before.business_category || null) !== (after.business_category || null)) changes.push(`category "${before.business_category || 'none'}" → "${after.business_category || 'none'}"`);
-  if (before.spots_per_week !== after.spots_per_week) changes.push(`spots/week ${before.spots_per_week} → ${after.spots_per_week}`);
   if (before.distribution_type !== after.distribution_type) changes.push(`distribution "${before.distribution_type}" → "${after.distribution_type}"`);
+
+  // spots_per_week is the real target for even/random distribution, but
+  // for per-day distribution it's a separate, often-stale field — the
+  // real numbers live in per_day_counts, which needs its own comparison
+  // or a change isolated to a single day's count (the most common kind
+  // of edit) goes completely undetected.
+  if (after.distribution_type === 'per_day' || before.distribution_type === 'per_day') {
+    let beforeCounts: Record<string, number> = {};
+    let afterCounts: Record<string, number> = {};
+    try { beforeCounts = before.per_day_counts ? (typeof before.per_day_counts === 'string' ? JSON.parse(before.per_day_counts) : before.per_day_counts) : {}; } catch {}
+    try { afterCounts = after.per_day_counts ? (typeof after.per_day_counts === 'string' ? JSON.parse(after.per_day_counts) : after.per_day_counts) : {}; } catch {}
+    const dayChanges: string[] = [];
+    for (let d = 0; d < 7; d++) {
+      const b = Number(beforeCounts[d] ?? beforeCounts[String(d)] ?? 0);
+      const a = Number(afterCounts[d] ?? afterCounts[String(d)] ?? 0);
+      if (b !== a) dayChanges.push(`${DAY_NAMES[d]} ${b} → ${a}`);
+    }
+    if (dayChanges.length > 0) changes.push(`spots/day: ${dayChanges.join(', ')}`);
+  } else if (before.spots_per_week !== after.spots_per_week) {
+    changes.push(`spots/week ${before.spots_per_week} → ${after.spots_per_week}`);
+  }
 
   const beforeDays = (before.allowed_days || '').split(',').filter(Boolean).map(Number).sort().map((d: number) => DAY_NAMES[d]).join(',');
   const afterDays = (after.allowed_days || '').split(',').filter(Boolean).map(Number).sort().map((d: number) => DAY_NAMES[d]).join(',');
@@ -217,6 +237,7 @@ export async function DELETE(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  await ensureCampaignCategoryColumns();
   const { id, withSchedules = false, accessToken: providedToken } = await req.json();
 
   const campaignRows = await sql`SELECT * FROM campaigns WHERE id = ${id}`;
