@@ -16,6 +16,16 @@ type PathMigrationPreview = { campaignsAffected: PathMigCampaign[]; schedulesAff
 const PAGE_SIZE = 30;
 
 export default function AuditPage() {
+  async function logAdminEvent(action: string, details: string) {
+    try {
+      await fetch('/api/admin/log-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, details, path: '/admin/audit' }),
+      });
+    } catch {} // logging failure shouldn't disrupt the actual admin action
+  }
+
   const [result, setResult] = useState<ReconcileResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -65,6 +75,7 @@ export default function AuditPage() {
       });
       const data = await res.json();
       setOrphanedResult(data);
+      await logAdminEvent('ORPHANED_SCHEDULES_CLEANED', `${data.succeeded} of ${data.total} removed${data.failed?.length > 0 ? `, ${data.failed.length} failed` : ''}`);
       setOrphaned([]);
     } finally {
       setRemovingOrphaned(false);
@@ -78,6 +89,8 @@ export default function AuditPage() {
       const res = await fetch('/api/audit/path-migration/apply', { method: 'POST' });
       const data = await res.json();
       setMigrationResult(data);
+      await logAdminEvent('PATH_MIGRATION_APPLIED',
+        `${data.campaignsUpdated} campaign(s), ${data.schedulesUpdated} schedule(s), ${data.driveFilesUpdated} Drive file(s) updated${data.driveFilesFailed?.length > 0 ? `, ${data.driveFilesFailed.length} failed` : ''}`);
       setPathMigration(null);
     } finally {
       setApplyingMigration(false);
@@ -107,6 +120,7 @@ export default function AuditPage() {
       const res = await fetch('/api/audit/category-conflicts');
       const data = await res.json();
       setConflicts(data.conflicts || []);
+      await logAdminEvent('CATEGORY_CONFLICT_CHECK', (data.conflicts || []).length === 0 ? 'None found — every break is clean' : `${(data.conflicts || []).length} conflicting break(s) found`);
     } finally {
       setCheckingConflicts(false);
     }
@@ -136,6 +150,7 @@ export default function AuditPage() {
       });
       const data = await res.json();
       setFixApplyResult(data);
+      await logAdminEvent('CATEGORY_CONFLICT_FIX_APPLIED', `${data.succeeded} of ${data.total} move(s) applied${data.failed?.length > 0 ? `, ${data.failed.length} failed` : ''}`);
       setFixPlan(null);
       setConflicts(null); // stale now — re-check to confirm
     } finally {
@@ -171,6 +186,8 @@ export default function AuditPage() {
         if (page.nextOffset === null) break;
         offset = page.nextOffset;
       }
+      await logAdminEvent('AUDIT_RUN',
+        `${accumulated.scanned} playlists scanned, ${accumulated.added.length} missing items auto-added, ${accumulated.phantoms.length} untracked items found${accumulated.errors.length > 0 ? `, ${accumulated.errors.length} errors` : ''}`);
     } finally {
       setLoading(false);
     }

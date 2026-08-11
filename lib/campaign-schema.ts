@@ -16,4 +16,5 @@ export async function ensureCampaignCategoryColumns() {
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reshuffle_lock_acquired_at TIMESTAMPTZ`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS position_type TEXT DEFAULT 'middle'`;
   await sql`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS position_type TEXT DEFAULT 'middle'`;
+  await sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS details TEXT`;
 }

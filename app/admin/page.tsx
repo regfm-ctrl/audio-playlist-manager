@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 type User = { id: number; username: string; role: string; created_at: string; };
-type Log = { id: number; username: string; action: string; path: string; created_at: string; };
+type Log = { id: number; username: string; action: string; path: string; details: string | null; created_at: string; };
 
 const S: Record<string, React.CSSProperties> = {
   app: { display: 'flex', height: '100vh', background: '#2a2a2c', fontFamily: 'var(--font-sans)', overflow: 'hidden' },
@@ -291,7 +291,7 @@ export default function AdminPage() {
               <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#f9f9f9' }}>
-                    {['User', 'Action', 'Path', 'Time'].map(h => (
+                    {['User', 'Action', 'Details', 'Time'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', fontSize: 11, color: '#888', fontWeight: 500, textAlign: 'left', borderBottom: '0.5px solid #eee', letterSpacing: '0.04em' }}>{h.toUpperCase()}</th>
                     ))}
                   </tr>
@@ -301,12 +301,12 @@ export default function AdminPage() {
                     <tr><td colSpan={4} style={{ padding: '30px 0', textAlign: 'center', color: '#aaa', fontSize: 13 }}>No activity logs found</td></tr>
                   ) : filteredLogs.map((l, i) => (
                     <tr key={l.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#f9f9f9' }}>
-                      <td style={{ padding: '10px 16px', fontWeight: 500 }}>{l.username}</td>
-                      <td style={{ padding: '10px 16px' }}>
+                      <td style={{ padding: '10px 16px', fontWeight: 500, verticalAlign: 'top' }}>{l.username}</td>
+                      <td style={{ padding: '10px 16px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
                         <span style={{ padding: '2px 8px', background: '#e8f0fb', color: '#0055cc', borderRadius: 8, fontSize: 11, fontWeight: 500 }}>{l.action}</span>
                       </td>
-                      <td style={{ padding: '10px 16px', color: '#888', fontFamily: 'monospace', fontSize: 12 }}>{l.path}</td>
-                      <td style={{ padding: '10px 16px', color: '#888', whiteSpace: 'nowrap', fontSize: 12 }}>
+                      <td style={{ padding: '10px 16px', color: '#666', fontSize: 12, maxWidth: 480, verticalAlign: 'top' }}>{l.details || <span style={{ color: '#bbb', fontFamily: 'monospace' }}>{l.path}</span>}</td>
+                      <td style={{ padding: '10px 16px', color: '#888', whiteSpace: 'nowrap', fontSize: 12, verticalAlign: 'top' }}>
                         {new Date(l.created_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
                       </td>
                     </tr>

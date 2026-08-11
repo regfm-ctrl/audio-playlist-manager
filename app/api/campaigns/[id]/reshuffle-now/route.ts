@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getValidAccessToken } from '@/lib/google-tokens';
 import { getPlaylistLoad } from '@/lib/playlist-load';
 import { reshuffleOneCampaign, getInitialCategoryMap } from '@/lib/campaign-reshuffle';
+import { logActivity } from '@/lib/activity';
 
 export const maxDuration = 60;
 
@@ -29,5 +30,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const loadByPlaylist = await getPlaylistLoad();
   const categoryByPlaylist = await getInitialCategoryMap();
   const detail = await reshuffleOneCampaign(campaign, accessToken, loadByPlaylist, categoryByPlaylist);
+  await logActivity((user as any).userId ?? 0, user.username, 'RESHUFFLE_SINGLE_CAMPAIGN', `/api/campaigns/${id}/reshuffle-now`, detail);
   return NextResponse.json({ detail });
 }

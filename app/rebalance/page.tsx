@@ -59,6 +59,17 @@ export default function RebalancePage() {
       });
       const data = await res.json();
       setApplyResult(data);
+      try {
+        await fetch('/api/admin/log-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'REBALANCE_APPLIED',
+            details: `max ${maxInput}/break — ${data.succeeded} of ${data.total} move(s) applied${data.failed?.length > 0 ? `, ${data.failed.length} failed` : ''}`,
+            path: '/rebalance',
+          }),
+        });
+      } catch {}
       setPlan(null);
     } finally {
       setApplying(false);

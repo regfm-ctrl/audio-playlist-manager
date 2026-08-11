@@ -6,6 +6,7 @@ import { addPathToPlaylistOrdered, normalizePositionType, removePathFromPlaylist
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
+import { logActivity } from '@/lib/activity';
 
 // Returns YYYY-MM-DD of the most recent Monday in Melbourne time (today's
 // date if today is itself a Monday). Used as the weekly reshuffle boundary.
@@ -444,6 +445,12 @@ export async function reshuffleDueCampaigns(force = false): Promise<{ processed:
       }
     }));
     details.push(...batchDetails);
+  }
+  if (dueThisRun.length > 0) {
+    const errorCount = details.filter((d) => d.includes('FAILED') || d.includes('failed')).length;
+    await logActivity(0, 'scheduler', force ? 'RESHUFFLE_MANUAL_TRIGGER' : 'RESHUFFLE_AUTOMATIC',
+      '/api/schedules/run',
+      `Processed ${dueThisRun.length} of ${due.length} eligible campaign(s)${errorCount > 0 ? `, ${errorCount} with errors` : ''}`);
   }
   return { processed: dueThisRun.length, totalEligible: due.length, details };
 }
