@@ -110,7 +110,7 @@ export default function CampaignsPage() {
   const [previewDiff, setPreviewDiff] = useState<{ added: string[]; removed: string[]; unchanged: string[]; audioChanged: boolean } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-  const [deleteWithSchedules, setDeleteWithSchedules] = useState(false);
+  const [deleteWithSchedules, setDeleteWithSchedules] = useState(true);
   const [deletingSchedules, setDeletingSchedules] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [viewSchedulesCampaign, setViewSchedulesCampaign] = useState<Campaign | null>(null);
@@ -499,7 +499,7 @@ export default function CampaignsPage() {
     } finally {
       setDeletingSchedules(false);
       setConfirmDelete(null);
-      setDeleteWithSchedules(false);
+      setDeleteWithSchedules(true);
       loadCampaigns();
     }
   }
@@ -721,7 +721,7 @@ export default function CampaignsPage() {
                             </span>
                             <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Export PDF</a>
                             <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
-                            <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(false); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
+                            <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(true); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
                           </div>
                         </td>
                       </tr>
@@ -1082,16 +1082,25 @@ export default function CampaignsPage() {
       {/* Delete confirm */}
       {confirmDelete !== null && (
         <div style={S.overlay}>
-          <div style={{ ...S.dialog, maxWidth: 400 }}>
+          <div style={{ ...S.dialog, maxWidth: 420 }}>
             <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: '0 0 8px' }}>Delete Campaign</h2>
             <p style={{ fontSize: 14, color: '#aaa', marginBottom: 16 }}>Are you sure you want to delete this campaign?</p>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#2a2a2c', borderRadius: 8, marginBottom: 20, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#2a2a2c', borderRadius: 8, marginBottom: 10, cursor: 'pointer' }}>
               <input type="checkbox" checked={deleteWithSchedules} onChange={e => setDeleteWithSchedules(e.target.checked)} style={{ accentColor: '#cc0000', width: 16, height: 16 }} />
               <div>
                 <div style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500 }}>Also delete all schedules for this campaign</div>
                 <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Removes all matching schedule entries from the Schedules page</div>
               </div>
             </label>
+            {deleteWithSchedules ? (
+              <div style={{ padding: '10px 14px', background: '#4a2020', border: '0.5px solid #a02020', borderRadius: 8, marginBottom: 20 }}>
+                <p style={{ fontSize: 12, color: '#ff8080', margin: 0, fontWeight: 500 }}>⚠ This permanently removes this campaign's actual audio from every break in Google Drive, not just a database record — it will stop playing on air immediately. This cannot be undone.</p>
+              </div>
+            ) : (
+              <div style={{ padding: '10px 14px', background: '#4a3a1a', border: '0.5px solid #a06000', borderRadius: 8, marginBottom: 20 }}>
+                <p style={{ fontSize: 12, color: '#e0a030', margin: 0, fontWeight: 500 }}>⚠ Leaving this unchecked deletes the campaign but leaves its schedules and audio still live — they'll keep playing on air indefinitely with nothing left to ever end them, since the campaign that owned them is gone.</p>
+              </div>
+            )}
             {deletingSchedules && deleteWithSchedules && (
               <div style={{ marginBottom: 16, marginTop: -8 }}>
                 <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
@@ -1103,7 +1112,7 @@ export default function CampaignsPage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setConfirmDelete(null); setDeleteWithSchedules(false); }} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { setConfirmDelete(null); setDeleteWithSchedules(true); }} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => deleteCampaign(confirmDelete, deleteWithSchedules)} disabled={deletingSchedules}
                 style={{ flex: 1, padding: '11px 0', background: '#cc0000', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: deletingSchedules ? 0.6 : 1 }}>
                 {deletingSchedules ? 'Deleting...' : 'Delete'}
