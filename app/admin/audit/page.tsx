@@ -33,6 +33,44 @@ export default function AuditPage() {
   const [migrationResult, setMigrationResult] = useState<{ campaignsUpdated: number; schedulesUpdated: number; driveFilesUpdated: number; driveFilesFailed: string[] } | null>(null);
   const [confirmMigration, setConfirmMigration] = useState(false);
 
+  type OrphanedSchedule = { id: number; playlist_id: string; playlist_name: string; audio_file_name: string; audio_local_path: string; campaign_id: number };
+  const [orphaned, setOrphaned] = useState<OrphanedSchedule[] | null>(null);
+  const [checkingOrphaned, setCheckingOrphaned] = useState(false);
+  const [confirmRemoveOrphaned, setConfirmRemoveOrphaned] = useState(false);
+  const [removingOrphaned, setRemovingOrphaned] = useState(false);
+  const [orphanedResult, setOrphanedResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkOrphanedSchedules() {
+    setCheckingOrphaned(true);
+    setOrphaned(null);
+    setOrphanedResult(null);
+    try {
+      const res = await fetch('/api/audit/orphaned-schedules');
+      const data = await res.json();
+      setOrphaned(data.orphaned || []);
+    } finally {
+      setCheckingOrphaned(false);
+    }
+  }
+
+  async function removeOrphanedSchedules() {
+    if (!orphaned || orphaned.length === 0) return;
+    setRemovingOrphaned(true);
+    setConfirmRemoveOrphaned(false);
+    try {
+      const res = await fetch('/api/audit/orphaned-schedules/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduleIds: orphaned.map(o => o.id) }),
+      });
+      const data = await res.json();
+      setOrphanedResult(data);
+      setOrphaned([]);
+    } finally {
+      setRemovingOrphaned(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -232,6 +270,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={checkOrphanedSchedules} disabled={checkingOrphaned}
+              style={{ padding: '8px 18px', background: 'white', color: '#8a3ec9', border: '0.5px solid #8a3ec9', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingOrphaned ? 0.6 : 1 }}>
+              {checkingOrphaned ? 'Checking...' : 'Check Orphaned Schedules'}
+            </button>
             <button onClick={checkPathMigration} disabled={checkingPathMigration}
               style={{ padding: '8px 18px', background: 'white', color: '#a02020', border: '0.5px solid #a02020', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingPathMigration ? 0.6 : 1 }}>
               {checkingPathMigration ? 'Checking...' : 'Check Path Migration'}
@@ -249,6 +291,53 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {orphaned !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Orphaned Schedules</p>
+                {orphaned.length > 0 && (
+                  confirmRemoveOrphaned ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Remove all {orphaned.length}, including their audio from Drive?</span>
+                      <button onClick={() => setConfirmRemoveOrphaned(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={removeOrphanedSchedules} disabled={removingOrphaned} style={{ padding: '4px 10px', background: '#a02020', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: removingOrphaned ? 0.6 : 1 }}>
+                        {removingOrphaned ? 'Removing...' : 'Yes, remove all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmRemoveOrphaned(true)}
+                      style={{ padding: '5px 12px', background: 'white', color: '#a02020', border: '0.5px solid #a02020', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Remove All ({orphaned.length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                Schedules left behind by a campaign that was deleted without also removing its schedules — the campaign is gone, but this audio is still live in Drive with nothing left to ever end it.
+              </p>
+              {orphanedResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: orphanedResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: orphanedResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Removed {orphanedResult.succeeded} of {orphanedResult.total}
+                  </p>
+                  {orphanedResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {orphaned.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every schedule belongs to a campaign that still exists.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {orphaned.map((o) => (
+                    <div key={o.id} style={{ padding: '8px 10px', background: '#f5f0fa', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{o.playlist_name.replace(/\.m3u8$/i, '')}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{o.audio_file_name} — deleted campaign #{o.campaign_id}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {pathMigration !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Path Migration Preview (read-only — nothing has been changed)</p>
