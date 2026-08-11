@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
-import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakTime, parseBreakMinuteOfDay, calculateNextRun } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
@@ -12,6 +13,7 @@ export type RebalanceMove = {
   fromPlaylistName: string;
   toPlaylistId: string;
   toPlaylistName: string;
+  positionType: string;
 };
 
 export type RebalanceSkipped = {
@@ -77,7 +79,7 @@ function findBestDestination(
 
 async function fetchActiveSchedulesWithCampaigns() {
   return sql`
-    SELECT s.id, s.campaign_id, s.playlist_id, s.playlist_name, s.audio_file_name, s.audio_local_path, s.created_at,
+    SELECT s.id, s.campaign_id, s.playlist_id, s.playlist_name, s.audio_file_name, s.audio_local_path, s.created_at, s.position_type,
            c.sponsor_name, c.allowed_days, c.time_from, c.time_to, c.allowed_breaks, c.business_category
     FROM schedules s
     LEFT JOIN campaigns c ON c.id = s.campaign_id
@@ -153,6 +155,7 @@ export async function computeRebalancePlan(maxPerPlaylist: number, accessToken: 
         fromPlaylistName: sched.playlist_name,
         toPlaylistId: dest.id,
         toPlaylistName: dest.name,
+        positionType: sched.position_type || 'middle',
       });
 
       load.set(plId, (load.get(plId) ?? 1) - 1);
@@ -243,6 +246,7 @@ export async function computeCategoryConflictFixPlan(accessToken: string): Promi
           fromPlaylistName: sched.playlist_name,
           toPlaylistId: dest.id,
           toPlaylistName: dest.name,
+          positionType: sched.position_type || 'middle',
         });
 
         load.set(plId, (load.get(plId) ?? 1) - 1);
@@ -260,7 +264,7 @@ export async function computeCategoryConflictFixPlan(accessToken: string): Promi
 export async function applyRebalanceMove(move: RebalanceMove, accessToken: string): Promise<boolean> {
   try {
     await removePathFromPlaylist(move.fromPlaylistId, move.audioLocalPath, accessToken);
-    await addPathToPlaylist(move.toPlaylistId, move.audioLocalPath, -1, accessToken);
+    await addPathToPlaylistOrdered(move.toPlaylistId, move.audioLocalPath, move.positionType, accessToken);
 
     // The move can land on a genuinely different day and/or time, not just
     // a different block at the same time — so the schedule's own

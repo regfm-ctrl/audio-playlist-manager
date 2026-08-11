@@ -33,6 +33,7 @@ type Campaign = {
   time_from: string | null;
   time_to: string | null;
   position: number;
+  position_type: string | null;
   start_date: string;
   end_date: string | null;
   status: string;
@@ -137,6 +138,7 @@ export default function CampaignsPage() {
     time_to: '18:00',
     allowed_breaks: [] as string[],
     position: -1,
+    position_type: 'middle',
     start_date: new Date().toISOString().split('T')[0],
     end_date: '',
     use_specific_breaks: false,
@@ -461,6 +463,7 @@ export default function CampaignsPage() {
       time_to: campaign.time_to || '18:00',
       allowed_breaks: allowedBreaks,
       position: campaign.position,
+      position_type: campaign.position_type || 'middle',
       start_date: campaign.start_date.split('T')[0],
       end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
       use_specific_breaks: allowedBreaks.length > 0,
@@ -836,11 +839,15 @@ export default function CampaignsPage() {
               {/* Position */}
               <div>
                 <label style={{ ...S.label, color: '#ddd' }}>Position in Break</label>
-                <select value={form.position} onChange={e => setForm(f => ({ ...f, position: parseInt(e.target.value) }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }}>
-                  <option value={-1}>Add to end</option>
-                  <option value={0}>Add at beginning</option>
-                  {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>After position {n}</option>)}
+                <select value={form.position_type} onChange={e => setForm(f => ({ ...f, position_type: e.target.value }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }}>
+                  <option value="first">First in Break</option>
+                  <option value="middle">Middle of Break</option>
+                  <option value="second_last">Second Last in Break</option>
+                  <option value="last">Last in Break</option>
                 </select>
+                <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                  Actively enforced — whenever anything else is added to or removed from a shared break, this campaign's spot stays correctly positioned relative to everyone else, not just at the moment it was first placed.
+                </p>
               </div>
 
               {/* Distribution type */}

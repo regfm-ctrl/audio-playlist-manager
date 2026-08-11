@@ -3,7 +3,8 @@ import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { fetchPlaylistState, removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { fetchPlaylistState, removePathFromPlaylist } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered } from '@/lib/playlist-ordering';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
 import { expireIndividualAudioFiles } from '@/lib/campaign-file-expiry';
 import { melbourneWallTimeToUTC, calculateNextRun } from '@/lib/break-time';
@@ -203,9 +204,10 @@ async function processSchedules(accessToken: string, forceRun = false) {
           `;
           result = { schedule: schedule.audio_file_name, status: 'skipped', reason: 'Already in playlist' };
         } else {
-          // 3. Add it (handles intro/outro wrapping automatically; throws
-          // on a genuine failure, caught by the outer try/catch below)
-          await addPathToPlaylist(schedule.playlist_id, newPath, schedule.position, accessToken);
+          // 3. Add it (handles intro/outro wrapping and position pinning
+          // automatically; throws on a genuine failure, caught by the
+          // outer try/catch below)
+          await addPathToPlaylistOrdered(schedule.playlist_id, newPath, schedule.position_type, accessToken);
 
           await sql`
             INSERT INTO schedule_runs (schedule_id, audio_file_name, playlist_name, status, message)

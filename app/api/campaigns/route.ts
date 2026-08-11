@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path, audio_files,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
+    position, position_type, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
   } = await req.json();
 
   // audio_files is the canonical list going forward. The singular columns
@@ -67,14 +67,14 @@ export async function POST(req: NextRequest) {
       sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path, audio_files,
       spots_per_week, distribution_type, per_day_counts,
       allowed_days, time_from, time_to, allowed_breaks,
-      position, start_date, end_date, created_by, booking_reference, booking_details, randomize_weekly,
+      position, position_type, start_date, end_date, created_by, booking_reference, booking_details, randomize_weekly,
       go_live_time, expiry_time
     ) VALUES (
       ${sponsor_name}, ${business_category || null}, ${firstFile.id ?? ''}, ${firstFile.name ?? ''}, ${firstFile.dir ?? ''}, ${firstFile.localPath ?? audio_local_path},
       ${JSON.stringify(filesList)},
       ${spots_per_week}, ${distribution_type}, ${per_day_counts ? JSON.stringify(per_day_counts) : null},
       ${allowed_days ?? null}, ${time_from ?? null}, ${time_to ?? null}, ${allowed_breaks ?? null},
-      ${position ?? -1}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}, ${!!randomize_weekly},
+      ${position ?? -1}, ${position_type || 'middle'}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}, ${!!randomize_weekly},
       ${go_live_time || '06:00'}, ${expiry_time || '22:00'}
     ) RETURNING *
   `;
@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest) {
     sponsor_name, business_category, audio_file_id, audio_file_name, audio_directory_name, audio_local_path, audio_files,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
+    position, position_type, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
   } = body;
 
   const filesList = normalizeAudioFilesExpiry(Array.isArray(audio_files) && audio_files.length > 0
@@ -135,6 +135,7 @@ export async function PATCH(req: NextRequest) {
       time_to = ${time_to ?? null},
       allowed_breaks = ${allowed_breaks ?? null},
       position = ${position ?? -1},
+      position_type = ${position_type || 'middle'},
       start_date = ${start_date},
       end_date = ${end_date ?? null},
       booking_reference = ${booking_reference || null},

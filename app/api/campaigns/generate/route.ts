@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
-import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered, reorderPlaylistByPosition, normalizePositionType } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { getPlaylistLoad, MAX_SPONSORS_PER_BREAK } from '@/lib/playlist-load';
@@ -90,8 +91,9 @@ export async function POST(req: NextRequest) {
     audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
-    position, start_date, end_date, go_live_time, expiry_time,
+    position, position_type, start_date, end_date, go_live_time, expiry_time,
   } = campaign;
+  const positionType = normalizePositionType(position_type);
 
   // audio_files is the canonical list going forward — falls back to the
   // single legacy audio_local_path for campaigns created before this
@@ -175,12 +177,12 @@ export async function POST(req: NextRequest) {
           try {
             const file = swapFileById.get(sched.id)!
             await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken)
-            await addPathToPlaylist(sched.playlist_id, file.localPath, position ?? -1, accessToken)
+            await addPathToPlaylistOrdered(sched.playlist_id, file.localPath, positionType, accessToken)
             await sql`
               UPDATE schedules SET
                 audio_file_id = ${file.id ?? ''}, audio_file_name = ${file.name ?? ''},
                 audio_directory_name = ${file.dir ?? ''}, audio_local_path = ${file.localPath},
-                position = ${position ?? -1}, expires_at = ${weeklyEndDate}
+                position = ${position ?? -1}, position_type = ${positionType}, expires_at = ${weeklyEndDate}
               WHERE id = ${sched.id}
             `
             return { type: 'refreshed' as const }
@@ -191,12 +193,20 @@ export async function POST(req: NextRequest) {
           // Unchanged placement — still one of the campaign's valid files,
           // so just refresh metadata (dates/position). No Drive operation
           // needed, and the specific variant it has stays put rather than
-          // reshuffling on every edit.
+          // reshuffling on every edit — unless the position preference
+          // itself changed, in which case the break needs reordering now
+          // rather than waiting for some unrelated future change to it.
           try {
+            const positionChanged = normalizePositionType(sched.position_type) !== positionType
             await sql`
-              UPDATE schedules SET position = ${position ?? -1}, expires_at = ${weeklyEndDate}
+              UPDATE schedules SET position = ${position ?? -1}, position_type = ${positionType}, expires_at = ${weeklyEndDate}
               WHERE id = ${sched.id}
             `
+            if (positionChanged) {
+              try { await reorderPlaylistByPosition(sched.playlist_id, accessToken) } catch (err: any) {
+                return { type: 'error' as const, message: `Reorder ${sched.playlist_name}: ${err.message ?? String(err)}` }
+              }
+            }
             return { type: 'refreshed' as const }
           } catch (err: any) {
             return { type: 'error' as const, message: `Refresh ${sched.playlist_name}: ${err.message ?? String(err)}` }
@@ -227,17 +237,17 @@ export async function POST(req: NextRequest) {
             : slot.scheduledFor
 
           if (gateOpen) {
-            await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
+            await addPathToPlaylistOrdered(slot.id, file.localPath, positionType, accessToken)
           }
           await sql`
             INSERT INTO schedules (
               audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
-              playlist_id, playlist_name, position,
+              playlist_id, playlist_name, position, position_type,
               schedule_type, days_of_week, specific_dates, time_of_day,
               next_run_at, expires_at, created_by, campaign_id
             ) VALUES (
               ${file.id ?? ''}, ${file.name ?? ''}, ${file.dir ?? ''}, ${file.localPath},
-              ${slot.id}, ${slot.name}, ${position ?? -1},
+              ${slot.id}, ${slot.name}, ${position ?? -1}, ${positionType},
               'recurring', ${dayOfWeek}, null, ${timeOfDay},
               ${nextRun}, ${weeklyEndDate}, ${user.username}, ${campaign.id}
             )
@@ -285,13 +295,13 @@ export async function POST(req: NextRequest) {
           // (e.g. a transient Drive error), the catch below reports it and
           // the schedule row is NOT created — better to have neither than a
           // database row claiming placement that never actually happened.
-          await addPathToPlaylist(slot.id, file.localPath, position ?? -1, accessToken)
+          await addPathToPlaylistOrdered(slot.id, file.localPath, positionType, accessToken)
         }
 
         await sql`
           INSERT INTO schedules (
             audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
-            playlist_id, playlist_name, position,
+            playlist_id, playlist_name, position, position_type,
             schedule_type, days_of_week, specific_dates, time_of_day,
             next_run_at, expires_at, created_by, campaign_id
           ) VALUES (
@@ -302,6 +312,7 @@ export async function POST(req: NextRequest) {
             ${slot.id},
             ${slot.name},
             ${position ?? -1},
+            ${positionType},
             'recurring',
             ${dayOfWeek},
             null,

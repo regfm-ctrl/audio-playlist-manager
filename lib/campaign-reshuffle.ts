@@ -2,7 +2,8 @@ import { sql } from '@/lib/db';
 import { getPlaylistLoad, MAX_SPONSORS_PER_BREAK } from '@/lib/playlist-load';
 import { parseCampaignAudioFiles, getNextCampaignAudioFiles, getValidCampaignAudioFiles } from '@/lib/campaign-audio-rotation';
 import { getValidAccessToken } from '@/lib/google-tokens';
-import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered, normalizePositionType } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTimeToUTC } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
@@ -364,16 +365,16 @@ async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, lo
       const timeOfDay = `${String(hour).padStart(2, '0')}:00`;
       try {
         const file = batchFiles[j];
-        await addPathToPlaylist(slot.id, file.localPath, campaign.position ?? -1, accessToken);
+        await addPathToPlaylistOrdered(slot.id, file.localPath, normalizePositionType(campaign.position_type), accessToken);
         await sql`
           INSERT INTO schedules (
             audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
-            playlist_id, playlist_name, position,
+            playlist_id, playlist_name, position, position_type,
             schedule_type, days_of_week, specific_dates, time_of_day,
             next_run_at, expires_at, created_by, campaign_id
           ) VALUES (
             ${file.id ?? ''}, ${file.name ?? ''}, ${file.dir ?? ''}, ${file.localPath},
-            ${slot.id}, ${slot.name}, ${campaign.position ?? -1},
+            ${slot.id}, ${slot.name}, ${campaign.position ?? -1}, ${normalizePositionType(campaign.position_type)},
             'recurring', ${String(day)}, null, ${timeOfDay},
             ${now.toISOString()}, ${weeklyEndDate}, 'weekly-reshuffle', ${campaign.id}
           )

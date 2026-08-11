@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
-import { removePathFromPlaylist, addPathToPlaylist } from '@/lib/playlist-ops';
+import { removePathFromPlaylist } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered, normalizePositionType } from '@/lib/playlist-ordering';
 import { parseCampaignAudioFiles, getNextCampaignAudioFiles, isFileExpired } from '@/lib/campaign-audio-rotation';
 
 // Cheap no-op unless a campaign actually has a per-file expiry set and it's
@@ -9,7 +10,7 @@ export async function expireIndividualAudioFiles(accessToken: string): Promise<{
   // Narrow to campaigns that could possibly have something due, before
   // doing any real work — most campaigns never use this feature at all.
   const campaigns = await sql`
-    SELECT id, sponsor_name, position, audio_files
+    SELECT id, sponsor_name, position, position_type, audio_files
     FROM campaigns
     WHERE status = 'active' AND audio_files::text LIKE '%expiresAt%'
   `;
@@ -50,7 +51,7 @@ export async function expireIndividualAudioFiles(accessToken: string): Promise<{
         try {
           await removePathFromPlaylist(sched.playlist_id, sched.audio_local_path, accessToken);
           if (replacement) {
-            await addPathToPlaylist(sched.playlist_id, replacement.localPath, campaign.position ?? -1, accessToken);
+            await addPathToPlaylistOrdered(sched.playlist_id, replacement.localPath, normalizePositionType(campaign.position_type), accessToken);
             await sql`
               UPDATE schedules SET
                 audio_file_id = ${replacement.id ?? ''}, audio_file_name = ${replacement.name ?? ''},

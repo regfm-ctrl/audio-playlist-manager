@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
-import { fetchPlaylistState, addPathToPlaylist } from '@/lib/playlist-ops';
+import { fetchPlaylistState } from '@/lib/playlist-ops';
+import { addPathToPlaylistOrdered } from '@/lib/playlist-ordering';
 import { isProtectedPath } from '@/lib/stings';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
@@ -37,13 +38,13 @@ export async function runReconcileAuditPage(
   limit: number
 ): Promise<ReconcilePage> {
   const schedules = await sql`
-    SELECT playlist_id, playlist_name, audio_local_path, audio_file_name
+    SELECT playlist_id, playlist_name, audio_local_path, audio_file_name, position_type
     FROM schedules WHERE is_active = true
   `;
-  const expectedByPlaylist = new Map<string, { path: string; audioFileName: string }[]>();
+  const expectedByPlaylist = new Map<string, { path: string; audioFileName: string; positionType: string }[]>();
   for (const s of schedules as any[]) {
     if (!expectedByPlaylist.has(s.playlist_id)) expectedByPlaylist.set(s.playlist_id, []);
-    expectedByPlaylist.get(s.playlist_id)!.push({ path: s.audio_local_path, audioFileName: s.audio_file_name });
+    expectedByPlaylist.get(s.playlist_id)!.push({ path: s.audio_local_path, audioFileName: s.audio_file_name, positionType: s.position_type });
   }
 
   const listRes = await fetch(
@@ -75,7 +76,7 @@ export async function runReconcileAuditPage(
         for (const exp of expected) {
           if (actualSet.has(exp.path)) continue;
           try {
-            const outcome = await addPathToPlaylist(pl.id, exp.path, -1, accessToken);
+            const outcome = await addPathToPlaylistOrdered(pl.id, exp.path, exp.positionType, accessToken);
             if (outcome === 'added') added.push(`${pl.name}: ${exp.audioFileName}`);
           } catch (err: any) {
             errors.push(`${pl.name}: ${err.message ?? String(err)}`);
