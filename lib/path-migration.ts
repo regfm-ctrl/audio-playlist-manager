@@ -12,6 +12,11 @@ export const PATH_REPLACEMENTS = [
   { old: 'T:\\REGFM RadioBOSS\\IDs\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\IDs\\' },
   { old: 'T:\\REGFM RadioBOSS\\CSAs Audio\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\CSAs Audio\\' },
   { old: 'T:\\REGFM RadioBOSS\\Promos\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Promos\\' },
+  // Rules apply sequentially, so this also correctly catches paths that
+  // already went through the rule above and ended up with "CSAs Audio" —
+  // the folder itself was renamed to just "CSAs", a separate fix from
+  // the earlier prefix correction.
+  { old: 'T:\\REGFM - RadioBOSS\\Traffic System\\CSAs Audio\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\CSAs\\' },
   { old: 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Intros\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Sponsor Intro & Outros\\Intros\\' },
   { old: 'T:\\My Drive\\Traffic System\\Sponsor Intro & Outros\\Outros\\', new: 'T:\\REGFM - RadioBOSS\\Traffic System\\Sponsor Intro & Outros\\Outros\\' },
 ];

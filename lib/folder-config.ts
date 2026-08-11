@@ -22,7 +22,7 @@ import type { AudioDirectory } from "./google-drive"
 //   {
 //     name: "CSAs - Audio",
 //     driveId: "1CrQC5MBpF_ryPAvz8EaPmBTnp1mctW_B",
-//     localPath: "T:\\REGFM - RadioBOSS\\Traffic System\\CSAs Audio\\{audio_filename}",
+//     localPath: "T:\\REGFM - RadioBOSS\\Traffic System\\CSAs\\{audio_filename}",
 //   },
 //   {
 //     name: "Promos - Audio",
@@ -60,7 +60,7 @@ export const DEFAULT_AUDIO_DIRECTORIES: AudioDirectory[] = [
   {
     name: "CSAs - Audio",
     driveId: "14Oy00clKujI6ldWv7NW35DybZVBN_MPm",
-    localPath: "T:\\REGFM - RadioBOSS\\Traffic System\\CSAs Audio\\{audio_filename}",
+    localPath: "T:\\REGFM - RadioBOSS\\Traffic System\\CSAs\\{audio_filename}",
   },
   {
     name: "Promos - Audio",
