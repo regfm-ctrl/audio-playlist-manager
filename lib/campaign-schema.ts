@@ -17,4 +17,11 @@ export async function ensureCampaignCategoryColumns() {
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS position_type TEXT DEFAULT 'middle'`;
   await sql`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS position_type TEXT DEFAULT 'middle'`;
   await sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS details TEXT`;
+  // System-triggered log entries (the scheduler, cron jobs) use user_id=0,
+  // which isn't a real row in "users" — a strict foreign key here rejects
+  // every single one of those inserts, silently, since logActivity()
+  // deliberately swallows its own errors so a logging failure never
+  // breaks the actual feature it's attached to. A log table shouldn't
+  // require its "actor" to always be a real logged-in user.
+  await sql`ALTER TABLE activity_logs DROP CONSTRAINT IF EXISTS activity_logs_user_id_fkey`;
 }
