@@ -123,7 +123,7 @@ export function DirectoryConfig({ directories, onDirectoriesUpdated }: Directory
                           id={`localPath-${index}`}
                           value={directory.localPath}
                           onChange={(e) => handleDirectoryChange(index, "localPath", e.target.value)}
-                          placeholder="T:\REGFM RadioBOSS\Audio\{audio_filename}"
+                          placeholder="T:\REGFM - RadioBOSS\Traffic System\Audio\{audio_filename}"
                         />
                         <Button
                           variant="outline"
@@ -180,7 +180,7 @@ export function DirectoryConfig({ directories, onDirectoriesUpdated }: Directory
                       id="new-localPath"
                       value={newDirectory.localPath}
                       onChange={(e) => setNewDirectory({ ...newDirectory, localPath: e.target.value })}
-                      placeholder="T:\REGFM RadioBOSS\Jingles\{audio_filename}"
+                      placeholder="T:\REGFM - RadioBOSS\Traffic System\Jingles\{audio_filename}"
                     />
                   </div>
                 </div>
