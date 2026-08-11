@@ -326,6 +326,14 @@ export default function CampaignsPage() {
 
     if (playlists.length === 0) { setMsg('Loading breaks...'); await loadPlaylists(); }
 
+    // Zero out any day's spot count that isn't actually in Allowed Days —
+    // catches stale data too (e.g. a campaign that had this mismatch from
+    // before this fix existed), not just new edits, since this normalizes
+    // right before every submission regardless of how the form got here.
+    const normalizedPerDayCounts = Object.fromEntries(
+      Object.entries(form.per_day_counts).map(([day, count]) => [day, form.allowed_days.includes(Number(day)) ? count : 0])
+    );
+
     const campaign = {
       ...form,
       id: editingCampaignId ?? undefined,
@@ -333,7 +341,7 @@ export default function CampaignsPage() {
       allowed_breaks: form.use_specific_breaks && form.allowed_breaks.length > 0
         ? form.allowed_breaks.join(',')
         : null,
-      per_day_counts: form.distribution_type === 'per_day' ? form.per_day_counts : null,
+      per_day_counts: form.distribution_type === 'per_day' ? normalizedPerDayCounts : null,
     };
 
     setMsg('Generating preview...');
@@ -881,15 +889,20 @@ export default function CampaignsPage() {
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ ...S.label, color: '#ddd' }}>Spots Per Day</label>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {DAYS.map((day, i) => (
-                      <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                        <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>{day}</div>
-                        <input type="number" min={0} max={20} value={form.per_day_counts[i] || 0}
-                          onChange={e => setForm(f => ({ ...f, per_day_counts: { ...f.per_day_counts, [i]: parseInt(e.target.value) || 0 } }))}
-                          style={{ ...S.input, textAlign: 'center', padding: '6px 4px' }} />
-                      </div>
-                    ))}
+                    {DAYS.map((day, i) => {
+                      const dayAllowed = form.allowed_days.includes(i);
+                      return (
+                        <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: dayAllowed ? '#aaa' : '#555', marginBottom: 4 }}>{day}</div>
+                          <input type="number" min={0} max={20} value={dayAllowed ? (form.per_day_counts[i] || 0) : 0}
+                            disabled={!dayAllowed}
+                            onChange={e => setForm(f => ({ ...f, per_day_counts: { ...f.per_day_counts, [i]: parseInt(e.target.value) || 0 } }))}
+                            style={{ ...S.input, textAlign: 'center', padding: '6px 4px', opacity: dayAllowed ? 1 : 0.4, cursor: dayAllowed ? 'text' : 'not-allowed' }} />
+                        </div>
+                      );
+                    })}
                   </div>
+                  <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Greyed-out days are disabled in "Allowed Days" below and can't have spots.</p>
                 </div>
               )}
 
@@ -898,7 +911,17 @@ export default function CampaignsPage() {
                 <label style={{ ...S.label, color: '#ddd' }}>Allowed Days</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {DAYS.map((day, i) => (
-                    <button key={i} onClick={() => setForm(f => ({ ...f, allowed_days: f.allowed_days.includes(i) ? f.allowed_days.filter(d => d !== i) : [...f.allowed_days, i] }))}
+                    <button key={i} onClick={() => setForm(f => {
+                      const nowAllowed = !f.allowed_days.includes(i);
+                      const allowed_days = nowAllowed ? [...f.allowed_days, i] : f.allowed_days.filter(d => d !== i);
+                      // A day that's no longer allowed can never actually get
+                      // its spots filled — zero it out here so "Spots Per
+                      // Day" can't silently drift out of sync with what's
+                      // actually achievable (which is exactly what causes a
+                      // campaign to permanently fall short of its target).
+                      const per_day_counts = nowAllowed ? f.per_day_counts : { ...f.per_day_counts, [i]: 0 };
+                      return { ...f, allowed_days, per_day_counts };
+                    })}
                       style={{ flex: 1, padding: '6px 0', borderRadius: 5, fontSize: 12, cursor: 'pointer', border: 'none', background: form.allowed_days.includes(i) ? '#0071e3' : '#2a2a2c', color: form.allowed_days.includes(i) ? 'white' : '#777' }}>
                       {day}
                     </button>
