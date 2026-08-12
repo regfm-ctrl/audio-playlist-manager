@@ -82,6 +82,46 @@ export default function AuditPage() {
     }
   }
 
+  type TopOfHourOutroItem = { playlistId: string; playlistName: string; outroFileName: string };
+  const [tohOutros, setTohOutros] = useState<TopOfHourOutroItem[] | null>(null);
+  const [tohScanned, setTohScanned] = useState(0);
+  const [checkingToh, setCheckingToh] = useState(false);
+  const [confirmRemoveToh, setConfirmRemoveToh] = useState(false);
+  const [removingToh, setRemovingToh] = useState(false);
+  const [tohResult, setTohResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkTopOfHourOutros() {
+    setCheckingToh(true);
+    setTohOutros(null);
+    setTohResult(null);
+    try {
+      const res = await fetch('/api/audit/top-of-hour-outros');
+      const data = await res.json();
+      setTohOutros(data.items || []);
+      setTohScanned(data.scanned || 0);
+    } finally {
+      setCheckingToh(false);
+    }
+  }
+
+  async function removeTopOfHourOutros() {
+    if (!tohOutros || tohOutros.length === 0) return;
+    setRemovingToh(true);
+    setConfirmRemoveToh(false);
+    try {
+      const res = await fetch('/api/audit/top-of-hour-outros/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: tohOutros }),
+      });
+      const data = await res.json();
+      setTohResult(data);
+      setTohOutros([]);
+    } finally {
+      setRemovingToh(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -287,6 +327,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={checkTopOfHourOutros} disabled={checkingToh}
+              style={{ padding: '8px 18px', background: 'white', color: '#0a6e46', border: '0.5px solid #0a6e46', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingToh ? 0.6 : 1 }}>
+              {checkingToh ? 'Checking...' : 'Check Top-of-Hour Outros'}
+            </button>
             <button onClick={checkOrphanedSchedules} disabled={checkingOrphaned}
               style={{ padding: '8px 18px', background: 'white', color: '#8a3ec9', border: '0.5px solid #8a3ec9', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingOrphaned ? 0.6 : 1 }}>
               {checkingOrphaned ? 'Checking...' : 'Check Orphaned Schedules'}
@@ -308,6 +352,53 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {tohOutros !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Top-of-Hour Outros</p>
+                {tohOutros.length > 0 && (
+                  confirmRemoveToh ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Remove all {tohOutros.length} outro(s)?</span>
+                      <button onClick={() => setConfirmRemoveToh(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={removeTopOfHourOutros} disabled={removingToh} style={{ padding: '4px 10px', background: '#a02020', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: removingToh ? 0.6 : 1 }}>
+                        {removingToh ? 'Removing...' : 'Yes, remove all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmRemoveToh(true)}
+                      style={{ padding: '5px 12px', background: 'white', color: '#a02020', border: '0.5px solid #a02020', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Remove All ({tohOutros.length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                One-time cleanup — top-of-hour breaks (6:00am, 7:00am, etc.) now get an intro only, no outro. This finds any that were already populated before that fix and still have an outro left over. Scanned {tohScanned} top-of-hour break(s).
+              </p>
+              {tohResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: tohResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: tohResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Removed {tohResult.succeeded} of {tohResult.total}
+                  </p>
+                  {tohResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {tohOutros.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every top-of-hour break is already intro-only.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {tohOutros.map((item) => (
+                    <div key={item.playlistId} style={{ padding: '8px 10px', background: '#f0f8f4', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{item.playlistName.replace(/\.m3u8$/i, '')}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{item.outroFileName}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {orphaned !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
