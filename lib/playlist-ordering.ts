@@ -1,6 +1,7 @@
 import { sql } from '@/lib/db';
 import { fetchPlaylistState, savePlaylistContent, removePathFromPlaylist as removePathFromPlaylistUnlocked } from '@/lib/playlist-ops';
 import { isIntroPath, isOutroPath, isProtectedPath, buildPlaylistContent, getNextSting } from '@/lib/stings';
+import { parseBreakMinute } from '@/lib/break-time';
 import { withPlaylistLock } from '@/lib/playlist-lock';
 
 export type PositionType = 'first' | 'middle' | 'second_last' | 'last';
@@ -74,7 +75,10 @@ async function addPathToPlaylistOrderedUnlocked(
   let outroPath = existingPaths.find(isOutroPath) || null;
   if (wasEmpty) {
     introPath = await getNextSting('intro', accessToken);
-    outroPath = await getNextSting('outro', accessToken);
+    // Top-of-hour breaks (6:00am, 7:00am, etc.) get an intro only, no
+    // outro — every other break gets both.
+    const isTopOfHour = parseBreakMinute(containerName) === 0;
+    outroPath = isTopOfHour ? null : await getNextSting('outro', accessToken);
   }
 
   const newContent = buildPlaylistContent(containerName, orderedRealPaths, introPath, outroPath);
