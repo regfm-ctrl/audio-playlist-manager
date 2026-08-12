@@ -42,12 +42,16 @@ const STING_FOLDERS: Record<'intro' | 'outro', { folderId: string; localPrefix: 
 
 // Returns the next sting's local path in rotation, or null if the folder
 // isn't configured or is empty (in which case the break just plays without
-// that sting, rather than failing).
-export async function getNextSting(kind: 'intro' | 'outro', accessToken: string): Promise<string | null> {
+// that sting, rather than failing). formatFilter narrows the pool to a
+// single extension — used when specifically migrating away from an old
+// format (e.g. reassigning every MP3-sting break to a WAV one), without
+// needing a separate rotation table for that one-time purpose.
+export async function getNextSting(kind: 'intro' | 'outro', accessToken: string, formatFilter?: 'mp3' | 'wav'): Promise<string | null> {
   const cfg = STING_FOLDERS[kind];
   if (!cfg.folderId) return null;
 
-  const files = await listDriveFiles(cfg.folderId, accessToken);
+  let files = await listDriveFiles(cfg.folderId, accessToken);
+  if (formatFilter) files = files.filter(f => f.name.toLowerCase().endsWith(`.${formatFilter}`));
   if (files.length === 0) return null;
 
   await ensureRotationTable();

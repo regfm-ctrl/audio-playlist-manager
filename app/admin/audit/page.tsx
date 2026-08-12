@@ -122,6 +122,46 @@ export default function AuditPage() {
     }
   }
 
+  type StingFormatItem = { playlistId: string; playlistName: string; kind: 'intro' | 'outro'; currentFileName: string };
+  const [stingItems, setStingItems] = useState<StingFormatItem[] | null>(null);
+  const [stingScanned, setStingScanned] = useState(0);
+  const [checkingSting, setCheckingSting] = useState(false);
+  const [confirmStingApply, setConfirmStingApply] = useState(false);
+  const [applyingSting, setApplyingSting] = useState(false);
+  const [stingResult, setStingResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkStingFormat() {
+    setCheckingSting(true);
+    setStingItems(null);
+    setStingResult(null);
+    try {
+      const res = await fetch('/api/audit/sting-format');
+      const data = await res.json();
+      setStingItems(data.items || []);
+      setStingScanned(data.scanned || 0);
+    } finally {
+      setCheckingSting(false);
+    }
+  }
+
+  async function applyStingFormat() {
+    if (!stingItems || stingItems.length === 0) return;
+    setApplyingSting(true);
+    setConfirmStingApply(false);
+    try {
+      const res = await fetch('/api/audit/sting-format/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: stingItems }),
+      });
+      const data = await res.json();
+      setStingResult(data);
+      setStingItems([]);
+    } finally {
+      setApplyingSting(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -327,6 +367,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={checkStingFormat} disabled={checkingSting}
+              style={{ padding: '8px 18px', background: 'white', color: '#0071e3', border: '0.5px solid #0071e3', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingSting ? 0.6 : 1 }}>
+              {checkingSting ? 'Checking...' : 'Check Sting Format (MP3→WAV)'}
+            </button>
             <button onClick={checkTopOfHourOutros} disabled={checkingToh}
               style={{ padding: '8px 18px', background: 'white', color: '#0a6e46', border: '0.5px solid #0a6e46', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingToh ? 0.6 : 1 }}>
               {checkingToh ? 'Checking...' : 'Check Top-of-Hour Outros'}
@@ -352,6 +396,53 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {stingItems !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Sting Format (MP3 → WAV)</p>
+                {stingItems.length > 0 && (
+                  confirmStingApply ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Switch all {stingItems.length} to WAV?</span>
+                      <button onClick={() => setConfirmStingApply(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={applyStingFormat} disabled={applyingSting} style={{ padding: '4px 10px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: applyingSting ? 0.6 : 1 }}>
+                        {applyingSting ? 'Applying...' : 'Yes, switch all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmStingApply(true)}
+                      style={{ padding: '5px 12px', background: 'white', color: '#0071e3', border: '0.5px solid #0071e3', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Switch All to WAV ({stingItems.length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                One-time cleanup — finds every break whose current intro or outro is still an MP3 file, and replaces just that sting with a freshly-picked WAV file. Run this before deleting the old MP3 files, so nothing's left pointing at a file that's about to disappear. Scanned {stingScanned} playlist(s).
+              </p>
+              {stingResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: stingResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: stingResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Switched {stingResult.succeeded} of {stingResult.total}
+                  </p>
+                  {stingResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {stingItems.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every break's intro and outro is already a WAV file.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {stingItems.map((item, i) => (
+                    <div key={`${item.playlistId}-${item.kind}`} style={{ padding: '8px 10px', background: '#eaf2fb', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{item.playlistName.replace(/\.m3u8$/i, '')} — {item.kind}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{item.currentFileName}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {tohOutros !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
