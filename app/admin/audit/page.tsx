@@ -162,6 +162,46 @@ export default function AuditPage() {
     }
   }
 
+  type ReformatItem = { playlistId: string; playlistName: string; trackCount: number };
+  const [reformatItems, setReformatItems] = useState<ReformatItem[] | null>(null);
+  const [reformatScanned, setReformatScanned] = useState(0);
+  const [checkingReformat, setCheckingReformat] = useState(false);
+  const [confirmReformatApply, setConfirmReformatApply] = useState(false);
+  const [applyingReformat, setApplyingReformat] = useState(false);
+  const [reformatResult, setReformatResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkReformat() {
+    setCheckingReformat(true);
+    setReformatItems(null);
+    setReformatResult(null);
+    try {
+      const res = await fetch('/api/audit/reformat-playlists');
+      const data = await res.json();
+      setReformatItems(data.items || []);
+      setReformatScanned(data.scanned || 0);
+    } finally {
+      setCheckingReformat(false);
+    }
+  }
+
+  async function applyReformatFix() {
+    if (!reformatItems || reformatItems.length === 0) return;
+    setApplyingReformat(true);
+    setConfirmReformatApply(false);
+    try {
+      const res = await fetch('/api/audit/reformat-playlists/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: reformatItems }),
+      });
+      const data = await res.json();
+      setReformatResult(data);
+      setReformatItems([]);
+    } finally {
+      setApplyingReformat(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -367,6 +407,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={checkReformat} disabled={checkingReformat}
+              style={{ padding: '8px 18px', background: '#a02020', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingReformat ? 0.6 : 1 }}>
+              {checkingReformat ? 'Checking...' : 'Check RadioBOSS Format'}
+            </button>
             <button onClick={checkStingFormat} disabled={checkingSting}
               style={{ padding: '8px 18px', background: 'white', color: '#0071e3', border: '0.5px solid #0071e3', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingSting ? 0.6 : 1 }}>
               {checkingSting ? 'Checking...' : 'Check Sting Format (MP3→WAV)'}
@@ -396,6 +440,53 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {reformatItems !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '1.5px solid #a02020', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>RadioBOSS Format (critical)</p>
+                {reformatItems.length > 0 && (
+                  confirmReformatApply ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Resave all {reformatItems.length} playlist(s)?</span>
+                      <button onClick={() => setConfirmReformatApply(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={applyReformatFix} disabled={applyingReformat} style={{ padding: '4px 10px', background: '#a02020', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: applyingReformat ? 0.6 : 1 }}>
+                        {applyingReformat ? 'Fixing...' : 'Yes, fix all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmReformatApply(true)}
+                      style={{ padding: '5px 12px', background: '#a02020', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Fix All ({reformatItems.length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                One-time fix — finds every playlist still written in the old format that was crashing RadioBOSS (unencoded paths, missing #EXTINF line) and resaves it with the exact same content in the correct format. Nothing about which files play changes, only how the file itself is written. Scanned {reformatScanned} playlist(s).
+              </p>
+              {reformatResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: reformatResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: reformatResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Fixed {reformatResult.succeeded} of {reformatResult.total}
+                  </p>
+                  {reformatResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {reformatItems.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every playlist is already in the correct format.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+                  {reformatItems.map((item) => (
+                    <div key={item.playlistId} style={{ padding: '8px 10px', background: '#fdecec', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{item.playlistName.replace(/\.m3u8$/i, '')}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{item.trackCount} track(s)</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {stingItems !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
