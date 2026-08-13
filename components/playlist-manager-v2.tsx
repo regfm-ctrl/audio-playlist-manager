@@ -15,6 +15,45 @@ import { parseBreakMinuteOfDay } from "@/lib/break-time"
 
 const isProtectedPath = (path: string) => path.includes('Traffic System') && path.includes('Sponsor Intro & Outros')
 
+// Client-safe mirror of lib/stings.ts's buildPlaylistContent / lib/
+// playlist-ops.ts's fetchPlaylistState parsing — can't import those
+// directly here since lib/stings.ts pulls in the database client, which
+// isn't available in the browser. Must stay in sync with those two by
+// hand if the RadioBOSS-expected format is ever refined further.
+const encodeForM3U = (str: string) => encodeURIComponent(str).replace(/%20/g, '+')
+
+function buildM3UContent(containerName: string, allPaths: string[]): string {
+  if (allPaths.length === 0) return `#EXTM3U\n`
+  const encodedName = encodeForM3U(containerName || 'Not predefined')
+  const encodedPaths = allPaths.map(encodeForM3U)
+  const firstRealPath = allPaths.find(p => !isProtectedPath(p)) || allPaths[0]
+  const firstRealFileName = (firstRealPath.split('\\').pop() || '').replace(/\.(mp3|wav)$/i, '')
+  return `#EXTM3U\n#EXTINF:30,${firstRealFileName}\ncontainer=<${encodedName}>${encodedPaths.join('|')}\n`
+}
+
+// Parses either format — case-insensitive "container="/"Container=", and
+// decodes paths only if they actually look encoded (contain a literal
+// "%", which a raw Windows path never does), so files not yet resaved in
+// the new format keep working exactly as before.
+function parseM3UContent(content: string): { containerName: string; paths: string[] } {
+  let containerName = ''
+  let paths: string[] = []
+  for (const line of content.split('\n').filter(l => l.trim())) {
+    if (line.startsWith('#EXTM3U') || line.startsWith('#EXTINF')) continue
+    if (/^container=/i.test(line)) {
+      const match = line.match(/container=<([^>]+)>(.*)/i)
+      if (match) {
+        containerName = decodeURIComponent(match[1].replace(/\+/g, ' '))
+        paths = match[2].split('|').filter(p => p.trim()).map(p => {
+          if (!p.includes('%')) return p
+          try { return decodeURIComponent(p.replace(/\+/g, ' ')) } catch { return p }
+        })
+      }
+    }
+  }
+  return { containerName, paths }
+}
+
 interface PlaylistManagerProps {
   accessToken: string
   onAuthError?: () => void
@@ -337,10 +376,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
             if (!res.ok) return
             const text = await res.text()
             if (!text.includes(quickCheck)) return
-            let containerName = ''; let paths: string[] = []
-            for (const line of text.split('\n').filter((l: string) => l.trim())) {
-              if (line.startsWith('Container=')) { const match = line.match(/Container=<([^>]+)>(.*)/); if (match) { containerName = decodeURIComponent(match[1].replace(/\+/g, ' ')); paths = match[2].split('|').filter((p: string) => p.trim()) } }
-            }
+            const { containerName, paths } = parseM3UContent(text)
             if (!paths.includes(pathToRemove)) return
             toUpdate.push({ id: pl.id, name: pl.name, containerName, updatedPaths: paths.filter((p: string) => p !== pathToRemove) })
           } catch {}
@@ -353,8 +389,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       for (let i = 0; i < toUpdate.length; i += BATCH) {
         await Promise.all(toUpdate.slice(i, i + BATCH).map(async (pl) => {
           try {
-            const encodedName = encodeURIComponent(pl.containerName || 'Not predefined').replace(/%20/g, '+')
-            const newContent = pl.updatedPaths.length > 0 ? `#EXTM3U\nContainer=<${encodedName}>${pl.updatedPaths.join('|')}\n` : `#EXTM3U\n`
+            const newContent = buildM3UContent(pl.containerName, pl.updatedPaths)
             const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${pl.id}?uploadType=media&supportsAllDrives=true`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'text/plain' }, body: newContent })
             if (res.ok) saved++
           } catch {}
@@ -474,17 +509,12 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }, [playlists, playlistSearch])
 
   const parsePlaylistContent = (content: string, playlistId?: string) => {
-    const lines = content.split("\n").filter((l) => l.trim())
     const items: { path: string; filename: string }[] = []
-    let name = ""
-    for (const line of lines) {
-      if (line.startsWith("#EXTM3U")) continue
-      if (line.startsWith("Container=")) {
-        const match = line.match(/Container=<([^>]+)>(.*)/)
-        if (match) {
-          name = decodeURIComponent(match[1].replace(/\+/g, " "))
-          match[2].split("|").forEach((p) => { if (p.trim() && !isProtectedPath(p)) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) }) } })
-        }
+    const { containerName: name, paths } = parseM3UContent(content)
+    for (const p of paths) {
+      if (p.trim() && !isProtectedPath(p)) {
+        const fullFilename = p.split("\\").pop() || p.split("/").pop() || p
+        items.push({ path: p.trim(), filename: removeFileExtension(fullFilename) })
       }
     }
     setContainerName(name); setPlaylistItems(items)
@@ -505,13 +535,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   }
 
   const generatePlaylistContent = async (): Promise<string> => {
-    const originalAllPaths: string[] = []
-    for (const line of originalContent.split('\n')) {
-      if (line.startsWith('Container=')) {
-        const match = line.match(/Container=<([^>]+)>(.*)/)
-        if (match) match[2].split('|').forEach(p => { if (p.trim()) originalAllPaths.push(p.trim()) })
-      }
-    }
+    const { paths: originalAllPaths } = parseM3UContent(originalContent)
     const totalOriginal = originalAllPaths.length
     const midpoint = totalOriginal / 2
     let protectedFirst: string[] = []
@@ -546,8 +570,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     }
 
     const allPaths = [...protectedFirst, ...editablePaths, ...protectedLast]
-    const encodedName = encodeURIComponent(containerName || "Not predefined").replace(/%20/g, "+")
-    return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`
+    return buildM3UContent(containerName, allPaths)
   }
 
   useEffect(() => {
@@ -558,10 +581,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
         const content = await googleDriveService.getFileContent(selectedPlaylist.id)
         setOriginalContent(content); parsePlaylistContent(content, selectedPlaylist.id)
         setTimeout(() => {
-          const parsedItems: { path: string; filename: string }[] = []
-          for (const line of content.split("\n").filter(l => l.trim())) {
-            if (line.startsWith("Container=")) { const match = line.match(/Container=<([^>]+)>(.*)/); if (match) match[2].split("|").forEach(p => { if (p.trim()) { const fullFilename = p.split("\\").pop() || p.split("/").pop() || p; parsedItems.push({ path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }) } }) }
-          }
+          const { paths } = parseM3UContent(content)
+          const parsedItems = paths.filter(p => p.trim()).map(p => {
+            const fullFilename = p.split("\\").pop() || p.split("/").pop() || p
+            return { path: p.trim(), filename: fullFilename.replace(/\.[^/.]+$/, "") }
+          })
           if (parsedItems.length > 0 && selectedPlaylist) calculatePlaylistDuration(selectedPlaylist.id, parsedItems)
         }, 100)
       } catch (e) {
