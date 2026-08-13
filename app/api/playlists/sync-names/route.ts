@@ -22,7 +22,9 @@ async function scanOne(pl: { id: string; name: string }, accessToken: string) {
     );
     if (!res.ok) return { name: pl.name, error: 'fetch failed' as const };
     const content = await res.text();
-    const match = content.match(/Container=<([^>]+)>(.*)/);
+    // Case-insensitive: matches both the current lowercase "container="
+    // and legacy capital "Container=" from files not yet rewritten.
+    const match = content.match(/container=<([^>]+)>(.*)/i);
     if (match) {
       const containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
       if (containerName) {

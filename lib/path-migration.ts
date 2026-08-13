@@ -1,6 +1,7 @@
 import { sql } from '@/lib/db';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { fetchPlaylistState, savePlaylistContent } from '@/lib/playlist-ops';
+import { isIntroPath, isOutroPath, isProtectedPath, buildPlaylistContent } from '@/lib/stings';
 
 // The old, wrong path prefixes found on RadioBOSS's mapped drive, and what
 // they need to become. Specific per-subfolder rather than a blanket root
@@ -86,15 +87,16 @@ export async function computePathMigrationPreview(accessToken: string): Promise<
     const batch = playlists.slice(i, i + BATCH_SIZE);
     const results = await Promise.all(batch.map(async (pl: any) => {
       try {
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${pl.id}?alt=media`, { headers: { Authorization: `Bearer ${accessToken}` } });
-        if (!res.ok) { errors.push(`${pl.name}: failed to read`); return null; }
-        const content = await res.text();
-        const hasOld = PATH_REPLACEMENTS.some(r => content.includes(r.old));
-        if (!hasOld) return null;
-
-        const match = content.match(/Container=<([^>]+)>(.*)/);
-        const paths = match ? match[2].split('|').filter((p: string) => p.trim()) : [];
-        const oldPaths = paths.filter((p: string) => PATH_REPLACEMENTS.some(r => p.includes(r.old)));
+        // Routed through fetchPlaylistState rather than a raw fetch+regex
+        // here too — that's what correctly handles both lowercase and
+        // legacy-capital "container=", and decodes URL-encoded paths back
+        // to plain Windows paths before this ever tries to match them
+        // against PATH_REPLACEMENTS (which is written in terms of plain
+        // paths, not encoded ones).
+        const state = await fetchPlaylistState(pl.id, accessToken);
+        if (!state) { errors.push(`${pl.name}: failed to read`); return null; }
+        const oldPaths = state.existingPaths.filter((p) => PATH_REPLACEMENTS.some(r => p.includes(r.old)));
+        if (oldPaths.length === 0) return null;
         const newPaths = oldPaths.map(applyPathReplacements);
         return { playlistId: pl.id, playlistName: pl.name, oldPaths, newPaths };
       } catch (err: any) {
@@ -124,10 +126,15 @@ async function fixPlaylistPaths(playlistId: string, accessToken: string): Promis
     const changed = newPaths.some((p, i) => p !== existingPaths[i]);
     if (!changed) return { changed: false };
 
-    const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
-    const newContent = newPaths.length > 0
-      ? `#EXTM3U\nContainer=<${encodedName}>${newPaths.join('|')}\n`
-      : `#EXTM3U\n`;
+    // Route through the shared builder rather than constructing the file
+    // content by hand — that's what keeps this correctly using the
+    // lowercase "container=", the #EXTINF line, and properly
+    // URL-encoded paths that RadioBOSS actually expects, automatically
+    // staying in sync with that format if it's ever refined further.
+    const introPath = newPaths.find(isIntroPath) || null;
+    const outroPath = newPaths.find(isOutroPath) || null;
+    const realPaths = newPaths.filter((p) => !isProtectedPath(p));
+    const newContent = buildPlaylistContent(containerName, realPaths, introPath, outroPath);
     const ok = await savePlaylistContent(playlistId, newContent, accessToken);
     if (!ok) return { changed: false, error: 'Failed to save' };
     return { changed: true };

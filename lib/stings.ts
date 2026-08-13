@@ -82,6 +82,16 @@ export function buildPlaylistContent(containerName: string, realPaths: string[],
     ...realPaths,
     ...(outroPath ? [outroPath] : []),
   ];
-  const encodedName = encodeURIComponent(containerName || 'Not predefined').replace(/%20/g, '+');
-  return `#EXTM3U\nContainer=<${encodedName}>${allPaths.join('|')}\n`;
+  // RadioBOSS expects the full application/x-www-form-urlencoded style
+  // here — not just the name, every path too (spaces as +, backslashes
+  // as %5C, colons as %3A, etc.). A raw, unencoded Windows path in this
+  // position is what was causing RadioBOSS to crash on these breaks.
+  const encodeForM3U = (str: string) => encodeURIComponent(str).replace(/%20/g, '+');
+  const encodedName = encodeForM3U(containerName || 'Not predefined');
+  const encodedPaths = allPaths.map(encodeForM3U);
+  // RadioBOSS also expects an #EXTINF line naming the first real track
+  // (not the intro), and a lowercase "container=" — both were missing/
+  // wrong in what this used to generate.
+  const firstRealFileName = (realPaths[0].split('\\').pop() || '').replace(/\.(mp3|wav)$/i, '');
+  return `#EXTM3U\n#EXTINF:30,${firstRealFileName}\ncontainer=<${encodedName}>${encodedPaths.join('|')}\n`;
 }

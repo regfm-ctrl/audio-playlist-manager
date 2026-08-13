@@ -12,12 +12,26 @@ export async function fetchPlaylistState(playlistId: string, accessToken: string
   let containerName = '';
   let existingPaths: string[] = [];
   for (const line of lines) {
-    if (line.startsWith('#EXTM3U')) continue;
-    if (line.startsWith('Container=')) {
-      const match = line.match(/Container=<([^>]+)>(.*)/);
+    if (line.startsWith('#EXTM3U') || line.startsWith('#EXTINF')) continue;
+    // Case-insensitive: RadioBOSS's own expected format uses lowercase
+    // "container=", but older files (written before that was corrected)
+    // used capital "Container=" — both need to keep working.
+    if (/^container=/i.test(line)) {
+      const match = line.match(/container=<([^>]+)>(.*)/i);
       if (match) {
         containerName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-        existingPaths = match[2].split('|').filter((p) => p.trim());
+        existingPaths = match[2].split('|').filter((p) => p.trim()).map((p) => {
+          // Paths are URL-encoded in the current format, but older files
+          // still have raw Windows paths — a raw path never contains a
+          // literal "%", so this reliably tells the two apart without
+          // needing to know which format a given file is in.
+          if (!p.includes('%')) return p;
+          try {
+            return decodeURIComponent(p.replace(/\+/g, ' '));
+          } catch {
+            return p;
+          }
+        });
       }
     }
   }
