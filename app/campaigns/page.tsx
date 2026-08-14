@@ -553,14 +553,42 @@ export default function CampaignsPage() {
     return weeks * effectiveSpotsPerWeek(campaign);
   }
 
+  const [confirmPause, setConfirmPause] = useState<Campaign | null>(null);
+  const [pauseRemoveSchedules, setPauseRemoveSchedules] = useState(false);
+  const [pausingCampaign, setPausingCampaign] = useState(false);
+
   async function toggleStatus(campaign: Campaign) {
-    const newStatus = campaign.status === 'active' ? 'paused' : 'active';
+    if (campaign.status === 'active') {
+      // Pausing — offer the "also remove from playlists" choice rather
+      // than firing instantly, since that choice has a real, on-air
+      // consequence worth a moment's thought.
+      setConfirmPause(campaign);
+      setPauseRemoveSchedules(false);
+      return;
+    }
+    // Resuming — no destructive consequence either way, stays instant.
     await fetch('/api/campaigns', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: campaign.id, status: newStatus }),
+      body: JSON.stringify({ id: campaign.id, status: 'active' }),
     });
     loadCampaigns();
+  }
+
+  async function confirmPauseAction() {
+    if (!confirmPause) return;
+    setPausingCampaign(true);
+    try {
+      await fetch('/api/campaigns', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: confirmPause.id, status: 'paused', removeSchedules: pauseRemoveSchedules }),
+      });
+      setConfirmPause(null);
+      loadCampaigns();
+    } finally {
+      setPausingCampaign(false);
+    }
   }
 
   const filteredPlaylists = playlists.filter(p =>
@@ -1080,6 +1108,38 @@ export default function CampaignsPage() {
       )}
 
       {/* Delete confirm */}
+      {confirmPause !== null && (
+        <div style={S.overlay}>
+          <div style={{ ...S.dialog, maxWidth: 420 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'white', margin: '0 0 8px' }}>Pause Campaign</h2>
+            <p style={{ fontSize: 14, color: '#aaa', marginBottom: 16 }}>Pause "{confirmPause.sponsor_name}"?</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#2a2a2c', borderRadius: 8, marginBottom: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={pauseRemoveSchedules} onChange={e => setPauseRemoveSchedules(e.target.checked)} style={{ accentColor: '#0071e3', width: 16, height: 16 }} />
+              <div>
+                <div style={{ fontSize: 13, color: '#e0e0e0', fontWeight: 500 }}>Also remove from playlists right now</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Pulls the audio off air immediately, rather than just stopping future management</div>
+              </div>
+            </label>
+            {pauseRemoveSchedules ? (
+              <div style={{ padding: '10px 14px', background: '#4a2020', border: '0.5px solid #a02020', borderRadius: 8, marginBottom: 20 }}>
+                <p style={{ fontSize: 12, color: '#ff8080', margin: 0, fontWeight: 500 }}>⚠ This removes the campaign's audio from every break in Google Drive right now. The campaign itself stays, and you can resume it later — but its old placements are gone, so it'll need fresh spots picked (via Edit or Reshuffle) before it plays again.</p>
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 20px' }}>
+                Without this checked, pausing is administrative only — the campaign's audio keeps playing on air exactly as it is, just without future reshuffles or expiry handling while paused.
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmPause(null)} style={{ flex: 1, padding: '11px 0', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={confirmPauseAction} disabled={pausingCampaign}
+                style={{ flex: 1, padding: '11px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: pausingCampaign ? 0.6 : 1 }}>
+                {pausingCampaign ? 'Pausing...' : 'Pause'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDelete !== null && (
         <div style={S.overlay}>
           <div style={{ ...S.dialog, maxWidth: 420 }}>

@@ -149,15 +149,44 @@ export async function PATCH(req: NextRequest) {
   await ensureCampaignCategoryColumns();
 
   const body = await req.json();
-  const { id, status } = body;
+  const { id, status, removeSchedules } = body;
 
-  // Status-only update (pause/resume) — existing behaviour
-  if (status !== undefined && Object.keys(body).length === 2) {
+  // Status-only update (pause/resume), optionally also pulling the
+  // campaign's audio off air right now — removeSchedules only applies
+  // when pausing; the campaign row itself is never touched, so resuming
+  // later is just a status flip, ready for a fresh placement whenever
+  // the campaign needs to go back on air.
+  if (status !== undefined && body.sponsor_name === undefined) {
     const existingRows = await sql`SELECT sponsor_name FROM campaigns WHERE id = ${id}`;
-    await sql`UPDATE campaigns SET status = ${status} WHERE id = ${id}`;
     const sponsorName = existingRows[0]?.sponsor_name ?? `#${id}`;
-    await logActivity((user as any).userId ?? 0, user.username, status === 'paused' ? 'CAMPAIGN_PAUSED' : 'CAMPAIGN_RESUMED', '/api/campaigns', `"${sponsorName}"`);
-    return NextResponse.json({ ok: true });
+    let schedulesRemoved = 0;
+
+    if (status === 'paused' && removeSchedules) {
+      const schedulesToClean = await sql`SELECT * FROM schedules WHERE campaign_id = ${id} AND is_active = true`;
+      if (schedulesToClean.length > 0) {
+        const accessToken = await getValidAccessToken();
+        const BATCH_SIZE = 15;
+        for (let i = 0; i < schedulesToClean.length; i += BATCH_SIZE) {
+          const batch = schedulesToClean.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(async (sched: any) => {
+            try {
+              if (accessToken) {
+                await removePathFromPlaylistLocked(sched.playlist_id, sched.audio_local_path, accessToken);
+              }
+              await sql`DELETE FROM schedules WHERE id = ${sched.id}`;
+              schedulesRemoved++;
+            } catch (err) {
+              console.error('[campaigns] Failed to remove schedule during pause:', sched.playlist_name, err);
+            }
+          }));
+        }
+      }
+    }
+
+    await sql`UPDATE campaigns SET status = ${status} WHERE id = ${id}`;
+    await logActivity((user as any).userId ?? 0, user.username, status === 'paused' ? 'CAMPAIGN_PAUSED' : 'CAMPAIGN_RESUMED', '/api/campaigns',
+      status === 'paused' && removeSchedules ? `"${sponsorName}" — ${schedulesRemoved} schedule(s) also removed from playlists` : `"${sponsorName}"`);
+    return NextResponse.json({ ok: true, schedulesRemoved });
   }
 
   // Full edit — update every editable field
