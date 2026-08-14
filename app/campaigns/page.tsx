@@ -693,7 +693,7 @@ export default function CampaignsPage() {
                   </thead>
                   <tbody>
                     {filteredCampaigns.map((c, i) => {
-                      const rowBg = c.status === 'expired' ? '#fdf6ea' : c.status === 'paused' ? '#f2f2f3' : (i % 2 === 1 ? '#f7f8fa' : 'white');
+                      const rowBg = c.status === 'expired' ? '#fbd5d5' : c.status === 'paused' ? '#fce0bc' : (i % 2 === 1 ? '#f7f8fa' : 'white');
                       return (
                       <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: rowBg }}>
                         <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
@@ -726,8 +726,8 @@ export default function CampaignsPage() {
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <span style={{
                             padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500,
-                            background: c.status === 'active' ? '#d4f1dc' : c.status === 'expired' ? '#fbe3c0' : '#e2e2e4',
-                            color: c.status === 'active' ? '#1a7a35' : c.status === 'expired' ? '#946200' : '#555',
+                            background: c.status === 'active' ? '#d4f1dc' : c.status === 'expired' ? '#f5b5b5' : c.status === 'paused' ? '#f7b878' : '#e2e2e4',
+                            color: c.status === 'active' ? '#1a7a35' : c.status === 'expired' ? '#8a1414' : c.status === 'paused' ? '#8a4700' : '#555',
                           }}>
                             {c.status}
                           </span>
