@@ -27,6 +27,7 @@ export const BUSINESS_CATEGORIES: string[] = [
   "Medical / Health Services",
   "Movies & Cinema",
   "Office Supplies",
+  "Pest Services",
   "Real Estate Agency",
   "Restaurant / Cafe",
   "Retirement",
