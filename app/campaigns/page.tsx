@@ -692,8 +692,10 @@ export default function CampaignsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCampaigns.map((c, i) => (
-                      <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: i % 2 === 1 ? '#f7f8fa' : 'white' }}>
+                    {filteredCampaigns.map((c, i) => {
+                      const rowBg = c.status === 'expired' ? '#fdf6ea' : c.status === 'paused' ? '#f2f2f3' : (i % 2 === 1 ? '#f7f8fa' : 'white');
+                      return (
+                      <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: rowBg }}>
                         <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {c.sponsor_name}
                           {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
@@ -722,7 +724,11 @@ export default function CampaignsPage() {
                           {spotsRemaining(c) === null ? <span style={{ color: '#aaa' }}>∞</span> : spotsRemaining(c) === 0 ? <span style={{ color: '#cc0000', fontWeight: 500 }}>0</span> : <span style={{ color: '#0055cc', fontWeight: 500 }}>{spotsRemaining(c)?.toLocaleString()}</span>}
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                          <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: c.status === 'active' ? '#d4f1dc' : '#f0f0f0', color: c.status === 'active' ? '#1a7a35' : '#666' }}>
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500,
+                            background: c.status === 'active' ? '#d4f1dc' : c.status === 'expired' ? '#fbe3c0' : '#e2e2e4',
+                            color: c.status === 'active' ? '#1a7a35' : c.status === 'expired' ? '#946200' : '#555',
+                          }}>
                             {c.status}
                           </span>
                         </td>
@@ -753,7 +759,8 @@ export default function CampaignsPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -7,6 +7,7 @@ import { fetchPlaylistState } from '@/lib/playlist-ops';
 import { addPathToPlaylistOrdered, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { reshuffleDueCampaigns } from '@/lib/campaign-reshuffle';
 import { expireIndividualAudioFiles } from '@/lib/campaign-file-expiry';
+import { expireCampaignsPastEndDate } from '@/lib/campaign-expiry-status';
 import { melbourneWallTimeToUTC, calculateNextRun } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 
@@ -320,6 +321,16 @@ export async function POST(req: NextRequest) {
     console.error('[schedules/run] File expiry check failed:', err);
   }
 
+  // Marks campaigns whose end date has passed as 'expired' — cheap no-op
+  // unless one genuinely has. Doesn't touch Drive; that's handled by the
+  // regular expiry check above.
+  try {
+    const campaignExpiry = await expireCampaignsPastEndDate();
+    if (campaignExpiry.expired.length > 0) (result as any).campaignsExpired = campaignExpiry.expired;
+  } catch (err) {
+    console.error('[schedules/run] Campaign end-date expiry check failed:', err);
+  }
+
   return NextResponse.json(result);
 }
 
@@ -352,6 +363,13 @@ export async function GET(req: NextRequest) {
     if (fileExpiry.processed > 0) (result as any).fileExpiry = fileExpiry;
   } catch (err) {
     console.error('[schedules/run] File expiry check failed:', err);
+  }
+
+  try {
+    const campaignExpiry = await expireCampaignsPastEndDate();
+    if (campaignExpiry.expired.length > 0) (result as any).campaignsExpired = campaignExpiry.expired;
+  } catch (err) {
+    console.error('[schedules/run] Campaign end-date expiry check failed:', err);
   }
 
   return NextResponse.json(result);

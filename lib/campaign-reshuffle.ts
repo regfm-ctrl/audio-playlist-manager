@@ -27,6 +27,17 @@ export function getMelbourneMondayDateString(referenceDate: Date = new Date()): 
 
 function isDueForReshuffle(campaign: any): boolean {
   if (!campaign.randomize_weekly) return false;
+  // A campaign whose end date has already passed should never get
+  // reshuffled — that would place fresh content with an expiry already in
+  // the past, which the very next scheduler run would just remove again
+  // moments later. Wasteful, and a brief window where already-expired
+  // content could genuinely air.
+  if (campaign.end_date) {
+    const [y, m, d] = campaign.end_date.split('-').map(Number);
+    const [eh, em] = (campaign.expiry_time || '22:00').split(':').map(Number);
+    const endThreshold = melbourneWallTimeToUTC(y, m, d, eh, em || 0);
+    if (endThreshold <= new Date()) return false;
+  }
   const thisMonday = getMelbourneMondayDateString();
   if (!campaign.last_reshuffled_at) return true;
   const lastMonday = getMelbourneMondayDateString(new Date(campaign.last_reshuffled_at));
