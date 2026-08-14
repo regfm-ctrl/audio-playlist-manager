@@ -595,7 +595,20 @@ export default function CampaignsPage() {
     p.name.toLowerCase().includes(breakSearch.toLowerCase())
   );
 
+  const [showExpiringSoon, setShowExpiringSoon] = useState(false);
+
+  function daysUntilEnd(c: Campaign): number | null {
+    if (!c.end_date) return null;
+    const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }) + 'T00:00:00Z').getTime();
+    const end = new Date(c.end_date + 'T00:00:00Z').getTime();
+    return Math.round((end - today) / (1000 * 60 * 60 * 24));
+  }
+
   const filteredCampaigns = campaigns.filter(c => {
+    if (showExpiringSoon) {
+      const d = daysUntilEnd(c);
+      if (c.status !== 'active' || d === null || d < 0 || d > 14) return false;
+    }
     const q = campaignFilter.toLowerCase();
     if (!q) return true;
     return (
@@ -606,6 +619,9 @@ export default function CampaignsPage() {
       c.distribution_type.toLowerCase().includes(q) ||
       c.status.toLowerCase().includes(q)
     );
+  }).sort((a, b) => {
+    if (!showExpiringSoon) return 0;
+    return (daysUntilEnd(a) ?? 999) - (daysUntilEnd(b) ?? 999);
   });
 
   return (
@@ -644,6 +660,18 @@ export default function CampaignsPage() {
             <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0, color: '#1d1d1f' }}>Campaigns</h1>
             <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Schedule sponsor audio across multiple breaks automatically</p>
           </div>
+          <button
+            onClick={() => setShowExpiringSoon(v => !v)}
+            title="Active campaigns ending within the next 14 days"
+            style={{
+              padding: '7px 14px', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: showExpiringSoon ? '#f7b878' : 'white',
+              color: showExpiringSoon ? '#8a4700' : '#555',
+              border: showExpiringSoon ? '0.5px solid #f7b878' : '0.5px solid #ccc',
+            }}
+          >
+            ⏰ Expiring Soon {campaigns.filter(c => { const d = daysUntilEnd(c); return c.status === 'active' && d !== null && d >= 0 && d <= 14; }).length > 0 && `(${campaigns.filter(c => { const d = daysUntilEnd(c); return c.status === 'active' && d !== null && d >= 0 && d <= 14; }).length})`}
+          </button>
           <input
             value={campaignFilter}
             onChange={e => setCampaignFilter(e.target.value)}
@@ -716,7 +744,12 @@ export default function CampaignsPage() {
                           {c.time_from && c.time_to ? `${c.time_from} – ${c.time_to}` : 'Any'}
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>{new Date(c.start_date).toLocaleDateString('en-AU')}</td>
-                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>{c.end_date ? new Date(c.end_date).toLocaleDateString('en-AU') : 'Ongoing'}</td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: '#555' }}>
+                          {c.end_date ? new Date(c.end_date).toLocaleDateString('en-AU') : 'Ongoing'}
+                          {c.status === 'active' && daysUntilEnd(c) !== null && daysUntilEnd(c)! >= 0 && daysUntilEnd(c)! <= 14 && (
+                            <div style={{ fontSize: 10, color: '#a06000', fontWeight: 500, marginTop: 1 }}>{daysUntilEnd(c)} day{daysUntilEnd(c) === 1 ? '' : 's'} left</div>
+                          )}
+                        </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>
                           {weeksRemaining(c) === null ? <span style={{ color: '#aaa' }}>∞</span> : weeksRemaining(c) === 0 ? <span style={{ color: '#cc0000', fontWeight: 500 }}>Ended</span> : <span style={{ color: '#1a7a35', fontWeight: 500 }}>{weeksRemaining(c)}</span>}
                         </td>

@@ -24,4 +24,11 @@ export async function ensureCampaignCategoryColumns() {
   // breaks the actual feature it's attached to. A log table shouldn't
   // require its "actor" to always be a real logged-in user.
   await sql`ALTER TABLE activity_logs DROP CONSTRAINT IF EXISTS activity_logs_user_id_fkey`;
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reminders_sent JSONB DEFAULT '[]'`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `;
 }

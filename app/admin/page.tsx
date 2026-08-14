@@ -46,6 +46,41 @@ export default function AdminPage() {
   const [confirmTestReshuffle, setConfirmTestReshuffle] = useState(false);
   const [reshuffleTestResult, setReshuffleTestResult] = useState<{ processed: number; totalEligible: number; details: string[] } | null>(null);
 
+  const [renewalEmails, setRenewalEmails] = useState<string[]>(['', '', '', '']);
+  const [renewalDaysInput, setRenewalDaysInput] = useState('');
+  const [savingRenewalSettings, setSavingRenewalSettings] = useState(false);
+  const [renewalSettingsMsg, setRenewalSettingsMsg] = useState('');
+
+  async function loadRenewalSettings() {
+    try {
+      const res = await fetch('/api/admin/renewal-settings');
+      if (!res.ok) return;
+      const data = await res.json();
+      const emails = [...(data.emails || []), '', '', '', ''].slice(0, 4);
+      setRenewalEmails(emails);
+      setRenewalDaysInput((data.days || []).join(', '));
+    } catch {}
+  }
+
+  async function saveRenewalSettings() {
+    setSavingRenewalSettings(true);
+    setRenewalSettingsMsg('');
+    try {
+      const days = renewalDaysInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+      const res = await fetch('/api/admin/renewal-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: renewalEmails, days }),
+      });
+      if (res.ok) {
+        setRenewalSettingsMsg('Saved');
+        setTimeout(() => setRenewalSettingsMsg(''), 2500);
+      }
+    } finally {
+      setSavingRenewalSettings(false);
+    }
+  }
+
   async function runTestReshuffle() {
     setTestingReshuffle(true);
     setConfirmTestReshuffle(false);
@@ -80,6 +115,7 @@ export default function AdminPage() {
       } catch {}
     }
     loadData();
+    loadRenewalSettings();
   }, []);
 
   async function createUser() {
@@ -210,6 +246,34 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 16, maxWidth: 700 }}>
+            <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Renewal Reminders</p>
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+              Sends an email a set number of days before a campaign's end date, so a renewal conversation can happen before it actually lapses. Checked once daily by the scheduler script.
+            </p>
+            <label style={{ ...S.label, color: '#ddd', display: 'block', marginBottom: 6 }}>Recipient emails (up to 4)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {[0, 1, 2, 3].map((i) => (
+                <input key={i} type="email" placeholder={`Email ${i + 1}${i === 0 ? ' (required)' : ' (optional)'}`}
+                  value={renewalEmails[i] || ''}
+                  onChange={(e) => setRenewalEmails((prev) => { const next = [...prev]; next[i] = e.target.value; return next; })}
+                  style={{ padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13 }} />
+              ))}
+            </div>
+            <label style={{ ...S.label, color: '#ddd', display: 'block', marginBottom: 6 }}>Remind this many days before the end date</label>
+            <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>Comma-separated — e.g. "7, 3" sends two separate reminders, one a week out and one three days out.</p>
+            <input type="text" placeholder="e.g. 7, 3" value={renewalDaysInput}
+              onChange={(e) => setRenewalDaysInput(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13, marginBottom: 14, boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={saveRenewalSettings} disabled={savingRenewalSettings}
+                style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: savingRenewalSettings ? 0.6 : 1 }}>
+                {savingRenewalSettings ? 'Saving...' : 'Save Settings'}
+              </button>
+              {renewalSettingsMsg && <span style={{ fontSize: 12, color: '#0a6e46' }}>{renewalSettingsMsg}</span>}
+            </div>
           </div>
 
           {loading ? (
