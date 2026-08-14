@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRenewalReminderSettings } from '@/lib/app-settings';
 import { logActivity } from '@/lib/activity';
+import { formatMelbourneExpiry } from '@/lib/campaign-expiry-status';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -19,6 +20,7 @@ function daysBetween(fromDateStr: string, toDateStr: string): number {
   return Math.round((to - from) / (1000 * 60 * 60 * 24));
 }
 
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${CRON_SECRET}`) {
@@ -32,12 +34,12 @@ export async function GET(req: NextRequest) {
 
   const today = melbourneTodayDateString();
   const candidates = await sql`
-    SELECT id, sponsor_name, end_date, reminders_sent
+    SELECT id, sponsor_name, end_date, expiry_time, reminders_sent
     FROM campaigns
     WHERE status = 'active' AND end_date IS NOT NULL
   `;
 
-  const due: { sponsorName: string; endDate: string; daysUntil: number }[] = [];
+  const due: { sponsorName: string; endDate: string; expiresAt: string; daysUntil: number }[] = [];
 
   for (const campaign of candidates as any[]) {
     const daysUntil = daysBetween(today, campaign.end_date);
@@ -49,7 +51,12 @@ export async function GET(req: NextRequest) {
     const matchedThreshold = thresholds.find((t: number) => daysUntil === t && !alreadySent.includes(t));
     if (matchedThreshold === undefined) continue;
 
-    due.push({ sponsorName: campaign.sponsor_name, endDate: campaign.end_date, daysUntil });
+    due.push({
+      sponsorName: campaign.sponsor_name,
+      endDate: campaign.end_date,
+      expiresAt: formatMelbourneExpiry(campaign.end_date, campaign.expiry_time),
+      daysUntil,
+    });
     await sql`UPDATE campaigns SET reminders_sent = ${JSON.stringify([...alreadySent, matchedThreshold])} WHERE id = ${campaign.id}`;
   }
 

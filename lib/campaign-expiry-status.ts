@@ -34,3 +34,16 @@ export async function expireCampaignsPastEndDate(): Promise<{ expired: string[] 
 
   return { expired };
 }
+
+// Combines the plain end_date + expiry_time into the actual moment the
+// campaign stops airing, formatted the same way the rest of the app shows
+// Melbourne timestamps (DD/MM/YYYY, h:mm AM/PM) — not just the bare date.
+// Shared by both the real renewal-reminder endpoint and its test endpoint.
+export function formatMelbourneExpiry(endDate: string, expiryTime: string): string {
+  const [y, m, d] = endDate.split('-').map(Number);
+  const [eh, em] = (expiryTime || '22:00').split(':').map(Number);
+  const utcInstant = melbourneWallTimeToUTC(y, m, d, eh, em || 0);
+  return new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Melbourne', day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(utcInstant);
+}
