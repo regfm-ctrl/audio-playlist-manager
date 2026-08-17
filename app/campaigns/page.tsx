@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { getGoogleAccessToken } from '@/lib/client-google-token';
 import { BUSINESS_CATEGORIES } from '@/lib/business-categories';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
+import { melbourneWallTimeToUTC } from '@/lib/break-time';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -540,11 +541,21 @@ export default function CampaignsPage() {
 
   function weeksRemaining(campaign: Campaign): number | null {
     if (!campaign.end_date) return null;
-    const now = new Date();
-    const end = new Date(campaign.end_date);
-    const ms = end.getTime() - now.getTime();
+    // Uses the campaign's real expiry moment (end date + expiry time, in
+    // Melbourne) — not just midnight UTC on the end date, which is what
+    // this used to do and could show "Ended" up to 12 hours before the
+    // campaign's audio is actually removed.
+    const ms = daysUntilEndPreciseMs(campaign);
     if (ms <= 0) return 0;
     return Math.ceil(ms / (7 * 24 * 60 * 60 * 1000));
+  }
+
+  function daysUntilEndPreciseMs(campaign: Campaign): number {
+    if (!campaign.end_date) return 0;
+    const [y, m, d] = campaign.end_date.split('-').map(Number);
+    const [eh, em] = (campaign.expiry_time || '22:00').split(':').map(Number);
+    const threshold = melbourneWallTimeToUTC(y, m, d, eh, em || 0);
+    return threshold.getTime() - Date.now();
   }
 
   function spotsRemaining(campaign: Campaign): number | null {
