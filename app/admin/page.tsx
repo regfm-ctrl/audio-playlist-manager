@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -81,6 +83,49 @@ export default function AdminPage() {
     }
   }
 
+  type BlockedWindow = { day: number; startTime: string; endTime: string; label?: string };
+  const [blockedWindows, setBlockedWindows] = useState<BlockedWindow[]>([]);
+  const [newWindowDay, setNewWindowDay] = useState(4);
+  const [newWindowStart, setNewWindowStart] = useState('18:00');
+  const [newWindowEnd, setNewWindowEnd] = useState('19:00');
+  const [newWindowLabel, setNewWindowLabel] = useState('');
+  const [savingBlockedWindows, setSavingBlockedWindows] = useState(false);
+  const [blockedWindowsMsg, setBlockedWindowsMsg] = useState('');
+
+  async function loadBlockedWindows() {
+    try {
+      const res = await fetch('/api/admin/blocked-windows');
+      if (!res.ok) return;
+      const data = await res.json();
+      setBlockedWindows(data.windows || []);
+    } catch {}
+  }
+
+  function addBlockedWindow() {
+    if (!newWindowStart || !newWindowEnd || newWindowStart >= newWindowEnd) return;
+    setBlockedWindows((prev) => [...prev, { day: newWindowDay, startTime: newWindowStart, endTime: newWindowEnd, label: newWindowLabel }]);
+    setNewWindowLabel('');
+  }
+
+  async function saveBlockedWindows() {
+    setSavingBlockedWindows(true);
+    setBlockedWindowsMsg('');
+    try {
+      const res = await fetch('/api/admin/blocked-windows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ windows: blockedWindows }),
+      });
+      if (res.ok) {
+        setBlockedWindowsMsg('Saved');
+        setTimeout(() => setBlockedWindowsMsg(''), 2500);
+      }
+    } finally {
+      setSavingBlockedWindows(false);
+    }
+  }
+
+
   async function runTestReshuffle() {
     setTestingReshuffle(true);
     setConfirmTestReshuffle(false);
@@ -116,6 +161,7 @@ export default function AdminPage() {
     }
     loadData();
     loadRenewalSettings();
+    loadBlockedWindows();
   }, []);
 
   async function createUser() {
@@ -273,6 +319,66 @@ export default function AdminPage() {
                 {savingRenewalSettings ? 'Saving...' : 'Save Settings'}
               </button>
               {renewalSettingsMsg && <span style={{ fontSize: 12, color: '#0a6e46' }}>{renewalSettingsMsg}</span>}
+            </div>
+          </div>
+
+          <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 16, maxWidth: 700 }}>
+            <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 4px', color: '#1a1a1a' }}>Blocked Time Windows</p>
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 14px' }}>
+              Breaks in these day/time windows are permanently off-limits to every campaign — for shows that don't carry sponsorship breaks. Applies everywhere a break gets picked: creating or editing a campaign, weekly reshuffle, and rebalance.
+            </p>
+
+            {blockedWindows.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                {blockedWindows.map((w, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#f7f8fa', borderRadius: 7 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#1a1a1a', minWidth: 40 }}>{DAY_NAMES[w.day]}</span>
+                    <span style={{ fontSize: 12, color: '#555' }}>{w.startTime} – {w.endTime}</span>
+                    {w.label && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>({w.label})</span>}
+                    <button onClick={() => setBlockedWindows((prev) => prev.filter((_, idx) => idx !== i))}
+                      style={{ marginLeft: 'auto', padding: '3px 8px', background: 'white', color: '#a02020', border: '0.5px solid #a02020', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ ...S.label, color: '#ddd', display: 'block', marginBottom: 4, fontSize: 11 }}>Day</label>
+                <select value={newWindowDay} onChange={(e) => setNewWindowDay(Number(e.target.value))}
+                  style={{ padding: '7px 10px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13 }}>
+                  {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ ...S.label, color: '#ddd', display: 'block', marginBottom: 4, fontSize: 11 }}>From</label>
+                <input type="time" value={newWindowStart} onChange={(e) => setNewWindowStart(e.target.value)}
+                  style={{ padding: '7px 10px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ ...S.label, color: '#ddd', display: 'block', marginBottom: 4, fontSize: 11 }}>To</label>
+                <input type="time" value={newWindowEnd} onChange={(e) => setNewWindowEnd(e.target.value)}
+                  style={{ padding: '7px 10px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13 }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <label style={{ ...S.label, color: '#ddd', display: 'block', marginBottom: 4, fontSize: 11 }}>Label (optional)</label>
+                <input type="text" placeholder="e.g. Sunday Morning show" value={newWindowLabel} onChange={(e) => setNewWindowLabel(e.target.value)}
+                  style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+              <button onClick={addBlockedWindow}
+                style={{ padding: '8px 16px', background: 'white', color: '#0071e3', border: '0.5px solid #0071e3', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                + Add Window
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={saveBlockedWindows} disabled={savingBlockedWindows}
+                style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: savingBlockedWindows ? 0.6 : 1 }}>
+                {savingBlockedWindows ? 'Saving...' : 'Save Windows'}
+              </button>
+              {blockedWindowsMsg && <span style={{ fontSize: 12, color: '#0a6e46' }}>{blockedWindowsMsg}</span>}
             </div>
           </div>
 

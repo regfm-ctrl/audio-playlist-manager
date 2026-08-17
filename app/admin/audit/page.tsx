@@ -202,6 +202,46 @@ export default function AuditPage() {
     }
   }
 
+  type BlockedContentItem = { playlistId: string; playlistName: string; sponsors: string[] };
+  const [blockedContentItems, setBlockedContentItems] = useState<BlockedContentItem[] | null>(null);
+  const [blockedContentScanned, setBlockedContentScanned] = useState(0);
+  const [checkingBlockedContent, setCheckingBlockedContent] = useState(false);
+  const [confirmBlockedContentApply, setConfirmBlockedContentApply] = useState(false);
+  const [applyingBlockedContent, setApplyingBlockedContent] = useState(false);
+  const [blockedContentResult, setBlockedContentResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkBlockedContent() {
+    setCheckingBlockedContent(true);
+    setBlockedContentItems(null);
+    setBlockedContentResult(null);
+    try {
+      const res = await fetch('/api/audit/blocked-content');
+      const data = await res.json();
+      setBlockedContentItems(data.items || []);
+      setBlockedContentScanned(data.scanned || 0);
+    } finally {
+      setCheckingBlockedContent(false);
+    }
+  }
+
+  async function applyBlockedContentFix() {
+    if (!blockedContentItems || blockedContentItems.length === 0) return;
+    setApplyingBlockedContent(true);
+    setConfirmBlockedContentApply(false);
+    try {
+      const res = await fetch('/api/audit/blocked-content/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: blockedContentItems }),
+      });
+      const data = await res.json();
+      setBlockedContentResult(data);
+      setBlockedContentItems([]);
+    } finally {
+      setApplyingBlockedContent(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -406,7 +446,11 @@ export default function AuditPage() {
             <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Audit</h1>
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={checkBlockedContent} disabled={checkingBlockedContent}
+              style={{ padding: '8px 18px', background: 'white', color: '#c9601e', border: '0.5px solid #c9601e', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingBlockedContent ? 0.6 : 1 }}>
+              {checkingBlockedContent ? 'Checking...' : 'Check Blocked Windows'}
+            </button>
             <button onClick={checkReformat} disabled={checkingReformat}
               style={{ padding: '8px 18px', background: '#a02020', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingReformat ? 0.6 : 1 }}>
               {checkingReformat ? 'Checking...' : 'Check RadioBOSS Format'}
@@ -440,6 +484,53 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {blockedContentItems !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Blocked Window Content</p>
+                {blockedContentItems.length > 0 && (
+                  confirmBlockedContentApply ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Clear all {blockedContentItems.length} break(s)?</span>
+                      <button onClick={() => setConfirmBlockedContentApply(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={applyBlockedContentFix} disabled={applyingBlockedContent} style={{ padding: '4px 10px', background: '#c9601e', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: applyingBlockedContent ? 0.6 : 1 }}>
+                        {applyingBlockedContent ? 'Clearing...' : 'Yes, clear all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmBlockedContentApply(true)}
+                      style={{ padding: '5px 12px', background: 'white', color: '#c9601e', border: '0.5px solid #c9601e', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Clear All ({blockedContentItems.length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                One-time cleanup — finds breaks that fall inside a configured Blocked Time Window (Admin page) but still have sponsorship content sitting in them from before the rule existed. Clearing removes everything from that break entirely — real content and any intro/outro — and deletes the matching database schedule rows too. Scanned {blockedContentScanned} break(s) inside blocked windows.
+              </p>
+              {blockedContentResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: blockedContentResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: blockedContentResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Cleared {blockedContentResult.succeeded} of {blockedContentResult.total}
+                  </p>
+                  {blockedContentResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {blockedContentItems.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — no blocked windows configured yet, or nothing's currently scheduled inside them.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {blockedContentItems.map((item) => (
+                    <div key={item.playlistId} style={{ padding: '8px 10px', background: '#fdf1e8', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{item.playlistName.replace(/\.m3u8$/i, '')}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{item.sponsors.join(', ')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {reformatItems !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '1.5px solid #a02020', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>

@@ -7,6 +7,7 @@ import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, melbourneWallTime
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { logActivity } from '@/lib/activity';
+import { getBlockedWindows, isBreakBlocked } from '@/lib/blocked-windows';
 
 // Returns YYYY-MM-DD of the most recent Monday in Melbourne time (today's
 // date if today is itself a Monday). Used as the weekly reshuffle boundary.
@@ -234,6 +235,7 @@ async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, lo
   const timeFromMinutes = timeFromH * 60 + (timeFromM || 0);
   const timeToMinutes = timeToH * 60 + (timeToM || 0);
   const allowedBreakIds = campaign.allowed_breaks ? campaign.allowed_breaks.split(',') : null;
+  const blockedWindows = await getBlockedWindows();
 
   const matching = playlists.filter((pl: any) => {
     if (allowedBreakIds && !allowedBreakIds.includes(pl.id)) return false;
@@ -241,6 +243,7 @@ async function reshuffleOneCampaignLocked(campaign: any, accessToken: string, lo
     if (day !== null && !allowedDayNums.includes(day)) return false;
     const minuteOfDay = parseBreakMinuteOfDay(pl.name);
     if (minuteOfDay !== null && (minuteOfDay < timeFromMinutes || minuteOfDay > timeToMinutes)) return false;
+    if (isBreakBlocked(day, minuteOfDay, blockedWindows)) return false;
     return true;
   });
 

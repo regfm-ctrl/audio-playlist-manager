@@ -7,6 +7,7 @@ import { parseBreakDay, parseBreakHour, parseBreakMinuteOfDay, parseBreakTime, m
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
 import { getPlaylistLoad, MAX_SPONSORS_PER_BREAK } from '@/lib/playlist-load';
 import { parseCampaignAudioFiles, getNextCampaignAudioFiles, type CampaignAudioFile } from '@/lib/campaign-audio-rotation';
+import { getBlockedWindows, isBreakBlocked } from '@/lib/blocked-windows';
 
 export const maxDuration = 60;
 
@@ -385,12 +386,15 @@ export async function POST(req: NextRequest) {
     ? (Array.isArray(allowed_breaks) ? allowed_breaks : allowed_breaks.split(','))
     : null
 
+  const blockedWindows = await getBlockedWindows()
+
   const matching = playlists.filter(pl => {
     if (allowedBreakIds && !allowedBreakIds.includes(pl.id)) return false
     const day = parseBreakDay(pl.name)
     if (day !== null && !allowedDayNums.includes(day)) return false
     const minuteOfDay = parseBreakMinuteOfDay(pl.name)
     if (minuteOfDay !== null && (minuteOfDay < timeFromMinutes || minuteOfDay > timeToMinutes)) return false
+    if (isBreakBlocked(day, minuteOfDay, blockedWindows)) return false
     return true
   })
 

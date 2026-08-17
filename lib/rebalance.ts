@@ -2,6 +2,7 @@ import { sql } from '@/lib/db';
 import { addPathToPlaylistOrdered, removePathFromPlaylistLocked } from '@/lib/playlist-ordering';
 import { parseBreakDay, parseBreakTime, parseBreakMinuteOfDay, calculateNextRun } from '@/lib/break-time';
 import { PLAYLIST_FOLDER_ID } from '@/lib/folder-config';
+import { getBlockedWindows, isBreakBlocked, type BlockedWindow } from '@/lib/blocked-windows';
 
 export type RebalanceMove = {
   scheduleId: number;
@@ -50,7 +51,8 @@ function findBestDestination(
   allPlaylists: { id: string; name: string }[],
   load: Map<string, number>,
   categoriesByPlaylist: Map<string, Set<string>>,
-  maxPerPlaylist: number
+  maxPerPlaylist: number,
+  blockedWindows: BlockedWindow[]
 ): { id: string; name: string } | null {
   const allowedDayNums = sched.allowed_days ? sched.allowed_days.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6];
   const [fh, fm] = sched.time_from ? sched.time_from.split(':').map(Number) : [0, 0];
@@ -67,6 +69,7 @@ function findBestDestination(
       if (day !== null && !allowedDayNums.includes(day)) return false;
       const minuteOfDay = parseBreakMinuteOfDay(p.name);
       if (minuteOfDay !== null && (minuteOfDay < fromMin || minuteOfDay > toMin)) return false;
+      if (isBreakBlocked(day, minuteOfDay, blockedWindows)) return false;
       if ((load.get(p.id) ?? 0) >= maxPerPlaylist) return false;
       if (category && categoriesByPlaylist.get(p.id)?.has(category)) return false;
       return true;
@@ -106,6 +109,7 @@ function buildLoadAndCategoryMaps(allPlaylists: { id: string; name: string }[], 
 export async function computeRebalancePlan(maxPerPlaylist: number, accessToken: string): Promise<RebalancePlan> {
   const rows = await fetchActiveSchedulesWithCampaigns();
   const allPlaylists = await listAllPlaylists(accessToken);
+  const blockedWindows = await getBlockedWindows();
 
   const byPlaylist = new Map<string, any[]>();
   for (const r of rows as any[]) {
@@ -136,7 +140,7 @@ export async function computeRebalancePlan(maxPerPlaylist: number, accessToken: 
         continue;
       }
 
-      const dest = findBestDestination(sched, plId, allPlaylists, load, categoriesByPlaylist, maxPerPlaylist);
+      const dest = findBestDestination(sched, plId, allPlaylists, load, categoriesByPlaylist, maxPerPlaylist, blockedWindows);
       if (!dest) {
         skipped.push({
           scheduleId: sched.id, sponsorName: sched.sponsor_name || sched.audio_file_name, playlistName: sched.playlist_name,
@@ -179,6 +183,7 @@ export async function computeCategoryConflictFixPlan(accessToken: string): Promi
   const rows = (await fetchActiveSchedulesWithCampaigns() as any[])
     .filter(r => r.campaign_id && r.business_category);
   const allPlaylists = await listAllPlaylists(accessToken);
+  const blockedWindows = await getBlockedWindows();
 
   const byPlaylist = new Map<string, any[]>();
   for (const r of rows) {
@@ -227,7 +232,7 @@ export async function computeCategoryConflictFixPlan(accessToken: string): Promi
       const toMove = group.filter((s: any) => s.campaign_id !== keepCampaignId);
 
       for (const sched of toMove) {
-        const dest = findBestDestination(sched, plId, allPlaylists, load, categoriesByPlaylist, EFFECTIVE_MAX);
+        const dest = findBestDestination(sched, plId, allPlaylists, load, categoriesByPlaylist, EFFECTIVE_MAX, blockedWindows);
         if (!dest) {
           skipped.push({
             scheduleId: sched.id, sponsorName: sched.sponsor_name || sched.audio_file_name, playlistName: sched.playlist_name,
