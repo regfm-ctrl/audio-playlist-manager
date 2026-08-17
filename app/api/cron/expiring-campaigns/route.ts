@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
     SELECT id, sponsor_name, end_date, expiry_time, reminders_sent
     FROM campaigns
     WHERE status = 'active' AND end_date IS NOT NULL
+      AND (exclude_from_renewal_reminders IS NOT TRUE)
   `;
 
   const due: { sponsorName: string; endDate: string; expiresAt: string; daysUntil: number }[] = [];

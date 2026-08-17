@@ -21,6 +21,7 @@ type Campaign = {
   randomize_weekly: boolean;
   go_live_time: string | null;
   expiry_time: string | null;
+  exclude_from_renewal_reminders: boolean;
   audio_file_name: string;
   audio_file_id: string | null;
   audio_directory_name: string | null;
@@ -146,6 +147,7 @@ export default function CampaignsPage() {
     randomize_weekly: false,
     go_live_time: '06:00',
     expiry_time: '22:00',
+    exclude_from_renewal_reminders: false,
   };
   const [form, setForm] = useState(defaultForm);
 
@@ -479,6 +481,7 @@ export default function CampaignsPage() {
       randomize_weekly: !!campaign.randomize_weekly,
       go_live_time: campaign.go_live_time || '06:00',
       expiry_time: campaign.expiry_time || '22:00',
+      exclude_from_renewal_reminders: !!campaign.exclude_from_renewal_reminders,
     });
     setEditingCampaignId(campaign.id);
     setShowForm(true);
@@ -1036,6 +1039,13 @@ export default function CampaignsPage() {
                 <label style={{ ...S.label, color: '#ddd' }}>Expiry Time</label>
                 <input type="time" value={form.expiry_time} onChange={e => setForm(f => ({ ...f, expiry_time: e.target.value }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
                 <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>When the campaign is actually removed on the End Date.</p>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.exclude_from_renewal_reminders} onChange={e => setForm(f => ({ ...f, exclude_from_renewal_reminders: e.target.checked }))} style={{ accentColor: '#0071e3' }} />
+                  <span style={{ fontSize: 13, color: '#ddd' }}>Exclude from renewal reminder emails</span>
+                </label>
+                <p style={{ fontSize: 11, color: '#888', marginTop: 4, marginLeft: 24 }}>For internal promos or station IDs that don't need a renewal follow-up — this campaign will still auto-expire normally, it just won't trigger a reminder email as it approaches its end date.</p>
               </div>
 
               {/* Specific breaks toggle */}

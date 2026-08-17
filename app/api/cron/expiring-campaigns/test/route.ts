@@ -18,7 +18,11 @@ export async function GET(req: NextRequest) {
 
   const { emails } = await getRenewalReminderSettings();
 
-  const rows = await sql`SELECT sponsor_name, expiry_time FROM campaigns WHERE status = 'active' ORDER BY id DESC LIMIT 2`;
+  const rows = await sql`
+    SELECT sponsor_name, expiry_time FROM campaigns
+    WHERE status = 'active' AND (exclude_from_renewal_reminders IS NOT TRUE)
+    ORDER BY id DESC LIMIT 2
+  `;
   const sampleCampaigns = (rows as any[]).length > 0 ? rows : [{ sponsor_name: 'Sample Sponsor A', expiry_time: '22:00' }, { sponsor_name: 'Sample Sponsor B', expiry_time: '22:00' }];
 
   const now = new Date();

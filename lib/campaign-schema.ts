@@ -25,6 +25,7 @@ export async function ensureCampaignCategoryColumns() {
   // require its "actor" to always be a real logged-in user.
   await sql`ALTER TABLE activity_logs DROP CONSTRAINT IF EXISTS activity_logs_user_id_fkey`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reminders_sent JSONB DEFAULT '[]'`;
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS exclude_from_renewal_reminders BOOLEAN DEFAULT FALSE`;
   await sql`
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
