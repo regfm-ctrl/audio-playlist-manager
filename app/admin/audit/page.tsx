@@ -242,6 +242,46 @@ export default function AuditPage() {
     }
   }
 
+  type StingRemovalItem = { playlistId: string; playlistName: string; hasIntro: boolean; hasOutro: boolean };
+  const [stingRemovalItems, setStingRemovalItems] = useState<StingRemovalItem[] | null>(null);
+  const [stingRemovalScanned, setStingRemovalScanned] = useState(0);
+  const [checkingStingRemoval, setCheckingStingRemoval] = useState(false);
+  const [confirmStingRemovalApply, setConfirmStingRemovalApply] = useState(false);
+  const [applyingStingRemoval, setApplyingStingRemoval] = useState(false);
+  const [stingRemovalResult, setStingRemovalResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkStingRemoval() {
+    setCheckingStingRemoval(true);
+    setStingRemovalItems(null);
+    setStingRemovalResult(null);
+    try {
+      const res = await fetch('/api/audit/remove-stings');
+      const data = await res.json();
+      setStingRemovalItems(data.items || []);
+      setStingRemovalScanned(data.scanned || 0);
+    } finally {
+      setCheckingStingRemoval(false);
+    }
+  }
+
+  async function applyStingRemovalFix() {
+    if (!stingRemovalItems || stingRemovalItems.length === 0) return;
+    setApplyingStingRemoval(true);
+    setConfirmStingRemovalApply(false);
+    try {
+      const res = await fetch('/api/audit/remove-stings/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: stingRemovalItems }),
+      });
+      const data = await res.json();
+      setStingRemovalResult(data);
+      setStingRemovalItems([]);
+    } finally {
+      setApplyingStingRemoval(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -447,6 +487,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={checkStingRemoval} disabled={checkingStingRemoval}
+              style={{ padding: '8px 18px', background: 'white', color: '#6b21a8', border: '0.5px solid #6b21a8', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingStingRemoval ? 0.6 : 1 }}>
+              {checkingStingRemoval ? 'Checking...' : 'Check Intro/Outro Removal'}
+            </button>
             <button onClick={checkBlockedContent} disabled={checkingBlockedContent}
               style={{ padding: '8px 18px', background: 'white', color: '#c9601e', border: '0.5px solid #c9601e', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingBlockedContent ? 0.6 : 1 }}>
               {checkingBlockedContent ? 'Checking...' : 'Check Blocked Windows'}
@@ -484,6 +528,53 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {stingRemovalItems !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Intro/Outro Removal</p>
+                {stingRemovalItems.length > 0 && (
+                  confirmStingRemovalApply ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Remove stings from all {stingRemovalItems.length} break(s)?</span>
+                      <button onClick={() => setConfirmStingRemovalApply(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={applyStingRemovalFix} disabled={applyingStingRemoval} style={{ padding: '4px 10px', background: '#6b21a8', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: applyingStingRemoval ? 0.6 : 1 }}>
+                        {applyingStingRemoval ? 'Removing...' : 'Yes, remove all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmStingRemovalApply(true)}
+                      style={{ padding: '5px 12px', background: 'white', color: '#6b21a8', border: '0.5px solid #6b21a8', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Remove All ({stingRemovalItems.length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                One-time cleanup — intros and outros are no longer assigned to breaks going forward. This finds every break that still has one left over from before and strips it out, leaving all real sponsor content completely untouched. Scanned {stingRemovalScanned} playlist(s).
+              </p>
+              {stingRemovalResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: stingRemovalResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: stingRemovalResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Cleaned {stingRemovalResult.succeeded} of {stingRemovalResult.total}
+                  </p>
+                  {stingRemovalResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {stingRemovalItems.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every break is already free of intro/outro stings.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+                  {stingRemovalItems.map((item) => (
+                    <div key={item.playlistId} style={{ padding: '8px 10px', background: '#f3e8fb', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{item.playlistName.replace(/\.m3u8$/i, '')}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{[item.hasIntro && 'intro', item.hasOutro && 'outro'].filter(Boolean).join(' + ')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {blockedContentItems !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>

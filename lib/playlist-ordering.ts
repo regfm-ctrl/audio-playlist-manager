@@ -1,7 +1,6 @@
 import { sql } from '@/lib/db';
 import { fetchPlaylistState, savePlaylistContent, removePathFromPlaylist as removePathFromPlaylistUnlocked } from '@/lib/playlist-ops';
-import { isIntroPath, isOutroPath, isProtectedPath, buildPlaylistContent, getNextSting } from '@/lib/stings';
-import { parseBreakMinute } from '@/lib/break-time';
+import { isIntroPath, isOutroPath, isProtectedPath, buildPlaylistContent } from '@/lib/stings';
 import { withPlaylistLock } from '@/lib/playlist-lock';
 
 export type PositionType = 'first' | 'middle' | 'second_last' | 'last';
@@ -51,7 +50,6 @@ async function addPathToPlaylistOrderedUnlocked(
   if (existingPaths.includes(pathToAdd)) return 'already_present';
 
   const realPaths = existingPaths.filter((p) => !isProtectedPath(p));
-  const wasEmpty = realPaths.length === 0;
 
   const typeByPath = new Map<string, string>();
   if (realPaths.length > 0) {
@@ -73,13 +71,11 @@ async function addPathToPlaylistOrderedUnlocked(
 
   let introPath = existingPaths.find(isIntroPath) || null;
   let outroPath = existingPaths.find(isOutroPath) || null;
-  if (wasEmpty) {
-    introPath = await getNextSting('intro', accessToken);
-    // Top-of-hour breaks (6:00am, 7:00am, etc.) get an intro only, no
-    // outro — every other break gets both.
-    const isTopOfHour = parseBreakMinute(containerName) === 0;
-    outroPath = isTopOfHour ? null : await getNextSting('outro', accessToken);
-  }
+  // Intro/outro stings are no longer assigned to newly-populated breaks —
+  // a break starting from genuinely empty just gets its real content, no
+  // sting. Any sting still present on an already-populated break is left
+  // alone here (that's what the two lines above do) — removing those
+  // retroactively is a separate one-time cleanup, not this function's job.
 
   const newContent = buildPlaylistContent(containerName, orderedRealPaths, introPath, outroPath);
   const ok = await savePlaylistContent(playlistId, newContent, accessToken);

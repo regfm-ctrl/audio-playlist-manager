@@ -555,19 +555,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
     // break gets real content again.
     if (editablePaths.length === 0) return "#EXTM3U\n"
 
-    // Break had no protected content before (i.e. this is the first real
-    // item going into a previously-empty break) — pick a fresh intro/outro
-    // from rotation, same as the automated scheduler does.
-    if (protectedFirst.length === 0 && protectedLast.length === 0) {
-      try {
-        const res = await fetch('/api/stings/next', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-        if (res.ok) {
-          const { introPath, outroPath } = await res.json()
-          protectedFirst = introPath ? [introPath] : []
-          protectedLast = outroPath ? [outroPath] : []
-        }
-      } catch {}
-    }
+    // Intro/outro stings are no longer assigned to newly-populated breaks
+    // — a break starting from genuinely empty just gets its real content,
+    // no sting. Anything already sitting in protectedFirst/protectedLast
+    // (from parsing the break's existing content above) is left as-is
+    // here; that's a separate, one-time cleanup rather than this function's job.
 
     const allPaths = [...protectedFirst, ...editablePaths, ...protectedLast]
     return buildM3UContent(containerName, allPaths)
