@@ -265,20 +265,42 @@ export default function CampaignsPage() {
     setAudioLoadingId(file.id);
     try {
       const token = await getGoogleAccessToken();
-      // cache: 'no-store' only governs the browser's own cache — the fact
-      // that still wasn't enough means the staleness is happening on
-      // Google's side of the connection, between the browser and Drive's
-      // storage. Real Cache-Control/Pragma request headers are a genuine
-      // over-the-wire instruction asking Google's own infrastructure to
-      // skip whatever it cached for this file and serve current content.
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-        },
-        cache: 'no-store',
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      };
+
+      // Fetching "the file's content" is apparently still being served
+      // stale somewhere in Google's own infrastructure, regardless of
+      // cache-busting headers. A specific revision ID sidesteps that
+      // ambiguity entirely — a revision is a permanent, immutable
+      // resource, so there's nothing left for any cache to get wrong
+      // about which version it refers to.
+      let revisionId: string | null = null;
+      try {
+        const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?fields=headRevisionId&_=${Date.now()}`, {
+          headers, cache: 'no-store',
+        });
+        if (metaRes.ok) {
+          const meta = await metaRes.json();
+          revisionId = meta.headRevisionId || null;
+        }
+      } catch {}
+
+      let res: Response | null = null;
+      if (revisionId) {
+        res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/revisions/${revisionId}?alt=media&_=${Date.now()}`, {
+          headers, cache: 'no-store',
+        });
+      }
+      // Fall back to the plain content fetch if this file has no revision
+      // history available, rather than failing playback outright.
+      if (!res || !res.ok) {
+        res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}`, {
+          headers, cache: 'no-store',
+        });
+      }
       if (!res.ok) throw new Error('Failed to load audio from Drive');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
