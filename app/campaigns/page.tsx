@@ -271,50 +271,57 @@ export default function CampaignsPage() {
         'Pragma': 'no-cache',
       };
 
-      // Fetching "the file's content" is apparently still being served
-      // stale somewhere in Google's own infrastructure, regardless of
-      // cache-busting headers. A specific revision ID sidesteps that
-      // ambiguity entirely — a revision is a permanent, immutable
-      // resource, so there's nothing left for any cache to get wrong
-      // about which version it refers to.
-      let revisionId: string | null = null;
+      // Three different cache-defeating strategies (browser no-store,
+      // server-facing no-cache headers, a specific revision ID) all still
+      // returned stale bytes — confirmed by comparing against Drive's own
+      // reported file size. That means content delivery itself lags behind
+      // Drive's metadata after an in-place overwrite via desktop sync,
+      // rather than anything actually cacheable in the usual sense. So
+      // instead of guessing at another endpoint, this verifies what it
+      // downloaded against Drive's own reported current size, and retries
+      // a few times (giving Drive a moment to catch up) until they match.
+      let expectedSize: number | null = null;
       try {
-        const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?fields=headRevisionId&_=${Date.now()}`, {
+        const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?fields=size&_=${Date.now()}`, {
           headers, cache: 'no-store',
         });
         if (metaRes.ok) {
           const meta = await metaRes.json();
-          revisionId = meta.headRevisionId || null;
+          expectedSize = meta.size ? parseInt(meta.size, 10) : null;
         }
       } catch {}
 
-      let res: Response | null = null;
-      if (revisionId) {
-        res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/revisions/${revisionId}?alt=media&_=${Date.now()}`, {
+      const maxAttempts = 5;
+      let blob: Blob | null = null;
+      let lastSize = 0;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (attempt > 0) {
+          setMsg(`⏳ Drive is still serving an older version of "${file.name}" — retrying (${attempt}/${maxAttempts - 1})...`);
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}_${attempt}`, {
           headers, cache: 'no-store',
         });
+        if (!res.ok) throw new Error('Failed to load audio from Drive');
+        const candidate = await res.blob();
+        lastSize = candidate.size;
+        if (expectedSize === null || candidate.size === expectedSize) {
+          blob = candidate;
+          break;
+        }
       }
-      // Fall back to the plain content fetch if this file has no revision
-      // history available, rather than failing playback outright.
-      if (!res || !res.ok) {
-        res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}`, {
-          headers, cache: 'no-store',
-        });
+
+      if (!blob) {
+        setMsg(`⚠️ Drive kept returning a ${(lastSize / 1024).toFixed(1)} KB file after ${maxAttempts} tries, but it currently reports ${expectedSize ? (expectedSize / 1024).toFixed(1) : '?'} KB — this is a delay on Google's side finishing the sync, not the app. Try again shortly.`);
+        setPlayingFileId(null);
+        return;
       }
-      if (!res.ok) throw new Error('Failed to load audio from Drive');
-      const blob = await res.blob();
+
       const url = URL.createObjectURL(blob);
       audioBlobUrlRef.current = url;
       audio.src = url;
       await audio.play();
-      // Temporary diagnostic — compare this reported size against the
-      // file's actual current size shown in Drive's own "File information"
-      // panel (right-click the file → File information → Details). If they
-      // match, the app is genuinely fetching current bytes and whatever's
-      // wrong is elsewhere; if they don't, the fetch itself is still
-      // getting stale data somehow, narrowing down which half of the
-      // problem we're actually dealing with.
-      setMsg(`ℹ️ Loaded "${file.name}" — ${(blob.size / 1024).toFixed(1)} KB${revisionId ? ` (revision ${revisionId})` : ' (no revision info — used plain fetch)'}`);
+      setMsg(`▶️ Playing "${file.name}" (${(blob.size / 1024).toFixed(1)} KB)`);
     } catch {
       setPlayingFileId(null);
       setMsg('❌ Could not load that audio file for playback');
