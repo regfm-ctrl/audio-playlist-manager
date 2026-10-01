@@ -321,7 +321,7 @@ export default function CampaignsPage() {
       audioBlobUrlRef.current = url;
       audio.src = url;
       await audio.play();
-      setMsg(`▶️ Playing "${file.name}" (${(blob.size / 1024).toFixed(1)} KB)`);
+      setMsg(`▶️ Playing "${file.name}" (${(blob.size / 1024).toFixed(1)} KB) — stored file ID: ${file.id}`);
     } catch {
       setPlayingFileId(null);
       setMsg('❌ Could not load that audio file for playback');
