@@ -265,63 +265,55 @@ export default function CampaignsPage() {
     setAudioLoadingId(file.id);
     try {
       const token = await getGoogleAccessToken();
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-      };
+      const headers = { Authorization: `Bearer ${token}` };
 
-      // Three different cache-defeating strategies (browser no-store,
-      // server-facing no-cache headers, a specific revision ID) all still
-      // returned stale bytes — confirmed by comparing against Drive's own
-      // reported file size. That means content delivery itself lags behind
-      // Drive's metadata after an in-place overwrite via desktop sync,
-      // rather than anything actually cacheable in the usual sense. So
-      // instead of guessing at another endpoint, this verifies what it
-      // downloaded against Drive's own reported current size, and retries
-      // a few times (giving Drive a moment to catch up) until they match.
-      let expectedSize: number | null = null;
-      try {
-        const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?fields=size&_=${Date.now()}`, {
-          headers, cache: 'no-store',
-        });
-        if (metaRes.ok) {
-          const meta = await metaRes.json();
-          expectedSize = meta.size ? parseInt(meta.size, 10) : null;
-        }
-      } catch {}
-
-      const maxAttempts = 5;
-      let blob: Blob | null = null;
-      let lastSize = 0;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        if (attempt > 0) {
-          setMsg(`⏳ Drive is still serving an older version of "${file.name}" — retrying (${attempt}/${maxAttempts - 1})...`);
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}_${attempt}`, {
-          headers, cache: 'no-store',
-        });
-        if (!res.ok) throw new Error('Failed to load audio from Drive');
-        const candidate = await res.blob();
-        lastSize = candidate.size;
-        if (expectedSize === null || candidate.size === expectedSize) {
-          blob = candidate;
-          break;
+      // The actual, permanent fix: never trust the saved file ID — always
+      // resolve the current, live ID by name+folder first, exactly like
+      // the Sponsorship Breaks file browser already does by nature of
+      // always querying Drive fresh. This is what stops a stale reference
+      // from ever playing the wrong audio again, rather than fetching
+      // content by an ID that can silently go stale over time.
+      const dirConfig = AUDIO_DIRECTORIES.find((d) => d.name === file.dir);
+      let resolvedId = file.id;
+      if (dirConfig) {
+        const safeName = file.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const q = encodeURIComponent(`'${dirConfig.driveId}' in parents and name='${safeName}' and trashed=false`);
+        const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime desc&pageSize=1`, { headers });
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          if (listData.files?.[0]?.id) resolvedId = listData.files[0].id;
         }
       }
 
-      if (!blob) {
-        setMsg(`⚠️ Drive kept returning a ${(lastSize / 1024).toFixed(1)} KB file after ${maxAttempts} tries, but it currently reports ${expectedSize ? (expectedSize / 1024).toFixed(1) : '?'} KB — this is a delay on Google's side finishing the sync, not the app. Try again shortly.`);
-        setPlayingFileId(null);
-        return;
-      }
-
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${resolvedId}?alt=media`, { headers });
+      if (!res.ok) throw new Error('Failed to load audio from Drive');
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       audioBlobUrlRef.current = url;
       audio.src = url;
       await audio.play();
-      setMsg(`▶️ Playing "${file.name}" (${(blob.size / 1024).toFixed(1)} KB) — stored file ID: ${file.id}`);
+      setMsg(`▶️ Playing "${file.name}"`);
+
+      // Found and used a different, current ID than what was saved —
+      // silently correct the stored reference too, both in this open form
+      // (so Save doesn't write the stale id straight back) and in the
+      // database directly (so this is actually fixed, not just papered
+      // over for this one playback).
+      if (resolvedId !== file.id) {
+        setForm((f) => ({
+          ...f,
+          audio_files: f.audio_files.map((a) => (a.id === file.id && a.name === file.name ? { ...a, id: resolvedId } : a)),
+        }));
+        if (editingCampaignId) {
+          fetch('/api/audit/stale-audio-refs/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              items: [{ campaignId: editingCampaignId, sponsorName: form.sponsor_name, fileName: file.name, dir: file.dir, storedId: file.id, currentId: resolvedId }],
+            }),
+          }).catch(() => {});
+        }
+      }
     } catch {
       setPlayingFileId(null);
       setMsg('❌ Could not load that audio file for playback');

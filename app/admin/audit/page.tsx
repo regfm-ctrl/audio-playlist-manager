@@ -282,6 +282,47 @@ export default function AuditPage() {
     }
   }
 
+  type StaleAudioRefItem = { campaignId: number; sponsorName: string; fileName: string; dir: string; storedId: string; currentId: string | null };
+  const [staleRefItems, setStaleRefItems] = useState<StaleAudioRefItem[] | null>(null);
+  const [staleRefScanned, setStaleRefScanned] = useState(0);
+  const [checkingStaleRefs, setCheckingStaleRefs] = useState(false);
+  const [confirmStaleRefApply, setConfirmStaleRefApply] = useState(false);
+  const [applyingStaleRefs, setApplyingStaleRefs] = useState(false);
+  const [staleRefResult, setStaleRefResult] = useState<{ succeeded: number; failed: string[]; total: number } | null>(null);
+
+  async function checkStaleAudioRefs() {
+    setCheckingStaleRefs(true);
+    setStaleRefItems(null);
+    setStaleRefResult(null);
+    try {
+      const res = await fetch('/api/audit/stale-audio-refs');
+      const data = await res.json();
+      setStaleRefItems(data.items || []);
+      setStaleRefScanned(data.scanned || 0);
+    } finally {
+      setCheckingStaleRefs(false);
+    }
+  }
+
+  async function applyStaleAudioRefFix() {
+    const fixable = (staleRefItems || []).filter((i) => i.currentId);
+    if (fixable.length === 0) return;
+    setApplyingStaleRefs(true);
+    setConfirmStaleRefApply(false);
+    try {
+      const res = await fetch('/api/audit/stale-audio-refs/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: fixable }),
+      });
+      const data = await res.json();
+      setStaleRefResult(data);
+      setStaleRefItems((prev) => (prev || []).filter((i) => !i.currentId));
+    } finally {
+      setApplyingStaleRefs(false);
+    }
+  }
+
   async function applyPathMigration() {
     setApplyingMigration(true);
     setConfirmMigration(false);
@@ -487,6 +528,10 @@ export default function AuditPage() {
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Compares every playlist file against what the database expects — admin only</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={checkStaleAudioRefs} disabled={checkingStaleRefs}
+              style={{ padding: '8px 18px', background: '#a02020', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingStaleRefs ? 0.6 : 1 }}>
+              {checkingStaleRefs ? 'Checking...' : 'Check Stale Audio References'}
+            </button>
             <button onClick={checkStingRemoval} disabled={checkingStingRemoval}
               style={{ padding: '8px 18px', background: 'white', color: '#6b21a8', border: '0.5px solid #6b21a8', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: checkingStingRemoval ? 0.6 : 1 }}>
               {checkingStingRemoval ? 'Checking...' : 'Check Intro/Outro Removal'}
@@ -528,6 +573,57 @@ export default function AuditPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {staleRefItems !== null && (
+            <div style={{ background: 'white', borderRadius: 10, border: '1.5px solid #a02020', padding: 16, marginBottom: 20, maxWidth: 900 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Stale Audio References (critical)</p>
+                {staleRefItems.filter((i) => i.currentId).length > 0 && (
+                  confirmStaleRefApply ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#a02020' }}>Fix all {staleRefItems.filter((i) => i.currentId).length} reference(s)?</span>
+                      <button onClick={() => setConfirmStaleRefApply(false)} style={{ padding: '4px 10px', background: '#f0f0f0', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={applyStaleAudioRefFix} disabled={applyingStaleRefs} style={{ padding: '4px 10px', background: '#a02020', color: 'white', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: 'pointer', opacity: applyingStaleRefs ? 0.6 : 1 }}>
+                        {applyingStaleRefs ? 'Fixing...' : 'Yes, fix all'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmStaleRefApply(true)}
+                      style={{ padding: '5px 12px', background: '#a02020', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+                      Fix All ({staleRefItems.filter((i) => i.currentId).length})
+                    </button>
+                  )
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                Compares every campaign's saved audio file reference against what's actually live in Drive right now, by filename. A mismatch means the file was replaced (e.g. deleted and re-uploaded with the same name) after it was added to the campaign — the campaign kept pointing at the old, now-orphaned file. Fixing updates the campaign to the current file; nothing in Drive or on-air playback is touched, since RadioBOSS reads from the local file path, not this ID. Scanned {staleRefScanned} audio file reference(s).
+              </p>
+              {staleRefResult && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: staleRefResult.failed.length > 0 ? '#fdecec' : '#f0f8f4', borderRadius: 7 }}>
+                  <p style={{ fontSize: 12, margin: 0, color: staleRefResult.failed.length > 0 ? '#a02020' : '#0a6e46' }}>
+                    Fixed {staleRefResult.succeeded} of {staleRefResult.total}
+                  </p>
+                  {staleRefResult.failed.map((f, i) => <p key={i} style={{ fontSize: 11, color: '#a02020', margin: '2px 0 0' }}>Failed: {f}</p>)}
+                </div>
+              )}
+              {staleRefItems.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#0a6e46', margin: 0 }}>None found — every campaign's audio references match what's currently in Drive.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+                  {staleRefItems.map((item, i) => (
+                    <div key={`${item.campaignId}-${item.fileName}-${i}`} style={{ padding: '8px 10px', background: item.currentId ? '#fdecec' : '#fdf1e8', borderRadius: 7 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>{item.sponsorName} — {item.fileName}</p>
+                      <p style={{ fontSize: 11, color: '#888', margin: 0 }}>
+                        {item.currentId
+                          ? `Points at an old file — a different, current file with this name exists`
+                          : `No file with this name currently exists in ${item.dir} — may have been renamed or deleted`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {stingRemovalItems !== null && (
             <div style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 16, marginBottom: 20, maxWidth: 900 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
