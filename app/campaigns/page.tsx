@@ -265,13 +265,18 @@ export default function CampaignsPage() {
     setAudioLoadingId(file.id);
     try {
       const token = await getGoogleAccessToken();
-      // cache: 'no-store' stops the browser reusing a previous response for
-      // this same file ID — without it, replacing a file's content in place
-      // (same Drive ID, new audio) could keep playing the old cached bytes
-      // indefinitely. The timestamp param is a second guarantee for any
-      // cache layer that might not fully honour the fetch option alone.
+      // cache: 'no-store' only governs the browser's own cache — the fact
+      // that still wasn't enough means the staleness is happening on
+      // Google's side of the connection, between the browser and Drive's
+      // storage. Real Cache-Control/Pragma request headers are a genuine
+      // over-the-wire instruction asking Google's own infrastructure to
+      // skip whatever it cached for this file and serve current content.
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
         cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to load audio from Drive');
