@@ -36,6 +36,7 @@ export default function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
   const [runMsg, setRunMsg] = useState('');
   const [runLoading, setRunLoading] = useState(false);
@@ -59,7 +60,7 @@ export default function SchedulesPage() {
         setIsViewer(data.role === 'viewer');
         setCurrentUsername(data.username);
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setRoleLoaded(true));
   }, []);
 
   async function toggleActive(id: number, schedule: Schedule) {
@@ -159,11 +160,11 @@ export default function SchedulesPage() {
         </div>
         <div style={{ padding: '10px 8px 8px' }}>
           <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
-          {!isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
-          {!isViewer && <a href="/schedules" style={S.navItemActive}><IconSchedule /> Schedules</a>}
+          {roleLoaded && !isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
+          {roleLoaded && !isViewer && <a href="/schedules" style={S.navItemActive}><IconSchedule /> Schedules</a>}
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          {!isViewer && <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>}
+          {roleLoaded && !isViewer && <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>}
           {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />

@@ -24,6 +24,7 @@ export default function RebalancePage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
+  const [roleLoaded, setRoleLoaded] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me').then(res => res.ok ? res.json() : null).then(data => {
@@ -31,7 +32,7 @@ export default function RebalancePage() {
         setIsAdmin(data.role === 'admin');
         setIsViewer(data.role === 'viewer');
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setRoleLoaded(true));
   }, []);
 
   async function computePlan() {
@@ -103,11 +104,11 @@ export default function RebalancePage() {
         </div>
         <div style={{ padding: '10px 8px 8px' }}>
           <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
-          {!isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
-          {!isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
+          {roleLoaded && !isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
+          {roleLoaded && !isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          {!isViewer && <a href="/rebalance" style={S.navItemActive}><IconRebalance /> Rebalance</a>}
+          {roleLoaded && !isViewer && <a href="/rebalance" style={S.navItemActive}><IconRebalance /> Rebalance</a>}
           {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />

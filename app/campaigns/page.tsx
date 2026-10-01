@@ -84,6 +84,7 @@ export default function CampaignsPage() {
   const [campaignFilter, setCampaignFilter] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
   const [expiryEditorFileId, setExpiryEditorFileId] = useState<string | null>(null);
   const [expiryDraft, setExpiryDraft] = useState({ date: '', time: '23:59' });
@@ -287,7 +288,7 @@ export default function CampaignsPage() {
         setIsViewer(data.role === 'viewer');
         setCurrentUsername(data.username);
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setRoleLoaded(true));
   }, []);
 
   // Deletion has no real progress signal from the server mid-request, so
@@ -652,11 +653,11 @@ export default function CampaignsPage() {
         </div>
         <div style={{ padding: '10px 8px 8px' }}>
           <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
-          {!isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
-          {!isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
+          {roleLoaded && !isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
+          {roleLoaded && !isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
           <a href="/campaigns" style={S.navItemActive}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-          {!isViewer && <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>}
+          {roleLoaded && !isViewer && <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>}
           {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />
@@ -697,7 +698,7 @@ export default function CampaignsPage() {
             placeholder="Filter campaigns..."
             style={{ padding: '7px 12px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13, background: 'white', outline: 'none', width: 200 }}
           />
-          {!isViewer && (
+          {roleLoaded && !isViewer && (
             <button
               onClick={() => { setForm(defaultForm); setEditingCampaignId(null); setShowForm(true); setMsg(''); loadPlaylists(); }}
               style={{ padding: '8px 18px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
@@ -788,14 +789,14 @@ export default function CampaignsPage() {
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', gap: 10 }}>
-                            {!isViewer && (
+                            {roleLoaded && !isViewer && (
                               <button onClick={() => toggleStatus(c)} style={{ fontSize: 12, color: '#0071e3', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                                 {c.status === 'active' ? 'Pause' : 'Resume'}
                               </button>
                             )}
                             <button onClick={() => editCampaign(c)} style={{ fontSize: 12, color: '#a06000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit</button>
                             <span style={{ width: 68, flexShrink: 0 }}>
-                              {!isViewer && c.randomize_weekly && (() => {
+                              {roleLoaded && !isViewer && c.randomize_weekly && (() => {
                                 let fileCount = 1;
                                 try {
                                   const parsed = typeof c.audio_files === 'string' ? JSON.parse(c.audio_files) : c.audio_files;
@@ -810,10 +811,10 @@ export default function CampaignsPage() {
                               })()}
                             </span>
                             <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Export PDF</a>
-                            {!isViewer && (
+                            {roleLoaded && !isViewer && (
                               <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
                             )}
-                            {!isViewer && (
+                            {roleLoaded && !isViewer && (
                               <button onClick={() => { setConfirmDelete(c.id); setDeleteWithSchedules(true); }} style={{ fontSize: 12, color: '#cc0000', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Delete</button>
                             )}
                           </div>
@@ -841,7 +842,7 @@ export default function CampaignsPage() {
 
             {msg && <p style={{ fontSize: 13, color: '#e0e0e0', marginBottom: 12, background: '#2a2a2c', padding: '8px 12px', borderRadius: 6 }}>{msg}</p>}
 
-            <fieldset disabled={isViewer} style={{ border: 'none', padding: 0, margin: 0 }}>
+            <fieldset disabled={roleLoaded && isViewer} style={{ border: 'none', padding: 0, margin: 0 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {/* Sponsor name */}
               <div style={{ gridColumn: '1 / -1' }}>
@@ -1100,13 +1101,13 @@ export default function CampaignsPage() {
             </div>
             </fieldset>
 
-            {!isViewer && (
+            {roleLoaded && !isViewer && (
               <button onClick={generatePreview}
                 style={{ width: '100%', marginTop: 20, padding: '12px 0', background: '#0071e3', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
                 Preview Schedule →
               </button>
             )}
-            {isViewer && (
+            {roleLoaded && isViewer && (
               <p style={{ margin: '20px 0 0', fontSize: 12, color: '#888', textAlign: 'center' }}>
                 View-only — close this to return without making changes.
               </p>
