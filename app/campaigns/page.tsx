@@ -307,6 +307,14 @@ export default function CampaignsPage() {
       audioBlobUrlRef.current = url;
       audio.src = url;
       await audio.play();
+      // Temporary diagnostic — compare this reported size against the
+      // file's actual current size shown in Drive's own "File information"
+      // panel (right-click the file → File information → Details). If they
+      // match, the app is genuinely fetching current bytes and whatever's
+      // wrong is elsewhere; if they don't, the fetch itself is still
+      // getting stale data somehow, narrowing down which half of the
+      // problem we're actually dealing with.
+      setMsg(`ℹ️ Loaded "${file.name}" — ${(blob.size / 1024).toFixed(1)} KB${revisionId ? ` (revision ${revisionId})` : ' (no revision info — used plain fetch)'}`);
     } catch {
       setPlayingFileId(null);
       setMsg('❌ Could not load that audio file for playback');
