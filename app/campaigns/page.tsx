@@ -84,6 +84,7 @@ export default function CampaignsPage() {
   const [campaignFilter, setCampaignFilter] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState('');
   const [expiryEditorFileId, setExpiryEditorFileId] = useState<string | null>(null);
   const [expiryDraft, setExpiryDraft] = useState({ date: '', time: '23:59' });
   const [reshufflingId, setReshufflingId] = useState<number | null>(null);
@@ -280,14 +281,13 @@ export default function CampaignsPage() {
 
   useEffect(() => { loadCampaigns(); }, []);
   useEffect(() => {
-    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setIsAdmin(payload.role === 'admin');
-        setIsViewer(payload.role === 'viewer');
-      } catch {}
-    }
+    fetch('/api/auth/me').then(res => res.ok ? res.json() : null).then(data => {
+      if (data) {
+        setIsAdmin(data.role === 'admin');
+        setIsViewer(data.role === 'viewer');
+        setCurrentUsername(data.username);
+      }
+    }).catch(() => {});
   }, []);
 
   // Deletion has no real progress signal from the server mid-request, so
@@ -662,7 +662,7 @@ export default function CampaignsPage() {
         <div style={{ flex: 1 }} />
         <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'white', fontWeight: 500 }}>A</div>
-          <span style={{ color: '#777', fontSize: 12, flex: 1 }}>admin</span>
+          <span style={{ color: '#777', fontSize: 12, flex: 1 }}>{currentUsername || '...'}</span>
           <button onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login' }} title="Logout" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 0, display: 'flex', alignItems: 'center' }}>
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/><path d="M10 11l4-3-4-3"/><line x1="14" y1="8" x2="6" y2="8"/>

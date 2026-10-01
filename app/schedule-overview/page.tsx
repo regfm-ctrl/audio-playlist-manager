@@ -30,14 +30,12 @@ export default function ScheduleOverviewPage() {
       .catch(() => setLoading(false));
   }, []);
   useEffect(() => {
-    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setIsAdmin(payload.role === 'admin');
-        setIsViewer(payload.role === 'viewer');
-      } catch {}
-    }
+    fetch('/api/auth/me').then(res => res.ok ? res.json() : null).then(data => {
+      if (data) {
+        setIsAdmin(data.role === 'admin');
+        setIsViewer(data.role === 'viewer');
+      }
+    }).catch(() => {});
   }, []);
 
   // Stable color per sponsor name, derived from the full data set so the

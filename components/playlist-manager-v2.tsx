@@ -124,6 +124,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [isLoading, setIsLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isViewer, setIsViewer] = useState(false)
+  const [currentUsername, setCurrentUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [selectedPlaylist, setSelectedPlaylist] = useState<GoogleDriveFile | null>(null)
   const [playlistSearch, setPlaylistSearch] = useState("")
@@ -145,14 +146,13 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   useEffect(() => {
     // Only show the Admin nav link for admin users — display-only check,
     // actual access is enforced server-side by middleware regardless.
-    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1]
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]))
-        setIsAdmin(payload.role === 'admin')
-        setIsViewer(payload.role === 'viewer')
-      } catch {}
-    }
+    fetch('/api/auth/me').then(res => res.ok ? res.json() : null).then(data => {
+      if (data) {
+        setIsAdmin(data.role === 'admin')
+        setIsViewer(data.role === 'viewer')
+        setCurrentUsername(data.username)
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -808,7 +808,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
           {/* User */}
           <div style={{ padding: '8px 12px', borderTop: '0.5px solid #3a3a3c', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0071e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: 'white', fontWeight: 500 }}>A</div>
-            <span style={{ color: '#777', fontSize: 12, flex: 1 }}>admin</span>
+            <span style={{ color: '#777', fontSize: 12, flex: 1 }}>{currentUsername || '...'}</span>
             <button
               onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login' }}
               title="Logout"

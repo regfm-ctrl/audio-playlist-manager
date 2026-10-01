@@ -151,14 +151,9 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    // Get current user from token
-    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setCurrentUser({ username: payload.username, role: payload.role });
-      } catch {}
-    }
+    fetch('/api/auth/me').then(res => res.ok ? res.json() : null).then(data => {
+      if (data) setCurrentUser({ username: data.username, role: data.role });
+    }).catch(() => {});
     loadData();
     loadRenewalSettings();
     loadBlockedWindows();
