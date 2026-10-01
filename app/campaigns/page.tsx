@@ -265,8 +265,14 @@ export default function CampaignsPage() {
     setAudioLoadingId(file.id);
     try {
       const token = await getGoogleAccessToken();
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+      // cache: 'no-store' stops the browser reusing a previous response for
+      // this same file ID — without it, replacing a file's content in place
+      // (same Drive ID, new audio) could keep playing the old cached bytes
+      // indefinitely. The timestamp param is a second guarantee for any
+      // cache layer that might not fully honour the fetch option alone.
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&_=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to load audio from Drive');
       const blob = await res.blob();
