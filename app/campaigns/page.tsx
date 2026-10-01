@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { getGoogleAccessToken } from '@/lib/client-google-token';
@@ -87,6 +87,11 @@ export default function CampaignsPage() {
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [currentUsername, setCurrentUsername] = useState('');
   const [expiryEditorFileId, setExpiryEditorFileId] = useState<string | null>(null);
+  const [playingFileId, setPlayingFileId] = useState<string | null>(null);
+  const [audioLoadingId, setAudioLoadingId] = useState<string | null>(null);
+  const [audioPaused, setAudioPaused] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioBlobUrlRef = useRef<string | null>(null);
   const [expiryDraft, setExpiryDraft] = useState({ date: '', time: '23:59' });
   const [reshufflingId, setReshufflingId] = useState<number | null>(null);
 
@@ -229,6 +234,54 @@ export default function CampaignsPage() {
     });
   }
 
+  // Auditioning a file fetches it directly from Drive using the same
+  // access token the rest of this page already uses, since there's no
+  // other way to stream audio a sponsor hasn't made publicly shared. One
+  // shared <audio> element is reused across every file in the list, so
+  // starting a different file's playback stops whatever was playing
+  // before it, same as any normal audio player would.
+  async function toggleAudioPlayback(file: AudioFileRef) {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (playingFileId === file.id) {
+      if (audio.paused) {
+        audio.play();
+        setAudioPaused(false);
+      } else {
+        audio.pause();
+        setAudioPaused(true);
+      }
+      return;
+    }
+
+    audio.pause();
+    if (audioBlobUrlRef.current) {
+      URL.revokeObjectURL(audioBlobUrlRef.current);
+      audioBlobUrlRef.current = null;
+    }
+    setPlayingFileId(file.id);
+    setAudioPaused(false);
+    setAudioLoadingId(file.id);
+    try {
+      const token = await getGoogleAccessToken();
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to load audio from Drive');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioBlobUrlRef.current = url;
+      audio.src = url;
+      await audio.play();
+    } catch {
+      setPlayingFileId(null);
+      setMsg('❌ Could not load that audio file for playback');
+    } finally {
+      setAudioLoadingId(null);
+    }
+  }
+
   function removeFile(fileId: string) {
     setForm(f => {
       const audio_files = f.audio_files.filter(a => a.id !== fileId);
@@ -281,6 +334,17 @@ export default function CampaignsPage() {
   }
 
   useEffect(() => { loadCampaigns(); }, []);
+  useEffect(() => {
+    if (!showForm && audioRef.current) {
+      audioRef.current.pause();
+      setPlayingFileId(null);
+      setAudioPaused(false);
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+        audioBlobUrlRef.current = null;
+      }
+    }
+  }, [showForm]);
   useEffect(() => {
     fetch('/api/auth/me').then(res => res.ok ? res.json() : null).then(data => {
       if (data) {
@@ -878,6 +942,8 @@ export default function CampaignsPage() {
 
               {/* Audio file picker */}
               <div style={{ gridColumn: '1 / -1' }}>
+                <audio ref={audioRef} style={{ display: 'none' }}
+                  onEnded={() => { setPlayingFileId(null); setAudioPaused(false); }} />
                 <label style={{ ...S.label, color: '#ddd' }}>
                   Audio File{form.audio_files.length > 1 ? 's' : ''}
                   {form.audio_files.length > 1 && <span style={{ fontWeight: 400, color: '#888' }}> — rotates round-robin between breaks</span>}
@@ -890,6 +956,18 @@ export default function CampaignsPage() {
                       return (
                         <div key={file.id} style={{ padding: '8px 12px', background: '#0071e322', border: '0.5px solid #0071e344', borderRadius: 7 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {/* A plain div (not a <button>) deliberately — a parent <fieldset
+                                disabled> only disables actual form-control elements, so this
+                                stays usable for a view-only account even while the rest of the
+                                form around it is genuinely locked down. role/tabIndex/onKeyDown
+                                keep it properly keyboard- and screen-reader-accessible despite
+                                not being a native button. */}
+                            <div onClick={() => toggleAudioPlayback(file)} role="button" tabIndex={0}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAudioPlayback(file); } }}
+                              title={playingFileId === file.id && !audioPaused ? 'Pause' : 'Play'}
+                              style={{ width: 26, height: 26, borderRadius: '50%', background: '#0071e3', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, padding: 0 }}>
+                              {audioLoadingId === file.id ? '⏳' : (playingFileId === file.id && !audioPaused ? '⏸' : '▶')}
+                            </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 13, color: '#4da3ff', fontWeight: 500 }}>{file.name.replace(/\.[^/.]+$/, '')}</div>
                               <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{file.localPath}</div>
