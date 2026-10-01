@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'viewer') return NextResponse.json({ error: 'View-only accounts cannot make changes' }, { status: 403 });
 
   await ensureCampaignCategoryColumns();
 
@@ -147,6 +148,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'viewer') return NextResponse.json({ error: 'View-only accounts cannot make changes' }, { status: 403 });
 
   await ensureCampaignCategoryColumns();
 
@@ -269,6 +271,7 @@ export const maxDuration = 60;
 export async function DELETE(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'viewer') return NextResponse.json({ error: 'View-only accounts cannot make changes' }, { status: 403 });
 
   await ensureCampaignCategoryColumns();
   const { id, withSchedules = false, accessToken: providedToken } = await req.json();

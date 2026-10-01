@@ -123,6 +123,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
   const [playlists, setPlaylists] = useState<GoogleDriveFile[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isViewer, setIsViewer] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedPlaylist, setSelectedPlaylist] = useState<GoogleDriveFile | null>(null)
   const [playlistSearch, setPlaylistSearch] = useState("")
@@ -149,6 +150,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
       try {
         const payload = JSON.parse(atob(token.split('.')[1]))
         setIsAdmin(payload.role === 'admin')
+        setIsViewer(payload.role === 'viewer')
       } catch {}
     }
   }, [])
@@ -755,11 +757,11 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
           <div style={{ padding: '10px 8px 8px' }}>
             <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
-            <a href="/" style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</a>
-            <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
+            {!isViewer && <a href="/" style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</a>}
+            {!isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
             <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
             <a href="/schedule-overview" style={S.navItem}><IconOverview /> Weekly Overview</a>
-            <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
+            {!isViewer && <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>}
             {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
           </div>
 

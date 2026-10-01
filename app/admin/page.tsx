@@ -401,6 +401,7 @@ export default function AdminPage() {
                     <input style={S.input} type="password" placeholder="Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
                     <select style={{ ...S.input, background: 'white' }} value={newRole} onChange={e => setNewRole(e.target.value)}>
                       <option value="user">User</option>
+                      <option value="viewer">Viewer (view-only)</option>
                       <option value="admin">Admin</option>
                     </select>
                     <button onClick={createUser} style={{ padding: '8px 16px', background: '#0071e3', color: 'white', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Create User</button>
@@ -426,7 +427,7 @@ export default function AdminPage() {
                       <tr key={u.id} style={{ borderBottom: '0.5px solid #f0f0f0' }}>
                         <td style={{ padding: '10px 16px', fontWeight: 500 }}>{u.username}</td>
                         <td style={{ padding: '10px 16px' }}>
-                          <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: u.role === 'admin' ? '#f0e8ff' : '#f0f0f0', color: u.role === 'admin' ? '#6600cc' : '#666' }}>{u.role}</span>
+                          <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: u.role === 'admin' ? '#f0e8ff' : u.role === 'viewer' ? '#e8f0fb' : '#f0f0f0', color: u.role === 'admin' ? '#6600cc' : u.role === 'viewer' ? '#0055cc' : '#666' }}>{u.role}</span>
                         </td>
                         <td style={{ padding: '10px 16px', color: '#888' }}>{new Date(u.created_at).toLocaleDateString('en-AU')}</td>
                         <td style={{ padding: '10px 16px' }}>

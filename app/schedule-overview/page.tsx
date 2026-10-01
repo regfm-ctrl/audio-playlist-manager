@@ -21,6 +21,7 @@ export default function ScheduleOverviewPage() {
   const [overview, setOverview] = useState<WeeklyOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isViewer, setIsViewer] = useState(false);
 
   useEffect(() => {
     fetch('/api/schedule-overview')
@@ -31,7 +32,11 @@ export default function ScheduleOverviewPage() {
   useEffect(() => {
     const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
     if (token) {
-      try { setIsAdmin(JSON.parse(atob(token.split('.')[1])).role === 'admin'); } catch {}
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setIsAdmin(payload.role === 'admin');
+        setIsViewer(payload.role === 'viewer');
+      } catch {}
     }
   }, []);
 
@@ -72,11 +77,11 @@ export default function ScheduleOverviewPage() {
         </div>
         <div style={{ padding: '10px 8px 8px' }}>
           <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
-          <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>
-          <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>
+          {!isViewer && <a href="/" style={S.navItem}><IconBreaks /> Sponsorship Breaks</a>}
+          {!isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
           <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
           <a href="/schedule-overview" style={S.navItemActive}><IconOverview /> Weekly Overview</a>
-  <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>
+          {!isViewer && <a href="/rebalance" style={S.navItem}><IconRebalance /> Rebalance</a>}
           {isAdmin && <a href="/admin" style={S.navItem}><IconAdmin /> Admin</a>}
         </div>
         <div style={{ flex: 1 }} />

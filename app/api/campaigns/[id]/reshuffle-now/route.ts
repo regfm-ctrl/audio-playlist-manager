@@ -12,6 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const token = req.cookies.get('token')?.value;
   const user = token ? await verifyToken(token) : null;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role === 'viewer') return NextResponse.json({ error: 'View-only accounts cannot make changes' }, { status: 403 });
 
   const id = parseInt(params.id);
   const rows = await sql`SELECT * FROM campaigns WHERE id = ${id}`;

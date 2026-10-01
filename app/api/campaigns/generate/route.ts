@@ -87,6 +87,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { campaign, previewSlots, accessToken, confirm = false, isEdit = false } = body;
 
+  // Previewing (confirm: false) is read-only and harmless even for a
+  // view-only account — the reject applies only where campaign
+  // placements (new or edited) would actually be written.
+  if (confirm && (user as any).role === 'viewer') {
+    return NextResponse.json({ error: 'View-only accounts cannot make changes' }, { status: 403 });
+  }
+
   const {
     audio_file_id, audio_file_name, audio_directory_name, audio_local_path,
     spots_per_week, distribution_type, per_day_counts,
