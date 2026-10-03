@@ -22,6 +22,9 @@ type Campaign = {
   go_live_time: string | null;
   expiry_time: string | null;
   exclude_from_renewal_reminders: boolean;
+  portal_client_id: string | null;
+  portal_client_name: string | null;
+  portal_client_url: string | null;
   audio_file_name: string;
   audio_file_id: string | null;
   audio_directory_name: string | null;
@@ -115,6 +118,13 @@ export default function CampaignsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [portalClients, setPortalClients] = useState<{ id: string; name: string; portalUrl?: string }[]>([]);
+  const [portalClientsError, setPortalClientsError] = useState('');
+  const [portalClientSearch, setPortalClientSearch] = useState('');
+  const [showPortalClientDropdown, setShowPortalClientDropdown] = useState(false);
+  const [portalStatus, setPortalStatus] = useState<{ files: { name: string; status: string; updatedAt?: string; notes?: string }[]; lastActivity?: string; portalUrl?: string } | null>(null);
+  const [portalStatusLoading, setPortalStatusLoading] = useState(false);
+  const [portalStatusError, setPortalStatusError] = useState('');
   const [preview, setPreview] = useState<PreviewSlot[] | null>(null);
   const [previewCampaign, setPreviewCampaign] = useState<any>(null);
   const [previewDiff, setPreviewDiff] = useState<{ added: string[]; removed: string[]; unchanged: string[]; audioChanged: boolean } | null>(null);
@@ -156,6 +166,9 @@ export default function CampaignsPage() {
     go_live_time: '06:00',
     expiry_time: '22:00',
     exclude_from_renewal_reminders: false,
+    portal_client_id: null as string | null,
+    portal_client_name: null as string | null,
+    portal_client_url: null as string | null,
   };
   const [form, setForm] = useState(defaultForm);
 
@@ -407,6 +420,38 @@ export default function CampaignsPage() {
     return () => clearInterval(interval);
   }, [deletingSchedules]);
 
+  // Loaded once per time the form opens — used for the "Link to Approval
+  // Portal Client" search. Missing env config on the server surfaces here
+  // as a plain error rather than breaking the form itself.
+  useEffect(() => {
+    if (!showForm) return;
+    setPortalClientsError('');
+    fetch('/api/portal/clients')
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) { setPortalClientsError(data.error || 'Could not load the client list'); return; }
+        setPortalClients(data.clients || []);
+      })
+      .catch(() => setPortalClientsError('Could not reach the Approval Portal'));
+  }, [showForm]);
+
+  // Fetches live approval status for whichever client this campaign is
+  // already linked to, once per time the form opens on an existing link.
+  useEffect(() => {
+    if (!showForm || !form.portal_client_id) { setPortalStatus(null); setPortalStatusError(''); return; }
+    setPortalStatusLoading(true);
+    setPortalStatusError('');
+    fetch(`/api/portal/clients/${encodeURIComponent(form.portal_client_id)}/status`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) { setPortalStatusError(data.error || 'Could not load approval status'); return; }
+        setPortalStatus(data);
+      })
+      .catch(() => setPortalStatusError('Could not reach the Approval Portal'))
+      .finally(() => setPortalStatusLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm, form.portal_client_id]);
+
   async function loadCampaigns() {
     setLoading(true);
     const res = await fetch('/api/campaigns');
@@ -592,6 +637,9 @@ export default function CampaignsPage() {
       go_live_time: campaign.go_live_time || '06:00',
       expiry_time: campaign.expiry_time || '22:00',
       exclude_from_renewal_reminders: !!campaign.exclude_from_renewal_reminders,
+      portal_client_id: campaign.portal_client_id ?? null,
+      portal_client_name: campaign.portal_client_name ?? null,
+      portal_client_url: campaign.portal_client_url ?? null,
     });
     setEditingCampaignId(campaign.id);
     setShowForm(true);
@@ -852,6 +900,13 @@ export default function CampaignsPage() {
                       <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: rowBg }}>
                         <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
                           {c.sponsor_name}
+                          {c.portal_client_url && (
+                            <a href={c.portal_client_url} target="_blank" rel="noopener noreferrer" title={`Open "${c.portal_client_name}" in the Approval Portal`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ marginLeft: 6, fontSize: 11, color: '#0071e3', textDecoration: 'none' }}>
+                              🔗
+                            </a>
+                          )}
                           {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{effectiveSpotsPerWeek(c)}</td>
@@ -1179,6 +1234,77 @@ export default function CampaignsPage() {
                   <span style={{ fontSize: 13, color: '#ddd' }}>Exclude from renewal reminder emails</span>
                 </label>
                 <p style={{ fontSize: 11, color: '#888', marginTop: 4, marginLeft: 24 }}>For internal promos or station IDs that don't need a renewal follow-up — this campaign will still auto-expire normally, it just won't trigger a reminder email as it approaches its end date.</p>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', background: '#2a2a2c', borderRadius: 8, padding: 14 }}>
+                <label style={{ ...S.label, color: '#ddd' }}>Approval Portal Client</label>
+                {portalClientsError && (
+                  <p style={{ fontSize: 12, color: '#e08080', margin: '4px 0 8px' }}>⚠ {portalClientsError}</p>
+                )}
+                {form.portal_client_id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: 'white' }}>🔗 {form.portal_client_name}</span>
+                    {portalStatus?.portalUrl && (
+                      <a href={portalStatus.portalUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#4da3ff' }}>
+                        View in Approval Portal ↗
+                      </a>
+                    )}
+                    <button type="button" onClick={() => setForm(f => ({ ...f, portal_client_id: null, portal_client_name: null, portal_client_url: null }))}
+                      style={{ fontSize: 12, color: '#e08080', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      Unlink
+                    </button>
+
+                    {portalStatusLoading && <p style={{ fontSize: 12, color: '#888', margin: '8px 0 0', width: '100%' }}>Loading approval status...</p>}
+                    {portalStatusError && <p style={{ fontSize: 12, color: '#e08080', margin: '8px 0 0', width: '100%' }}>⚠ {portalStatusError}</p>}
+                    {portalStatus && portalStatus.files?.length > 0 && (
+                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                        {portalStatus.files.map((f, i) => {
+                          const pill = f.status === 'approved' ? { bg: '#d4f1dc', fg: '#1a7a35' }
+                            : f.status === 'rejected' ? { bg: '#f5b5b5', fg: '#8a1414' }
+                            : { bg: '#fce0bc', fg: '#8a4700' };
+                          return (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#333335', borderRadius: 6, padding: '6px 10px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: pill.bg, color: pill.fg, flexShrink: 0 }}>{f.status}</span>
+                              <span style={{ fontSize: 12, color: '#ddd', flex: 1 }}>{f.name}</span>
+                              {f.notes && <span style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>{f.notes}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={portalClientSearch}
+                      onChange={(e) => { setPortalClientSearch(e.target.value); setShowPortalClientDropdown(true); }}
+                      onFocus={() => setShowPortalClientDropdown(true)}
+                      placeholder="Search clients in the Approval Portal..."
+                      style={{ ...S.input, background: '#4a4a4c', color: 'white' }}
+                    />
+                    {showPortalClientDropdown && portalClientSearch && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: '#3a3a3c', border: '0.5px solid #555', borderRadius: 7, marginTop: 4, maxHeight: 180, overflowY: 'auto' }}>
+                        {portalClients.filter((c) => c.name.toLowerCase().includes(portalClientSearch.toLowerCase())).slice(0, 20).map((c) => (
+                          <div key={c.id} onClick={() => {
+                            setForm(f => ({ ...f, portal_client_id: c.id, portal_client_name: c.name, portal_client_url: c.portalUrl || null }));
+                            setPortalClientSearch('');
+                            setShowPortalClientDropdown(false);
+                          }}
+                            style={{ padding: '8px 12px', fontSize: 13, color: 'white', cursor: 'pointer' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#4a4a4c')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                            {c.name}
+                          </div>
+                        ))}
+                        {portalClients.filter((c) => c.name.toLowerCase().includes(portalClientSearch.toLowerCase())).length === 0 && (
+                          <div style={{ padding: '8px 12px', fontSize: 12, color: '#888' }}>No matching clients</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p style={{ fontSize: 11, color: '#888', marginTop: 8 }}>Optional — links this campaign to its client record in the separate Ad Approval Portal, for a direct link and live approval status here.</p>
               </div>
 
               {/* Specific breaks toggle */}

@@ -32,4 +32,11 @@ export async function ensureCampaignCategoryColumns() {
       value TEXT
     )
   `;
+  // Links a campaign to its corresponding client record in the separate
+  // Ad Approval Portal (SQLite, on the cPanel host) — portal_client_name
+  // is a cached display copy so the UI can show it without an extra fetch,
+  // refreshed whenever the link is set or changed.
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS portal_client_id TEXT`;
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS portal_client_name TEXT`;
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS portal_client_url TEXT`;
 }

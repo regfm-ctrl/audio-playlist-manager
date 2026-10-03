@@ -54,6 +54,7 @@ function summarizeCampaignChanges(before: any, after: any, beforeFiles: any[], a
   if ((before.end_date || null) !== (after.end_date || null)) changes.push(`end date ${before.end_date || 'ongoing'} → ${after.end_date || 'ongoing'}`);
   if (!!before.randomize_weekly !== !!after.randomize_weekly) changes.push(`randomize weekly ${before.randomize_weekly ? 'on' : 'off'} → ${after.randomize_weekly ? 'on' : 'off'}`);
   if (!!before.exclude_from_renewal_reminders !== !!after.exclude_from_renewal_reminders) changes.push(`renewal reminders ${before.exclude_from_renewal_reminders ? 'excluded' : 'included'} → ${after.exclude_from_renewal_reminders ? 'excluded' : 'included'}`);
+  if ((before.portal_client_id || null) !== (after.portal_client_id || null)) changes.push(`approval portal client ${before.portal_client_name ? `"${before.portal_client_name}"` : 'none'} → ${after.portal_client_name ? `"${after.portal_client_name}"` : 'none'}`);
 
   const beforePaths = new Set(beforeFiles.map((f) => f.localPath));
   const afterPaths = new Set(afterFiles.map((f) => f.localPath));
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
     position, position_type, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
-    exclude_from_renewal_reminders,
+    exclude_from_renewal_reminders, portal_client_id, portal_client_name, portal_client_url,
   } = await req.json();
 
   // audio_files is the canonical list going forward. The singular columns
@@ -129,14 +130,14 @@ export async function POST(req: NextRequest) {
       spots_per_week, distribution_type, per_day_counts,
       allowed_days, time_from, time_to, allowed_breaks,
       position, position_type, start_date, end_date, created_by, booking_reference, booking_details, randomize_weekly,
-      go_live_time, expiry_time, exclude_from_renewal_reminders
+      go_live_time, expiry_time, exclude_from_renewal_reminders, portal_client_id, portal_client_name, portal_client_url
     ) VALUES (
       ${sponsor_name}, ${business_category || null}, ${firstFile.id ?? ''}, ${firstFile.name ?? ''}, ${firstFile.dir ?? ''}, ${firstFile.localPath ?? audio_local_path},
       ${JSON.stringify(filesList)},
       ${spots_per_week}, ${distribution_type}, ${per_day_counts ? JSON.stringify(per_day_counts) : null},
       ${allowed_days ?? null}, ${time_from ?? null}, ${time_to ?? null}, ${allowed_breaks ?? null},
       ${position ?? -1}, ${position_type || 'middle'}, ${start_date}, ${end_date ?? null}, ${user.username}, ${booking_reference || null}, ${booking_details || null}, ${!!randomize_weekly},
-      ${go_live_time || '06:00'}, ${expiry_time || '22:00'}, ${!!exclude_from_renewal_reminders}
+      ${go_live_time || '06:00'}, ${expiry_time || '22:00'}, ${!!exclude_from_renewal_reminders}, ${portal_client_id || null}, ${portal_client_name || null}, ${portal_client_url || null}
     ) RETURNING *
   `;
   await logActivity((user as any).userId ?? 0, user.username, 'CAMPAIGN_CREATED', '/api/campaigns',
@@ -199,7 +200,7 @@ export async function PATCH(req: NextRequest) {
     spots_per_week, distribution_type, per_day_counts,
     allowed_days, time_from, time_to, allowed_breaks,
     position, position_type, start_date, end_date, booking_reference, booking_details, randomize_weekly, go_live_time, expiry_time,
-    exclude_from_renewal_reminders,
+    exclude_from_renewal_reminders, portal_client_id, portal_client_name, portal_client_url,
   } = body;
 
   const filesList = normalizeAudioFilesExpiry(Array.isArray(audio_files) && audio_files.length > 0
@@ -249,7 +250,10 @@ export async function PATCH(req: NextRequest) {
       randomize_weekly = ${!!randomize_weekly},
       go_live_time = ${go_live_time || '06:00'},
       expiry_time = ${expiry_time || '22:00'},
-      exclude_from_renewal_reminders = ${!!exclude_from_renewal_reminders}
+      exclude_from_renewal_reminders = ${!!exclude_from_renewal_reminders},
+      portal_client_id = ${portal_client_id || null},
+      portal_client_name = ${portal_client_name || null},
+      portal_client_url = ${portal_client_url || null}
     WHERE id = ${id}
     RETURNING *
   `;
