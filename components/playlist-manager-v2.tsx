@@ -60,6 +60,14 @@ interface PlaylistManagerProps {
 }
 
 // ─── Sidebar icon components ────────────────────────────────────────────────
+const IconClients = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <circle cx="5.5" cy="5" r="2"/>
+    <circle cx="11" cy="6" r="1.7"/>
+    <path d="M2 13c0-2 1.5-3.5 3.5-3.5S9 11 9 13"/>
+    <path d="M9.5 9.8c1.6 0 3 1.3 3 3.2"/>
+  </svg>
+)
 const IconBreaks = () => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
     <rect x="2" y="3" width="5" height="10" rx="1"/>
@@ -758,6 +766,7 @@ export function PlaylistManager({ accessToken, onAuthError }: PlaylistManagerPro
 
           <div style={{ padding: '10px 8px 8px' }}>
             <span style={{ fontSize: 9, color: '#4a4a4c', padding: '0 6px', marginBottom: 5, letterSpacing: '0.1em', fontWeight: 600, display: 'block' }}>MENU</span>
+            <a href="https://www.broadcastnow.com.au/approvals/admin/clients.php" target="_blank" rel="noopener noreferrer" style={S.navItem}><IconClients /> Clients</a>
             {roleLoaded && !isViewer && <a href="/" style={S.navItemActive}><IconBreaks /> Sponsorship Breaks</a>}
             {roleLoaded && !isViewer && <a href="/schedules" style={S.navItem}><IconSchedule /> Schedules</a>}
             <a href="/campaigns" style={S.navItem}><IconCampaign /> Campaigns</a>
