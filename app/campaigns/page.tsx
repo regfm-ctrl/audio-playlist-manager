@@ -25,6 +25,7 @@ type Campaign = {
   portal_client_id: string | null;
   portal_client_name: string | null;
   portal_client_url: string | null;
+  agreement_id?: string | null;
   audio_file_name: string;
   audio_file_id: string | null;
   audio_directory_name: string | null;
@@ -769,6 +770,7 @@ export default function CampaignsPage() {
   );
 
   const [showExpiringSoon, setShowExpiringSoon] = useState(false);
+  const [showNeedsSetup, setShowNeedsSetup] = useState(false);
 
   function daysUntilEnd(c: Campaign): number | null {
     if (!c.end_date) return null;
@@ -777,7 +779,10 @@ export default function CampaignsPage() {
     return Math.round((end - today) / (1000 * 60 * 60 * 24));
   }
 
+  const pendingCount = campaigns.filter(c => c.status === 'pending').length;
+
   const filteredCampaigns = campaigns.filter(c => {
+    if (showNeedsSetup && c.status !== 'pending') return false;
     if (showExpiringSoon) {
       const d = daysUntilEnd(c);
       if (c.status !== 'active' || d === null || d < 0 || d > 14) return false;
@@ -834,6 +839,18 @@ export default function CampaignsPage() {
             <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0, color: '#1d1d1f' }}>Campaigns</h1>
             <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Schedule sponsor audio across multiple breaks automatically</p>
           </div>
+          <button
+            onClick={() => setShowNeedsSetup(v => !v)}
+            title="Campaigns created from signed agreements that still need audio and scheduling"
+            style={{
+              padding: '7px 14px', borderRadius: 7, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: showNeedsSetup ? '#b9d4f7' : (pendingCount > 0 ? '#e8f1fd' : 'white'),
+              color: showNeedsSetup || pendingCount > 0 ? '#0a4a9e' : '#555',
+              border: showNeedsSetup || pendingCount > 0 ? '0.5px solid #8db8ee' : '0.5px solid #ccc',
+            }}
+          >
+            📝 Needs Setup{pendingCount > 0 ? ` (${pendingCount})` : ''}
+          </button>
           <button
             onClick={() => setShowExpiringSoon(v => !v)}
             title="Active campaigns ending within the next 14 days"
@@ -897,7 +914,7 @@ export default function CampaignsPage() {
                   </thead>
                   <tbody>
                     {filteredCampaigns.map((c, i) => {
-                      const rowBg = c.status === 'expired' ? '#fbd5d5' : c.status === 'paused' ? '#fce0bc' : (i % 2 === 1 ? '#f7f8fa' : 'white');
+                      const rowBg = c.status === 'expired' ? '#fbd5d5' : c.status === 'paused' ? '#fce0bc' : c.status === 'pending' ? '#dcebfc' : (i % 2 === 1 ? '#f7f8fa' : 'white');
                       return (
                       <tr key={c.id} style={{ borderBottom: '0.5px solid #f0f0f0', background: rowBg }}>
                         <td style={{ padding: '10px 14px', fontWeight: 500, whiteSpace: 'nowrap' }}>
@@ -910,6 +927,11 @@ export default function CampaignsPage() {
                             </a>
                           )}
                           {c.business_category && <div style={{ fontSize: 10, color: '#888', fontWeight: 400, marginTop: 1 }}>{c.business_category}</div>}
+                          {c.agreement_id && (
+                            <div title="Created automatically from a signed Sponsorship Agreement in the Approval Portal" style={{ fontSize: 10, color: '#0a4a9e', fontWeight: 500, marginTop: 1 }}>
+                              📝 From agreement{c.booking_reference ? ` ${c.booking_reference}` : ''}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', textAlign: 'center' }}>{effectiveSpotsPerWeek(c)}</td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
@@ -942,15 +964,20 @@ export default function CampaignsPage() {
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <span style={{
                             padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500,
-                            background: c.status === 'active' ? '#d4f1dc' : c.status === 'expired' ? '#f5b5b5' : c.status === 'paused' ? '#f7b878' : '#e2e2e4',
-                            color: c.status === 'active' ? '#1a7a35' : c.status === 'expired' ? '#8a1414' : c.status === 'paused' ? '#8a4700' : '#555',
+                            background: c.status === 'active' ? '#d4f1dc' : c.status === 'expired' ? '#f5b5b5' : c.status === 'paused' ? '#f7b878' : c.status === 'pending' ? '#9cc3f2' : '#e2e2e4',
+                            color: c.status === 'active' ? '#1a7a35' : c.status === 'expired' ? '#8a1414' : c.status === 'paused' ? '#8a4700' : c.status === 'pending' ? '#0a3d85' : '#555',
                           }}>
                             {c.status}
                           </span>
                         </td>
                         <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', gap: 10 }}>
-                            {roleLoaded && !isViewer && (
+                            {roleLoaded && !isViewer && c.status === 'pending' && (
+                              <button onClick={() => editCampaign(c)} title="Add the audio and choose days/times, then Confirm to put this campaign live" style={{ fontSize: 12, color: '#0a4a9e', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                                Set up →
+                              </button>
+                            )}
+                            {roleLoaded && !isViewer && c.status !== 'pending' && (
                               <button onClick={() => toggleStatus(c)} style={{ fontSize: 12, color: '#0071e3', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                                 {c.status === 'active' ? 'Pause' : 'Resume'}
                               </button>
@@ -971,8 +998,10 @@ export default function CampaignsPage() {
                                 );
                               })()}
                             </span>
-                            <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Export PDF</a>
-                            {roleLoaded && !isViewer && (
+                            {c.status !== 'pending' && (
+                              <a href={`/api/campaigns/${c.id}/broadcast-schedule`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8def', textDecoration: 'none' }}>Export PDF</a>
+                            )}
+                            {roleLoaded && !isViewer && c.status !== 'pending' && (
                               <button onClick={() => viewCampaignSchedules(c)} style={{ fontSize: 12, color: '#0a6e46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Schedules</button>
                             )}
                             {roleLoaded && !isViewer && (

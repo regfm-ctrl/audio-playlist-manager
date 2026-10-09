@@ -39,4 +39,11 @@ export async function ensureCampaignCategoryColumns() {
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS portal_client_id TEXT`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS portal_client_name TEXT`;
   await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS portal_client_url TEXT`;
+  // Set when a campaign was created automatically from a signed Sponsorship
+  // Agreement in the Approval Portal. The unique index is what makes the
+  // inbound endpoint safe to retry — the same agreement can never create
+  // two campaigns, even if the Portal re-sends or two requests race.
+  // (NULLs are distinct in a unique index, so ordinary campaigns are fine.)
+  await sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS agreement_id TEXT`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS campaigns_agreement_id_uniq ON campaigns (agreement_id)`;
 }
