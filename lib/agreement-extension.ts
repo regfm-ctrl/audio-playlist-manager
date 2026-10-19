@@ -67,6 +67,7 @@ export async function applyExtension(
   const c: any = rows[0];
   if (!c) throw new Error('Campaign not found');
 
+  const oldEnd: string | null = c.end_date ?? null;
   const oldInstant = c.end_date ? endInstant(c.end_date, c.expiry_time) : null;
   const newInstant = endInstant(newEndDate, c.expiry_time);
 
@@ -105,5 +106,5 @@ export async function applyExtension(
     RETURNING id
   `;
 
-  return { oldEnd: c.end_date ?? null, newEnd: newEndDate, placements: moved.length, filesMoved, filesLeft };
+  return { oldEnd, newEnd: newEndDate, placements: moved.length, filesMoved, filesLeft };
 }
