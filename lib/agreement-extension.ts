@@ -61,7 +61,7 @@ export async function applyExtension(
   sql: Sql,
   campaignId: number,
   newEndDate: string,
-  agreementNumber: string | null,
+  by: string | null, // who or what asked, e.g. 'agreement SA-0042' or 'the Approval Portal'
 ): Promise<{ oldEnd: string | null; newEnd: string; placements: number; filesMoved: number; filesLeft: number }> {
   const rows = await sql`SELECT id, end_date, expiry_time, audio_files, booking_details FROM campaigns WHERE id = ${campaignId}`;
   const c: any = rows[0];
@@ -89,7 +89,7 @@ export async function applyExtension(
     return f;
   });
 
-  const note = `Extended to ${newEndDate}${agreementNumber ? ` by agreement ${agreementNumber}` : ''}`;
+  const note = `Extended to ${newEndDate}${by ? ` by ${by}` : ''}`;
   const details = c.booking_details ? `${c.booking_details} | ${note}` : note;
 
   await sql`

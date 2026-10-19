@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from './lib/auth';
 
-// /api/portal/agreement-signed and /api/portal/agreement-extended are called server-to-server by the Approval
+// /api/portal/agreement-signed, agreement-extended, campaigns and campaign-extended are called server-to-server by the Approval
 // Portal (no user cookie) — it authenticates itself with the shared
 // PORTAL_API_SECRET inside the route, the same way /api/cron does with
-// CRON_SECRET. Only these two paths are opened up, not the rest of /api/portal.
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/schedules/run', '/api/cron', '/api/portal/agreement-signed', '/api/portal/agreement-extended'];
+// CRON_SECRET. Only these four paths are opened up, not the rest of /api/portal.
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/schedules/run', '/api/cron', '/api/portal/agreement-signed', '/api/portal/agreement-extended', '/api/portal/campaigns', '/api/portal/campaign-extended'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

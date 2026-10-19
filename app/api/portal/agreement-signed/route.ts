@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, duplicate: true, extended: true, campaign_id: decision.campaign.id, status: 'active', new_end_date: a.endDate });
       }
       try {
-        const r = await applyExtension(sql as any, decision.campaign.id, a.endDate, a.agreementNumber);
+        const r = await applyExtension(sql as any, decision.campaign.id, a.endDate, `agreement ${a.agreementNumber ?? a.agreementId}`);
         await logActivity(0, 'Approval Portal', 'CAMPAIGN_EXTENDED_FROM_AGREEMENT', '/api/portal/agreement-signed',
           `"${decision.campaign.sponsor_name ?? a.clientName}" — agreement ${a.agreementNumber ?? a.agreementId}: end date ${r.oldEnd ?? 'ongoing'} → ${r.newEnd}; ` +
           `${r.placements} placement(s) moved` + (r.filesMoved ? `, ${r.filesMoved} audio file expiry moved` : '') +

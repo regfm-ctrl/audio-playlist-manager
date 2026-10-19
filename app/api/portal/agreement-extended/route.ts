@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `The campaign already runs to ${c.end_date}, which is later than ${newEnd}. Only extending is supported.` }, { status: 409 });
     }
 
-    const r = await applyExtension(sql as any, c.id, newEnd, agreementNumber);
+    const r = await applyExtension(sql as any, c.id, newEnd, `agreement ${agreementNumber ?? agreementId}`);
     await logActivity(0, 'Approval Portal', 'CAMPAIGN_EXTENDED_FROM_AGREEMENT', '/api/portal/agreement-extended',
       `"${c.sponsor_name}" — agreement ${agreementNumber ?? agreementId} extended: end date ${r.oldEnd ?? 'ongoing'} → ${r.newEnd}; ` +
       `${r.placements} placement(s) moved` + (r.filesMoved ? `, ${r.filesMoved} audio file expiry moved` : '') +
