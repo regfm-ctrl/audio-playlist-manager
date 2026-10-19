@@ -4,6 +4,7 @@ import { sql } from '@/lib/db';
 import { ensureCampaignCategoryColumns } from '@/lib/campaign-schema';
 import { validateAgreementPayload } from '@/lib/agreement-campaign';
 import { logActivity } from '@/lib/activity';
+import { decideExtension, applyExtension } from '@/lib/agreement-extension';
 
 // Called server-to-server by the Approval Portal when a client signs a
 // Sponsorship Agreement. Creates a campaign in the 'pending' state: it has
@@ -53,6 +54,62 @@ export async function POST(req: NextRequest) {
 
   try {
     await ensureCampaignCategoryColumns();
+    await sql`
+      CREATE TABLE IF NOT EXISTS portal_agreement_extensions (
+        agreement_id TEXT PRIMARY KEY,
+        campaign_id INTEGER NOT NULL,
+        old_end_date TEXT,
+        new_end_date TEXT NOT NULL,
+        applied_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    // Already handled? Either it made a campaign, or it extended one. Never do either twice.
+    const doneBefore = await sql`SELECT campaign_id, new_end_date FROM portal_agreement_extensions WHERE agreement_id = ${a.agreementId}`;
+    if (doneBefore.length > 0) {
+      return NextResponse.json({
+        ok: true, duplicate: true, extended: true,
+        campaign_id: doneBefore[0].campaign_id, status: 'active', new_end_date: doneBefore[0].new_end_date,
+      });
+    }
+    const madeBefore = await sql`SELECT id, status FROM campaigns WHERE agreement_id = ${a.agreementId}`;
+    if (madeBefore.length > 0) {
+      return NextResponse.json({ ok: true, duplicate: true, campaign_id: madeBefore[0].id, status: madeBefore[0].status });
+    }
+
+    // Renewal: a client with exactly one running campaign gets that campaign extended, not a second one.
+    const clientCampaigns = await sql`
+      SELECT id, status, spots_per_week, end_date, sponsor_name FROM campaigns
+      WHERE portal_client_id = ${a.clientId} AND status IN ('active', 'pending', 'paused')
+    `;
+    const decision = decideExtension(clientCampaigns as any[], { spotsPerWeek: a.spotsPerWeek, endDate: a.endDate });
+    if (decision.extend && a.endDate) {
+      // Claim the agreement first. If two requests race, only one gets the row and the other reports a duplicate.
+      const claim = await sql`
+        INSERT INTO portal_agreement_extensions (agreement_id, campaign_id, old_end_date, new_end_date)
+        VALUES (${a.agreementId}, ${decision.campaign.id}, ${decision.campaign.end_date}, ${a.endDate})
+        ON CONFLICT (agreement_id) DO NOTHING
+        RETURNING agreement_id
+      `;
+      if (claim.length === 0) {
+        return NextResponse.json({ ok: true, duplicate: true, extended: true, campaign_id: decision.campaign.id, status: 'active', new_end_date: a.endDate });
+      }
+      try {
+        const r = await applyExtension(sql as any, decision.campaign.id, a.endDate, a.agreementNumber);
+        await logActivity(0, 'Approval Portal', 'CAMPAIGN_EXTENDED_FROM_AGREEMENT', '/api/portal/agreement-signed',
+          `"${decision.campaign.sponsor_name ?? a.clientName}" — agreement ${a.agreementNumber ?? a.agreementId}: end date ${r.oldEnd ?? 'ongoing'} → ${r.newEnd}; ` +
+          `${r.placements} placement(s) moved` + (r.filesMoved ? `, ${r.filesMoved} audio file expiry moved` : '') +
+          (r.filesLeft ? `, ${r.filesLeft} audio file(s) have their own expiry, unchanged — CHECK` : ''));
+        return NextResponse.json({
+          ok: true, duplicate: false, extended: true, campaign_id: decision.campaign.id, status: 'active',
+          previous_end_date: r.oldEnd, new_end_date: r.newEnd, placements_moved: r.placements, audio_files_with_own_expiry: r.filesLeft,
+        });
+      } catch (err) {
+        // Nothing was changed for sure only if the claim is released; do it so the Portal's retry can try again.
+        await sql`DELETE FROM portal_agreement_extensions WHERE agreement_id = ${a.agreementId}`;
+        throw err;
+      }
+    }
 
     const bookingDetails = `${a.spotsPerWeek} spots per week${a.notes ? ` — ${a.notes}` : ''}`;
 
@@ -98,7 +155,7 @@ export async function POST(req: NextRequest) {
 
     await logActivity(0, 'Approval Portal', 'CAMPAIGN_CREATED_FROM_AGREEMENT', '/api/portal/agreement-signed',
       `"${a.clientName}" — agreement ${a.agreementNumber ?? a.agreementId}: ${a.spotsPerWeek} spots/week, ${a.startDate} → ${a.endDate ?? 'ongoing'}` +
-      (otherCount > 0 ? ` (client already has ${otherCount} other campaign(s))` : ''));
+      (otherCount > 0 ? ` (client already has ${otherCount} other campaign(s); not extended because ${decision.extend ? 'of an error' : decision.reason})` : ''));
 
     return NextResponse.json({
       ok: true,
