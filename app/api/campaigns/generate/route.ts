@@ -269,6 +269,12 @@ export async function POST(req: NextRequest) {
         else errors.push(r.message)
       }
 
+      // A campaign made from a signed Portal agreement starts as 'pending' and is set up through this edit path,
+      // so confirming it here is what puts it live. Only 'pending' is changed: a paused or expired campaign stays as it is.
+      try {
+        await sql`UPDATE campaigns SET status = 'active' WHERE id = ${campaign.id} AND status = 'pending'`
+      } catch {}
+
       return NextResponse.json({
         ok: true,
         created, removed, refreshed,
