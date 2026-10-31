@@ -29,20 +29,27 @@ export async function GET(req: NextRequest) {
 
   try {
     await ensureCampaignCategoryColumns();
-    const clientId = (new URL(req.url).searchParams.get('client_id') || '').trim();
+    const params = new URL(req.url).searchParams;
+    const clientId = (params.get('client_id') || '').trim();
+    const all = !clientId && ['1', 'true'].includes((params.get('all') || '').trim().toLowerCase());
     const rows = clientId
       ? await sql`
           SELECT id, sponsor_name, status, start_date, end_date, portal_client_id, agreement_id, booking_reference
           FROM campaigns WHERE portal_client_id = ${clientId} ORDER BY end_date NULLS LAST, id`
+      : all
+      ? await sql`
+          SELECT id, sponsor_name, status, start_date, end_date, portal_client_id, agreement_id, booking_reference
+          FROM campaigns ORDER BY end_date NULLS LAST, id`
       : await sql`
           SELECT id, sponsor_name, status, start_date, end_date, portal_client_id, agreement_id, booking_reference
           FROM campaigns WHERE portal_client_id IS NOT NULL AND portal_client_id <> '' ORDER BY portal_client_id, end_date NULLS LAST, id`;
 
     return NextResponse.json({
       ok: true,
+      all,
       campaigns: (rows as any[]).map((r) => ({
         id: r.id,
-        client_id: String(r.portal_client_id),
+        client_id: r.portal_client_id ? String(r.portal_client_id) : '',
         name: r.sponsor_name,
         status: r.status,
         start_date: r.start_date ?? null,
