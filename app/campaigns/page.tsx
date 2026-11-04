@@ -163,6 +163,7 @@ export default function CampaignsPage() {
     position_type: 'middle',
     start_date: new Date().toISOString().split('T')[0],
     end_date: '',
+    extra_flights: [] as { start_date: string; end_date: string }[],
     use_specific_breaks: false,
     randomize_weekly: false,
     go_live_time: '06:00',
@@ -484,6 +485,17 @@ export default function CampaignsPage() {
     if (!form.sponsor_name) { setMsg('Please enter a sponsor name'); return; }
     if (form.audio_files.length === 0) { setMsg('Please select at least one audio file'); return; }
 
+    if (!editingCampaignId) {
+      const flights = form.extra_flights;
+      if (flights.some(fl => !fl.start_date || !fl.end_date)) { setMsg('Please fill in both dates for every extra flight, or remove the empty ones'); return; }
+      if (flights.some(fl => fl.end_date < fl.start_date)) { setMsg('An extra flight ends before it starts'); return; }
+      if (flights.length > 0 && !form.end_date) { setMsg('Please give the first flight an end date when adding more flights'); return; }
+      const all = [{ start_date: form.start_date, end_date: form.end_date }, ...flights].sort((a, b) => a.start_date.localeCompare(b.start_date));
+      for (let i = 1; i < all.length; i++) {
+        if (all[i].start_date <= all[i - 1].end_date) { setMsg('Two flights overlap. Each flight needs its own dates.'); return; }
+      }
+    }
+
     if (playlists.length === 0) { setMsg('Loading breaks...'); await loadPlaylists(); }
 
     // Zero out any day's spot count that isn't actually in Allowed Days —
@@ -494,8 +506,9 @@ export default function CampaignsPage() {
       Object.entries(form.per_day_counts).map(([day, count]) => [day, form.allowed_days.includes(Number(day)) ? count : 0])
     );
 
+    const { extra_flights: _extraFlights, ...formForCampaign } = form;
     const campaign = {
-      ...form,
+      ...formForCampaign,
       id: editingCampaignId ?? undefined,
       allowed_days: form.allowed_days.join(','),
       allowed_breaks: form.use_specific_breaks && form.allowed_breaks.length > 0
@@ -572,9 +585,56 @@ export default function CampaignsPage() {
       const data = await res.json();
       if (res.ok) {
         const errNote = data.errors?.length > 0 ? ` (${data.errors.length} failed)` : '';
+        let flightNote = '';
+        const flights = isEdit ? [] : form.extra_flights;
+        if (flights.length > 0) {
+          const flightResults: string[] = [];
+          for (let i = 0; i < flights.length; i++) {
+            const fl = flights[i];
+            const label = `${fl.start_date} to ${fl.end_date}`;
+            setMsg(`Creating flight ${i + 2} of ${flights.length + 1} (${label})...`);
+            try {
+              const flightCampaign = { ...previewCampaign, id: undefined, start_date: fl.start_date, end_date: fl.end_date };
+              const tokenA = await getGoogleAccessToken();
+              const pRes = await fetch('/api/campaigns/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ campaign: flightCampaign, playlists, accessToken: tokenA, confirm: false, isEdit: false }),
+              });
+              const pData = await pRes.json();
+              if (!pRes.ok) { flightResults.push(`${label}: ${pData.error}`); continue; }
+              const saveRes = await fetch('/api/campaigns', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(flightCampaign),
+              });
+              const savedFlight = await saveRes.json();
+              const tokenB = await getGoogleAccessToken();
+              const cRes = await fetch('/api/campaigns/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  campaign: { ...flightCampaign, id: savedFlight.id },
+                  previewSlots: pData.preview,
+                  playlists,
+                  accessToken: tokenB,
+                  confirm: true,
+                  isEdit: false,
+                }),
+              });
+              const cData = await cRes.json();
+              if (!cRes.ok) flightResults.push(`${label}: ${cData.error}`);
+            } catch (e: any) {
+              flightResults.push(`${label}: ${e?.message ?? 'failed'}`);
+            }
+          }
+          flightNote = flightResults.length === 0
+            ? ` ${flights.length} more flight${flights.length === 1 ? '' : 's'} created.`
+            : ` ⚠️ ${flights.length - flightResults.length} of ${flights.length} extra flights created. Not created: ${flightResults.join('; ')}`;
+        }
         setMsg(isEdit
           ? `✅ Campaign updated! ${data.created} added, ${data.removed} removed, ${data.refreshed} unchanged${errNote}.`
-          : `✅ Campaign created! ${data.created} of ${data.total} schedules added${errNote}.`);
+          : `✅ Campaign created! ${data.created} of ${data.total} schedules added${errNote}.${flightNote}`);
         setPreview(null);
         setPreviewCampaign(null);
         setPreviewDiff(null);
@@ -634,6 +694,7 @@ export default function CampaignsPage() {
       position_type: campaign.position_type || 'middle',
       start_date: campaign.start_date.split('T')[0],
       end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
+      extra_flights: [],
       use_specific_breaks: allowedBreaks.length > 0,
       randomize_weekly: !!campaign.randomize_weekly,
       go_live_time: campaign.go_live_time || '06:00',
@@ -1249,6 +1310,22 @@ export default function CampaignsPage() {
                 <label style={{ ...S.label, color: '#ddd' }}>End Date <span style={{ color: '#888', fontWeight: 400 }}>(optional)</span></label>
                 <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} min={form.start_date} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
               </div>
+              {!editingCampaignId && (
+                <div style={{ gridColumn: '1 / -1', background: '#2a2a2c', borderRadius: 8, padding: 14 }}>
+                  <label style={{ ...S.label, color: '#ddd' }}>Extra flights <span style={{ color: '#888', fontWeight: 400 }}>(optional)</span></label>
+                  <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>For a sponsor who runs in separate blocks. The dates above are the first flight; each extra flight below becomes its own campaign with the same audio, spots and breaks, and the same booking reference.</p>
+                  {form.extra_flights.map((fl, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 600, width: 56 }}>Flight {i + 2}</span>
+                      <input type="date" value={fl.start_date} onChange={e => setForm(f => ({ ...f, extra_flights: f.extra_flights.map((x, j) => j === i ? { ...x, start_date: e.target.value } : x) }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
+                      <span style={{ color: '#888', fontSize: 12 }}>to</span>
+                      <input type="date" value={fl.end_date} min={fl.start_date} onChange={e => setForm(f => ({ ...f, extra_flights: f.extra_flights.map((x, j) => j === i ? { ...x, end_date: e.target.value } : x) }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
+                      <button type="button" onClick={() => setForm(f => ({ ...f, extra_flights: f.extra_flights.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: '#e08080', cursor: 'pointer', fontSize: 13 }}>Remove</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setForm(f => ({ ...f, extra_flights: [...f.extra_flights, { start_date: '', end_date: '' }] }))} style={{ padding: '6px 12px', background: '#4a4a4c', color: '#ddd', border: '0.5px solid #666', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>+ Add a flight</button>
+                </div>
+              )}
               <div>
                 <label style={{ ...S.label, color: '#ddd' }}>Go-Live Time</label>
                 <input type="time" value={form.go_live_time} onChange={e => setForm(f => ({ ...f, go_live_time: e.target.value }))} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
