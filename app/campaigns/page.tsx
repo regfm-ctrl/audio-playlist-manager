@@ -485,7 +485,7 @@ export default function CampaignsPage() {
     if (!form.sponsor_name) { setMsg('Please enter a sponsor name'); return; }
     if (form.audio_files.length === 0) { setMsg('Please select at least one audio file'); return; }
 
-    if (!editingCampaignId) {
+    {
       const flights = form.extra_flights;
       if (flights.some(fl => !fl.start_date || !fl.end_date)) { setMsg('Please fill in both dates for every extra flight, or remove the empty ones'); return; }
       if (flights.some(fl => fl.end_date < fl.start_date)) { setMsg('An extra flight ends before it starts'); return; }
@@ -586,7 +586,7 @@ export default function CampaignsPage() {
       if (res.ok) {
         const errNote = data.errors?.length > 0 ? ` (${data.errors.length} failed)` : '';
         let flightNote = '';
-        const flights = isEdit ? [] : form.extra_flights;
+        const flights = form.extra_flights;
         if (flights.length > 0) {
           const flightResults: string[] = [];
           for (let i = 0; i < flights.length; i++) {
@@ -633,7 +633,7 @@ export default function CampaignsPage() {
             : ` ⚠️ ${flights.length - flightResults.length} of ${flights.length} extra flights created. Not created: ${flightResults.join('; ')}`;
         }
         setMsg(isEdit
-          ? `✅ Campaign updated! ${data.created} added, ${data.removed} removed, ${data.refreshed} unchanged${errNote}.`
+          ? `✅ Campaign updated! ${data.created} added, ${data.removed} removed, ${data.refreshed} unchanged${errNote}.${flightNote}`
           : `✅ Campaign created! ${data.created} of ${data.total} schedules added${errNote}.${flightNote}`);
         setPreview(null);
         setPreviewCampaign(null);
@@ -1310,10 +1310,10 @@ export default function CampaignsPage() {
                 <label style={{ ...S.label, color: '#ddd' }}>End Date <span style={{ color: '#888', fontWeight: 400 }}>(optional)</span></label>
                 <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} min={form.start_date} style={{ ...S.input, background: '#4a4a4c', color: 'white', colorScheme: 'dark' }} />
               </div>
-              {!editingCampaignId && (
+              {(
                 <div style={{ gridColumn: '1 / -1', background: '#2a2a2c', borderRadius: 8, padding: 14 }}>
                   <label style={{ ...S.label, color: '#ddd' }}>Extra flights <span style={{ color: '#888', fontWeight: 400 }}>(optional)</span></label>
-                  <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>For a sponsor who runs in separate blocks. The dates above are the first flight; each extra flight below becomes its own campaign with the same audio, spots and breaks, and the same booking reference.</p>
+                  <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>For a sponsor who runs in separate blocks. The dates above are this campaign's first flight; each extra flight below becomes its own new campaign with the same sponsor, audio, spots and breaks, and the same booking reference.</p>
                   {form.extra_flights.map((fl, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 600, width: 56 }}>Flight {i + 2}</span>
