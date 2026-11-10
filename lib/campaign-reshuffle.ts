@@ -26,6 +26,20 @@ export function getMelbourneMondayDateString(referenceDate: Date = new Date()): 
   return melbDate.toISOString().split('T')[0];
 }
 
+// A campaign that hasn't reached its start date yet must not be placed on
+// air. The weekly reshuffle writes straight into the Drive playlists, so
+// without this check a future-dated weekly campaign (a later flight, say)
+// went live the first time the reshuffle ran. Same go-live moment as the
+// start-date gate used when the campaign is created: go_live_time (default
+// 06:00 Melbourne) on the start date.
+function hasReachedStartDate(campaign: any): boolean {
+  if (!campaign.start_date) return true;
+  const [sy, sm, sd] = String(campaign.start_date).split('T')[0].split('-').map(Number);
+  const [gh, gm] = (campaign.go_live_time || '06:00').split(':').map(Number);
+  if (!sy || !sm || !sd) return true;
+  return melbourneWallTimeToUTC(sy, sm, sd, gh || 0, gm || 0) <= new Date();
+}
+
 function isDueForReshuffle(campaign: any): boolean {
   if (!campaign.randomize_weekly) return false;
   // A campaign whose end date has already passed should never get
@@ -39,6 +53,7 @@ function isDueForReshuffle(campaign: any): boolean {
     const endThreshold = melbourneWallTimeToUTC(y, m, d, eh, em || 0);
     if (endThreshold <= new Date()) return false;
   }
+  if (!hasReachedStartDate(campaign)) return false;
   const thisMonday = getMelbourneMondayDateString();
   if (!campaign.last_reshuffled_at) return true;
   const lastMonday = getMelbourneMondayDateString(new Date(campaign.last_reshuffled_at));
@@ -429,7 +444,8 @@ export async function reshuffleDueCampaigns(force = false): Promise<{ processed:
     WHERE randomize_weekly = true AND status = 'active'
     ORDER BY last_reshuffled_at ASC NULLS FIRST
   `;
-  const due = force ? (campaigns as any[]) : (campaigns as any[]).filter(isDueForReshuffle);
+  // Even a forced run never places a campaign that hasn't started yet.
+  const due = force ? (campaigns as any[]).filter(hasReachedStartDate) : (campaigns as any[]).filter(isDueForReshuffle);
   if (due.length === 0) return { processed: 0, totalEligible: due.length, details: [] };
 
   const accessToken = await getValidAccessToken();
