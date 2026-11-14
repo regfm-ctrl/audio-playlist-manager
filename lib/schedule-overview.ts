@@ -1,5 +1,5 @@
 import { sql } from '@/lib/db';
-import { parseBreakDay, parseBreakTime } from '@/lib/break-time';
+import { parseBreakDay, parseBreakTime, melbourneWallTimeToUTC } from '@/lib/break-time';
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -28,7 +28,7 @@ function formatTime(hour: number, minute: number): string {
 // guaranteed to match the real file — that would need reading Drive live).
 export async function getWeeklyOverview(): Promise<WeeklyOverview> {
   const rows = await sql`
-    SELECT s.playlist_name, s.audio_file_name, s.position_type, c.sponsor_name
+    SELECT s.playlist_name, s.audio_file_name, s.position_type, c.sponsor_name, c.start_date, c.go_live_time
     FROM schedules s
     LEFT JOIN campaigns c ON c.id = s.campaign_id
     WHERE s.is_active = true
@@ -37,7 +37,16 @@ export async function getWeeklyOverview(): Promise<WeeklyOverview> {
   type SlotBuild = { day: number; time: string; minuteOfDay: number; entries: { label: string; weight: number }[] };
   const slotsByKey = new Map<string, SlotBuild>();
 
+  const now = new Date();
   for (const row of rows as any[]) {
+    // A campaign that hasn't reached its start date has its placements saved
+    // but not yet put on air (they go in at go-live time on the start date),
+    // so it doesn't belong in a view of what is airing.
+    if (row.start_date) {
+      const [sy, sm, sd] = String(row.start_date).split('T')[0].split('-').map(Number);
+      const [gh, gm] = String(row.go_live_time || '06:00').split(':').map(Number);
+      if (sy && sm && sd && melbourneWallTimeToUTC(sy, sm, sd, gh || 0, gm || 0) > now) continue;
+    }
     const day = parseBreakDay(row.playlist_name);
     const time = parseBreakTime(row.playlist_name);
     if (day === null || !time) continue;
