@@ -23,6 +23,7 @@ export default function ScheduleOverviewPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
   const [roleLoaded, setRoleLoaded] = useState(false);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     fetch('/api/schedule-overview')
@@ -50,6 +51,17 @@ export default function ScheduleOverviewPage() {
     Array.from(allSponsors).sort().forEach((s, i) => {
       sponsorColorMap.set(s, SPONSOR_COLORS[i % SPONSOR_COLORS.length]);
     });
+  }
+
+  // Sponsor search: when something is typed, only the breaks containing a
+  // matching sponsor are shown, with the matching sponsor picked out.
+  const q = query.trim().toLowerCase();
+  const matches = (name: string) => q !== '' && name.toLowerCase().includes(q);
+  const allSponsorNames = overview ? Array.from(new Set(Object.values(overview).flatMap(day => day.flatMap(slot => slot.sponsors)))).sort() : [];
+  const matchedNames = allSponsorNames.filter(matches);
+  let matchedBreaks = 0;
+  if (overview && q) {
+    for (const day of Object.values(overview)) for (const slot of day) if (slot.sponsors.some(matches)) matchedBreaks++;
   }
 
   const IconClients = () => <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5.5" cy="5" r="2"/><circle cx="11" cy="6" r="1.7"/><path d="M2 13c0-2 1.5-3.5 3.5-3.5S9 11 9 13"/><path d="M9.5 9.8c1.6 0 3 1.3 3 3.2"/></svg>;
@@ -94,13 +106,33 @@ export default function ScheduleOverviewPage() {
             <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: '#1a1a1a' }}>Weekly Overview</h1>
             <p style={{ fontSize: 13, color: '#888', margin: '3px 0 0' }}>Every active campaign, combined across the week</p>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="search"
+              list="sponsor-names"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') setQuery(''); }}
+              placeholder="Find a sponsor…"
+              aria-label="Find a sponsor"
+              style={{ width: 240, padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13, outline: 'none', background: 'white', color: '#1a1a1a' }}
+            />
+            <datalist id="sponsor-names">{allSponsorNames.map(n => <option key={n} value={n} />)}</datalist>
           <a href="/api/schedule-overview/pdf" target="_blank" rel="noopener noreferrer"
             style={{ padding: '8px 16px', background: '#0071e3', color: 'white', borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
             Download PDF
           </a>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {q && overview && (
+            <p style={{ fontSize: 13, margin: '0 0 14px', color: matchedBreaks ? '#1a1a1a' : '#b3261e' }}>
+              {matchedBreaks
+                ? <><strong>{matchedNames.length === 1 ? matchedNames[0] : `${matchedNames.length} sponsors match "${query.trim()}"`}</strong> is in {matchedBreaks} break{matchedBreaks === 1 ? '' : 's'} this week. <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', color: '#0071e3', cursor: 'pointer', fontSize: 13, padding: 0 }}>Clear</button></>
+                : <>No sponsor matching "{query.trim()}" is in any break. <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', color: '#0071e3', cursor: 'pointer', fontSize: 13, padding: 0 }}>Clear</button></>}
+            </p>
+          )}
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Loader2 className="animate-spin" size={24} color="#888" /></div>
           ) : !overview ? (
@@ -108,12 +140,13 @@ export default function ScheduleOverviewPage() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12 }}>
               {DAY_NAMES.map((dayName, dayIdx) => {
-                const slots = overview[String(dayIdx)] || [];
+                const allSlots = overview[String(dayIdx)] || [];
+                const slots = q ? allSlots.filter(slot => slot.sponsors.some(matches)) : allSlots;
                 return (
                   <div key={dayIdx} style={{ background: 'white', borderRadius: 10, border: '0.5px solid #ddd', padding: 12, minHeight: 200 }}>
                     <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 8px', color: '#1a1a1a' }}>{dayName}</p>
                     {slots.length === 0 ? (
-                      <p style={{ fontSize: 12, color: '#bbb', margin: 0 }}>Nothing scheduled</p>
+                      <p style={{ fontSize: 12, color: '#bbb', margin: 0 }}>{q ? 'Not in a break' : 'Nothing scheduled'}</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {slots.map((slot, i) => (
@@ -122,8 +155,10 @@ export default function ScheduleOverviewPage() {
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                               {slot.sponsors.map(s => {
                                 const color = sponsorColorMap.get(s) || { bg: '#333', text: '#ccc' };
+                                const hit = matches(s);
+                                const dim = q !== '' && !hit;
                                 return (
-                                  <span key={s} style={{ fontSize: 11, background: color.bg, color: color.text, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>{s}</span>
+                                  <span key={s} style={{ fontSize: 11, background: color.bg, color: color.text, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap', opacity: dim ? 0.3 : 1, outline: hit ? '2px solid #ffd60a' : undefined, fontWeight: hit ? 600 : undefined }}>{s}</span>
                                 );
                               })}
                             </div>
